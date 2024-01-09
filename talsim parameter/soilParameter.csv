@@ -1,6 +1,6 @@
 ﻿SoilTexture;TextureUnit;TextureType;TexturRestrictions;SoilType;TypeUnit;TypeType;TypeRestrictions
 ID_Soil;-;int;;Id;-;int;
-Name;-;string;max length 4;Name;-;int;
+NameSoil;-;string;max length 4;Name;-;int;
 Description;-;string;;LayerThickness1;m;float ;0 > x
 BulkDensityClass;-;int;1 >= x >= 5;SoilTextureId1;-;int;
 Category;-;int;1 = Sand , 2 = Silt , 3 = Clay;;;;
