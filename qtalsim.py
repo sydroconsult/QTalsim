@@ -30,10 +30,11 @@ from .resources import *
 # Import the code for the dialog
 from .qtalsim_dialog import QTalsimDialog
 import os.path
-from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsApplication, QgsProcessingFeedback, QgsVectorFileWriter, QgsProcessingFeatureSourceDefinition
+from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes
 from qgis.analysis import QgsGeometrySnapper
 import processing
 import pandas as pd
+
 
 class QTalsim:
     """QGIS Plugin Implementation."""
@@ -71,6 +72,7 @@ class QTalsim:
         self.first_start = None
 
         self.unique_values_landuse = set()
+
         self.ezgLayer = None
         self.clippingEZG = None
         self.soilLayer = None
@@ -939,7 +941,7 @@ class QTalsim:
         #Create Table
         self.dlg.tableLanduseMapping.setRowCount(len(self.unique_values_landuse))
         self.dlg.tableLanduseMapping.setColumnCount(2)
-        self.dlg.tableLanduseMapping.setHorizontalHeaderLabels(['Eingabefelder', 'Talsim Fields'])
+        self.dlg.tableLanduseMapping.setHorizontalHeaderLabels(['Landuse Types Input Layer', 'Talsim Fields'])
         
         # Set the size of the table columns
         self.dlg.tableLanduseMapping.setColumnWidth(0, 300)
@@ -1298,21 +1300,6 @@ class QTalsim:
         QgsProject.instance().addMapLayer(self.eflLayer) 
 
         '''
-        #Delete:
-        sums_by_subbasin = {}
-
-        # Iterating over features in the layer
-        for feature in self.eflLayer.getFeatures():
-            subbasin_id = feature['SubBasinId']
-            percentage_share = feature['PercentageShare']  
-
-            # Add to the sum for the corresponding SubBasinId
-            if subbasin_id in sums_by_subbasin:
-                sums_by_subbasin[subbasin_id] += percentage_share
-            else:
-                sums_by_subbasin[subbasin_id] = percentage_share
-        '''
-        '''
             Create .LNZ
         '''
         resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
@@ -1407,12 +1394,14 @@ class QTalsim:
         self.geopackage_path = os.path.join(self.outputFolder, f"{geopackage_name}.gpkg")
         if self.geopackage_path:
             self.dlg.outputPath.setText(self.geopackage_path)
-        
-    #DELETE:?       
-    def toggleComboBoxVisibility(self, combobox, checkbox):
-    # Toggle visibility based on checkbox state
-        combobox.setVisible(checkbox.isChecked())
-
+    
+    def connectButtontoFunction(self, button, function):
+        try:
+            button.clicked.disconnect()
+        except TypeError:
+            pass  # No connection exists yet 
+        button.clicked.connect(function)
+    
     #Eliminate
     def run(self):
         """Run method that performs all the real work"""
@@ -1420,44 +1409,63 @@ class QTalsim:
         if self.first_start == True:
             self.first_start = False
             self.dlg = QTalsimDialog()
+            self.dlg.onCreateSoilLayer.setVisible(False)
+            self.dlg.onLanduseConfirm.setVisible(False)
+            self.dlg.onCreateLanduseLayer.setVisible(False)
 
-        
-        layers = QgsProject.instance().layerTreeRoot().children() #fetch layers of Project
+        def getAllLayers(root):
+            layers = []
+            for child in root.children():
+                if isinstance(child, QgsLayerTreeGroup):
+                    # If the child is a group, recursively get layers from this group
+                    layers.extend(getAllLayers(child))
+                elif isinstance(child, QgsLayerTreeLayer):
+                    layer = child.layer()
+                    # If the child is a layer, add it to the list
+                    if layer.geometryType() == QgsWkbTypes.PolygonGeometry:
+                        layers.append(layer)
+            return layers
+
+        # Usage
+        root = QgsProject.instance().layerTreeRoot()
+        layers = getAllLayers(root)
+        #layers = QgsProject.instance().layerTreeRoot().children() #fetch layers of Project
         self.feedback = self.CustomFeedback(self.log_to_qtalsim_tab)
         
         #EZG
-        self.dlg.onEZG.clicked.connect(self.selectEZG)
+        self.connectButtontoFunction(self.dlg.onEZG, self.selectEZG)
 
-        #Overlaps
-        self.dlg.onOverlappingSoils.clicked.connect(self.checkOverlappingSoil)
+
 
         #Soil
-        self.dlg.onSoil.clicked.connect(self.selectSoil)
-        self.dlg.onConfirmSoilMapping.clicked.connect(self.confirmSoilMapping)
-        self.dlg.onSoilTypeDelete.clicked.connect(self.deleteSoilTypes)
-        self.dlg.onDeleteOverlappingSoilFeatures.clicked.connect(self.deleteOverlappingSoilFeatures)
-        self.dlg.onCheckGapsSoil.clicked.connect(self.checkGapsSoil)
+        self.connectButtontoFunction(self.dlg.onSoil, self.selectSoil)
+        self.connectButtontoFunction(self.dlg.onConfirmSoilMapping, self.confirmSoilMapping)
+        self.connectButtontoFunction(self.dlg.onSoilTypeDelete, self.deleteSoilTypes)
+        self.connectButtontoFunction(self.dlg.onOverlappingSoils, self.checkOverlappingSoil)
+        self.connectButtontoFunction(self.dlg.onDeleteOverlappingSoilFeatures, self.deleteOverlappingSoilFeatures)
+        self.connectButtontoFunction(self.dlg.onCheckGapsSoil, self.checkGapsSoil)
         self.dlg.comboboxModeEliminateSoil.clear()
         self.dlg.comboboxModeEliminateSoil.addItems(['Largest Area', 'Smallest Area','Largest Common Boundary']) 
-        self.dlg.onFillGapsSoil.clicked.connect(self.fillGapsSoil)
-        self.dlg.onCreateSoilLayer.setVisible(False)
-        self.dlg.onCreateSoilLayer.clicked.connect(self.createSoilLayer)
+        self.connectButtontoFunction(self.dlg.onFillGapsSoil, self.fillGapsSoil)
+        
+        self.connectButtontoFunction(self.dlg.onCreateSoilLayer, self.createSoilLayer)
 
         #Landuse
-        self.dlg.onLanduseConfirm.setVisible(False)
-        self.dlg.onLanduseLayer.clicked.connect(self.selectLanduse) 
-        self.dlg.onLanduseField.clicked.connect(self.landuseAssigning)
-        self.dlg.onLanduseTalsimCSV.clicked.connect(self.openLanduseTalsimCSV)
-        self.dlg.onCheckOverlappingLanduse.clicked.connect(self.checkOverlappingLanduse)
-        self.dlg.onLanduseStart.clicked.connect(self.fillLanduseTable)
-        self.dlg.onLanduseConfirm.clicked.connect(self.confirmLanduseClassification)
-        self.dlg.onDeleteOverlapsLanduse.clicked.connect(self.deleteOverlappingLanduseFeatures)
-        self.dlg.onCheckGapsLanduse.clicked.connect(self.checkGapsLanduse)
+        self.connectButtontoFunction(self.dlg.onLanduseLayer, self.selectLanduse)
+        self.connectButtontoFunction(self.dlg.onLanduseField, self.landuseAssigning)
+        self.connectButtontoFunction(self.dlg.onLanduseTalsimCSV, self.openLanduseTalsimCSV)
+        self.connectButtontoFunction(self.dlg.onLanduseStart, self.fillLanduseTable)
+        self.connectButtontoFunction(self.dlg.onLanduseConfirm, self.confirmLanduseClassification)
+        self.connectButtontoFunction(self.dlg.onCheckOverlappingLanduse, self.checkOverlappingLanduse)
+        self.connectButtontoFunction(self.dlg.onDeleteOverlapsLanduse, self.deleteOverlappingLanduseFeatures)
+        self.connectButtontoFunction(self.dlg.onCheckGapsLanduse, self.checkGapsLanduse)
+
+      
         self.dlg.comboboxModeEliminateLanduse.clear()
         self.dlg.comboboxModeEliminateLanduse.addItems(['Largest Area', 'Smallest Area','Largest Common Boundary'])  
-        self.dlg.onFillGapsLanduse.clicked.connect(self.fillGapsLanduse)
-        self.dlg.onCreateLanduseLayer.setVisible(False)
-        self.dlg.onCreateLanduseLayer.clicked.connect(self.createLanduseLayer)
+        
+        self.connectButtontoFunction(self.dlg.onFillGapsLanduse, self.fillGapsLanduse)
+        self.connectButtontoFunction(self.dlg.onCreateLanduseLayer, self.createLanduseLayer) 
 
         #Radio Buttons csv file
         self.dlg.radioButtonComma.toggled.connect(self.updateCsvDelimiter)
@@ -1466,20 +1474,23 @@ class QTalsim:
         self.dlg.radioButtonSpace.toggled.connect(self.updateCsvDelimiter)
         self.dlg.radioButtonOtherDel.toggled.connect(self.updateCsvDelimiter)
        
-
         #Intersect
-        self.dlg.onPerformIntersect.clicked.connect(self.performIntersect)
-        self.dlg.comboboxEZGLayer.clear() #clear combobox EZG from previous runs
-        self.dlg.comboboxEZGLayer.addItems([layer.name() for layer in layers])
-        self.dlg.comboboxSoilLayer.clear() #clear combobox soil from previous runs
-        self.dlg.comboboxSoilLayer.addItems([layer.name() for layer in layers])
-        self.dlg.comboboxLanduseLayer.clear() #clear combobox Landuse from previous runs
-        self.dlg.comboboxLanduseLayer.addItems([layer.name() for layer in layers])
+        self.connectButtontoFunction(self.dlg.onPerformIntersect, self.performIntersect) 
+
+        if self.ezgLayer is None:
+            self.dlg.comboboxEZGLayer.clear() #clear combobox EZG from previous runs
+            self.dlg.comboboxEZGLayer.addItems([layer.name() for layer in layers])
+        if self.soilLayer is None:
+            self.dlg.comboboxSoilLayer.clear() #clear combobox soil from previous runs
+            self.dlg.comboboxSoilLayer.addItems([layer.name() for layer in layers])
+        if self.landuseLayer is None:
+            self.dlg.comboboxLanduseLayer.clear() #clear combobox Landuse from previous runs
+            self.dlg.comboboxLanduseLayer.addItems([layer.name() for layer in layers])
         self.dlg.comboboxEliminateModes.clear()
         self.dlg.comboboxEliminateModes.addItems(['Largest Area', 'Smallest Area','Largest Common Boundary'])
 
         #Outputfile
-        self.dlg.onOutputFolder.clicked.connect(self.selectOutputFolder)
+        self.connectButtontoFunction(self.dlg.onOutputFolder, self.selectOutputFolder) 
         
         # show the dialog
         self.dlg.show()
