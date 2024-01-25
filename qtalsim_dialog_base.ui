@@ -55,7 +55,7 @@
            <x>0</x>
            <y>-609</y>
            <width>952</width>
-           <height>1432</height>
+           <height>1397</height>
           </rect>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout">
@@ -81,7 +81,7 @@
                  </size>
                 </property>
                 <property name="text">
-                 <string>Select Catchment Area Layer</string>
+                 <string>Select Sub-basin Layer</string>
                 </property>
                </widget>
               </item>
@@ -122,7 +122,7 @@
                  </size>
                 </property>
                 <property name="text">
-                 <string>Confirm Catchment Area</string>
+                 <string>Confirm Sub-basins</string>
                 </property>
                </widget>
               </item>
@@ -135,7 +135,7 @@
             <item>
              <widget class="QLabel" name="labelUICatchment">
               <property name="text">
-               <string>Unique Identifier Catchment Area</string>
+               <string>Unique Identifier Sub-basins</string>
               </property>
              </widget>
             </item>
@@ -241,7 +241,7 @@
                      <string/>
                     </property>
                     <property name="text">
-                     <string>Confirm Soil</string>
+                     <string>Confirm Soil Layer</string>
                     </property>
                    </widget>
                   </item>
@@ -254,7 +254,7 @@
                     <property name="minimumSize">
                      <size>
                       <width>0</width>
-                      <height>250</height>
+                      <height>200</height>
                      </size>
                     </property>
                    </widget>
@@ -305,6 +305,9 @@
                        </item>
                        <item>
                         <widget class="QPushButton" name="onDeleteOverlappingSoilFeatures">
+                         <property name="toolTip">
+                          <string>Deletes all overlapping parts of soil layer. If two polygons overlap, the overlapping part is assigned to the smaller of the two polygons.</string>
+                         </property>
                          <property name="text">
                           <string>Delete Overlapping Features</string>
                          </property>
@@ -318,17 +321,7 @@
                         <number>7</number>
                        </property>
                        <item>
-                        <widget class="QListWidget" name="soilTypesDelete">
-                         <property name="minimumSize">
-                          <size>
-                           <width>0</width>
-                           <height>50</height>
-                          </size>
-                         </property>
-                         <property name="selectionMode">
-                          <enum>QAbstractItemView::MultiSelection</enum>
-                         </property>
-                        </widget>
+                        <widget class="QTableWidget" name="tableSoilTypeDelete"/>
                        </item>
                        <item>
                         <widget class="QPushButton" name="onSoilTypeDelete">
@@ -339,7 +332,7 @@
                           </sizepolicy>
                          </property>
                          <property name="text">
-                          <string>Delete Soil Types</string>
+                          <string>Delete Overlapping Part of Selected Features</string>
                          </property>
                         </widget>
                        </item>
@@ -425,9 +418,9 @@
              <property name="geometry">
               <rect>
                <x>0</x>
-               <y>-524</y>
+               <y>0</y>
                <width>907</width>
-               <height>1022</height>
+               <height>1231</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -485,7 +478,7 @@
                     </size>
                    </property>
                    <property name="title">
-                    <string>Edit Landuse Layer</string>
+                    <string>Edit Land Use Layer</string>
                    </property>
                    <property name="alignment">
                     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
@@ -509,7 +502,7 @@
                     <item>
                      <widget class="QGroupBox" name="Landuse">
                       <property name="title">
-                       <string>Select and Check Landuse Layer</string>
+                       <string>Select and Check Land Use Layer</string>
                       </property>
                       <layout class="QGridLayout" name="gridLayout_2">
                        <item row="2" column="1">
@@ -528,14 +521,14 @@
                           <string>Select the field with the land use types in order to be able to make an assignment to the Talsim land use types.</string>
                          </property>
                          <property name="text">
-                          <string>Confirm Field</string>
+                          <string>Confirm Land Use Type</string>
                          </property>
                         </widget>
                        </item>
                        <item row="0" column="0">
                         <widget class="QLabel" name="labelLanduse">
                          <property name="text">
-                          <string>Select Landuse Layer</string>
+                          <string>Select Land Use Layer</string>
                          </property>
                         </widget>
                        </item>
@@ -552,7 +545,7 @@
                        <item row="2" column="0">
                         <widget class="QLabel" name="labelField">
                          <property name="text">
-                          <string>Select Landuse Type</string>
+                          <string>Select Land Use Type</string>
                          </property>
                         </widget>
                        </item>
@@ -562,7 +555,7 @@
                           <string/>
                          </property>
                          <property name="text">
-                          <string>Confirm Layer</string>
+                          <string>Confirm Land Use Layer</string>
                          </property>
                         </widget>
                        </item>
@@ -577,7 +570,7 @@
                          <string>Upload CSV file with the Talsim land use types. Field &quot;Name&quot; should contain the land use types.</string>
                         </property>
                         <property name="title">
-                         <string>Upload Talsim Landuse Names and Parameters</string>
+                         <string>Upload Talsim Land Use Names and Parameters</string>
                         </property>
                         <layout class="QHBoxLayout" name="horizontalLayout_6">
                          <item>
@@ -687,7 +680,7 @@
                       <item>
                        <widget class="QPushButton" name="onLanduseStart">
                         <property name="text">
-                         <string>Start Landuse Mapping</string>
+                         <string>Start Land Use Mapping</string>
                         </property>
                        </widget>
                       </item>
@@ -710,17 +703,17 @@
                       <item>
                        <widget class="QPushButton" name="onLanduseConfirm">
                         <property name="toolTip">
-                         <string>Talsim land use is added to each feature, #unwanted land use types are deleted.</string>
+                         <string>Talsim land use is added to each feature, unwanted land use types are deleted.</string>
                         </property>
                         <property name="text">
-                         <string>Confirm Landuse Mapping</string>
+                         <string>Confirm Land Use Mapping</string>
                         </property>
                        </widget>
                       </item>
                       <item>
                        <widget class="QgsCollapsibleGroupBox" name="mGroupBox_2">
                         <property name="title">
-                         <string>Optional Editing Steps for Landuse Layer</string>
+                         <string>Optional Editing Steps for Land Use Layer</string>
                         </property>
                         <layout class="QVBoxLayout" name="verticalLayout_24">
                          <item>
@@ -734,8 +727,35 @@
                            </item>
                            <item>
                             <widget class="QPushButton" name="onDeleteOverlapsLanduse">
+                             <property name="toolTip">
+                              <string>Deletes all overlapping parts of land use layer. If two polygons overlap, the overlapping part is assigned to the smaller of the two polygons.</string>
+                             </property>
                              <property name="text">
                               <string>Delete Overlapping Features</string>
+                             </property>
+                            </widget>
+                           </item>
+                          </layout>
+                         </item>
+                         <item>
+                          <layout class="QHBoxLayout" name="horizontalLayout_17">
+                           <item>
+                            <widget class="QTableWidget" name="tableLanduseDelete">
+                             <property name="minimumSize">
+                              <size>
+                               <width>0</width>
+                               <height>200</height>
+                              </size>
+                             </property>
+                             <property name="toolTip">
+                              <string>In each row select </string>
+                             </property>
+                            </widget>
+                           </item>
+                           <item>
+                            <widget class="QPushButton" name="onLanduseTypeDelete">
+                             <property name="text">
+                              <string>Delete Overlapping Part of Selected Features</string>
                              </property>
                             </widget>
                            </item>
@@ -770,7 +790,7 @@
                     <item>
                      <widget class="QPushButton" name="onCreateLanduseLayer">
                       <property name="text">
-                       <string>Create Talsim Landuse Layer</string>
+                       <string>Create Land Use Layer</string>
                       </property>
                      </widget>
                     </item>
@@ -790,7 +810,7 @@
              <item>
               <widget class="QGroupBox" name="groupboxIntersect">
                <property name="toolTip">
-                <string>Layers (catchment area, soil, land use) are intersected with each other. Too small HRUs can be deleted.</string>
+                <string>Layers (sub-basins, soil, land use) are intersected with each other. HRUs defined as too small by the user can be deleted.</string>
                </property>
                <property name="title">
                 <string>Intersection of Layers</string>
@@ -825,7 +845,7 @@
                      <string>Minimum share of HRUs in the respective catchment area can be defined here.</string>
                     </property>
                     <property name="text">
-                     <string>Minmum share of HRUs in catchment area [%]</string>
+                     <string>Minmum share of HRUs in Sub-basin [%]</string>
                     </property>
                    </widget>
                   </item>
@@ -889,21 +909,39 @@
             </layout>
            </widget>
           </item>
-          <item>
-           <widget class="QDialogButtonBox" name="button_box">
-            <property name="locale">
-             <locale language="English" country="UnitedStates"/>
-            </property>
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="standardButtons">
-             <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-            </property>
-           </widget>
-          </item>
          </layout>
         </widget>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDialogButtonBox" name="finalButtonBox">
+        <property name="toolTip">
+         <string notr="true"/>
+        </property>
+        <property name="statusTip">
+         <string notr="true"/>
+        </property>
+        <property name="whatsThis">
+         <string notr="true"/>
+        </property>
+        <property name="accessibleName">
+         <string notr="true"/>
+        </property>
+        <property name="accessibleDescription">
+         <string notr="true"/>
+        </property>
+        <property name="locale">
+         <locale language="English" country="UnitedStates"/>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="standardButtons">
+         <set>QDialogButtonBox::Cancel|QDialogButtonBox::Help|QDialogButtonBox::Ok|QDialogButtonBox::Reset</set>
+        </property>
+        <property name="centerButtons">
+         <bool>false</bool>
+        </property>
        </widget>
       </item>
      </layout>
@@ -922,7 +960,7 @@
  <resources/>
  <connections>
   <connection>
-   <sender>button_box</sender>
+   <sender>finalButtonBox</sender>
    <signal>accepted()</signal>
    <receiver>QTalsimDialogBase</receiver>
    <slot>accept()</slot>
@@ -938,7 +976,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>button_box</sender>
+   <sender>finalButtonBox</sender>
    <signal>rejected()</signal>
    <receiver>QTalsimDialogBase</receiver>
    <slot>reject()</slot>

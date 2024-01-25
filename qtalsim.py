@@ -23,7 +23,7 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon, QCursor, QMovie
-from qgis.PyQt.QtWidgets import QAction, QTableWidgetItem, QComboBox, QFileDialog, QLabel, QInputDialog
+from qgis.PyQt.QtWidgets import QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton
 from qgis.PyQt.QtCore import QVariant
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -34,7 +34,7 @@ from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsFeature, QgsGeome
 from qgis.analysis import QgsGeometrySnapper
 import processing
 import pandas as pd
-
+import webbrowser
 
 class QTalsim:
     """QGIS Plugin Implementation."""
@@ -66,10 +66,17 @@ class QTalsim:
         # Declare instance attributes
         self.actions = []
         self.menu = self.tr(u'&QTalsim')
-        
         # Check if plugin was started the first time in current QGIS session
         # Must be set in initGui() to survive plugin reloads
+
         self.first_start = None
+        self.initialize_parameters()
+
+    def initialize_parameters(self):
+        '''
+            Initialize the parameters
+        '''
+        self.dialog_status = None
 
         self.unique_values_landuse = set()
 
@@ -78,14 +85,18 @@ class QTalsim:
         self.soilLayer = None
         self.soilFieldNames = []
         self.soilLayerIntermediate = None
+        self.soilGaps = None
+
         self.landuseLayer = None
         self.landuseFields = []
         self.landuseField = None
+        self.landuseTalsim = None
         self.dfLanduseTalsim = None
         self.selected_landuse_parameters = None
         self.delimiter = ','
         self.finalLayer = None
         self.parameterFieldsLanduse = None
+        self.landuseGaps = None
 
         #Field Names
         self.slopeField = None #Changed by user
@@ -108,6 +119,8 @@ class QTalsim:
         self.soilTypeFinal = None
         self.outputFolder = None
 
+        self.geopackage_path = None
+        
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
         """Get the translation for a string using Qt translation API.
@@ -239,6 +252,10 @@ class QTalsim:
         def reportError(self, error, fatalError=False):
             level = Qgis.Critical if fatalError else Qgis.Warning
             self.log_function(f"Error: {error}", level)
+    
+    '''
+        QTalsim Functions
+    '''
 
     def log_to_qtalsim_tab(self, message, level):
         '''
@@ -246,6 +263,7 @@ class QTalsim:
         '''
         try:
             QgsMessageLog.logMessage(message, 'QTalsim', level)
+            QCoreApplication.processEvents()
         except Exception as e:
             pass
 
@@ -277,8 +295,10 @@ class QTalsim:
             layer.setName("Layer with overlapping features")
             QgsProject.instance().addMapLayer(layer)
         else:
-            self.log_to_qtalsim_tab(f"No overlapping polygons were found.",level=Qgis.Info)
-        
+            self.log_to_qtalsim_tab(f"No overlapping polygons were detected.",level=Qgis.Info)
+
+        return overlapping_features
+
     def editOverlappingFeatures(self, layer):
         '''
             Deletes overlapping features of input layer.
@@ -290,8 +310,9 @@ class QTalsim:
         for feature in layer.getFeatures():
             index.addFeature(feature) #spatial index for faster processing
         changes_made = False #needed as some overlapping features still existed after one run --> run the function multiple times, until nothing is changed
-        QgsProject.instance().addMapLayer(layer)
-        #Overlapping Logic
+        '''
+            Overlapping Logic
+        '''
         for feature in layer.getFeatures(): #Looping over all features in input layer
             candidate_ids = index.intersects(feature.geometry().boundingBox()) #Possibly overlapping candidates of feature
             for fid in candidate_ids: #loop over possibly overlapping features
@@ -479,12 +500,15 @@ class QTalsim:
             gapsLayer.updateFeature(feature)
         gapsLayer.commitChanges()
 
+        self.log_to_qtalsim_tab("Existing gaps are represented in temporary layer 'Gaps'.",Qgis.Info)
         QgsProject.instance().addMapLayer(gapsLayer)
+
+        return gapsLayer
     
     def fillGaps(self, layer, extent, mode):
         '''
         Fills Gaps
-            First finds gaps between extent layer and layer and then gaps within the layer.
+            First finds gaps between extent layer and layer and then gaps within the layer; fills those gaps with the eliminate-tool.
         :param layer: layer where polygons are eliminated
         :param extent: layer (e.g. dissolved catchment area layer) that defines the boundary of layer
         '''
@@ -571,36 +595,115 @@ class QTalsim:
 
         return layer_without_gaps
     
+    def deleteOverlappingFeatures(self, layer, table, list_overlapping_features):
+        '''
+            Deletes overlapping parts of features that are selected by the user in the table. 
+        '''
+        snapper = QgsGeometrySnapper(layer)
+        layer.startEditing()
+        #index = QgsSpatialIndex()
+        selected_indexes = table.selectionModel().selectedIndexes()
+        selected_cells = [(index.row(), index.column()) for index in selected_indexes]
+        for row, column in selected_cells:
+            feature_id_selected = list_overlapping_features[row][column]
+            feature_selected = layer.getFeature(feature_id_selected)
+            if column == 0:
+                column_to_keep = 1
+            elif column == 1:
+                column_to_keep = 0
+            feature_id_keep = list_overlapping_features[row][column_to_keep]
+            feature_keep = layer.getFeature(feature_id_keep)
+            # Calculate the difference between feature and other_feature and create new geom for the feature (that contains other_feature)
+            new_geom = feature_selected.geometry().difference(feature_keep.geometry())
+            snapped_geometry = snapper.snapGeometry(new_geom, snapTolerance=0.01)  # snap the new_geom to the nearest points (necessary to delete slight gaps/overlaps)
+            layer.changeGeometry(feature_selected.id(), snapped_geometry)
+            if feature_selected.geometry().contains(feature_keep.geometry()) or feature_selected.geometry().within(feature_keep.geometry()) or feature_selected.geometry().overlaps(feature_keep.geometry()):
+                buffered_geometry = feature_keep.geometry().buffer(0.0001, 5)  # very small buffer
+                new_geom = feature_selected.geometry().difference(buffered_geometry)
+                snapped_geometry = snapper.snapGeometry(new_geom, snapTolerance=0.01)  # snapping the feature to the nearest feature
+                layer.changeGeometry(feature_selected.id(), snapped_geometry)
+        layer.commitChanges()
+
+        invalid_feature_ids = []
+        for feature in layer.getFeatures():
+            # Check if the feature's geometry is valid
+            if not feature.geometry().isGeosValid():
+                # If not valid, add its ID to the list
+                invalid_feature_ids.append(feature.id())
+        if len(invalid_feature_ids) >= 1:
+            layer = processing.run("native:fixgeometries", {'INPUT': layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']        
+        return layer
+    
+    def on_selection_change(self, table_widget):
+        '''
+            Logic for the tables where the user can select overlapping parts to be deleted
+                Only one of the two features should be selectable
+        '''
+        last_selected_item = {}  # Dictionary to keep track of the last selected item in each row
+
+        for item in table_widget.selectedItems():
+            row = item.row()
+            column = item.column()
+            if column == 2:  #Radio-Buttons are in the third column - making the cell below third column unselectable
+                item.setSelected(False)
+                continue
+            # If there's already a selected item in this row and it's not the current item, deselect it
+            if row in last_selected_item and last_selected_item[row] != item:
+                last_selected_item[row].setSelected(False)
+            last_selected_item[row] = item
+
+    def on_radio_button_toggled(self, checked, layer, feature_id_list, radio_button_to_row, radio_button):
+        if checked:  # The radio button column
+            
+            row = radio_button_to_row[radio_button]
+            feature_ids = feature_id_list[row]
+            layer.removeSelection()
+            layer.selectByIds(feature_ids, QgsVectorLayer.AddToSelection)
+            self.iface.mapCanvas().zoomToSelected(layer)
+            self.log_to_qtalsim_tab(f"Selected Feature IDs: {feature_ids}", Qgis.Info)
+        else:
+            for feature_id in feature_ids:
+                if feature_id in layer.selectedFeatureIds():
+                    layer.selectByIds([feature_id], QgsVectorLayer.RemoveFromSelection)
+
+    '''
+        Sub-basins Layer
+    '''
     def selectEZG(self):
         '''
-            Loads the catchment area layer.
+            Loads the sub-basins layer.
             Deletes overlapping features and duplicates.
-            A temporary catchment area layer, which is used for clipping the soil and landuse layer, is created. 
-            This temporary catchment area layer is a dissolved, non-self-overlapping layer without gaps.
+            A temporary sub-basins layer, which is used for clipping the soil and landuse layer, is created. 
+            This temporary sub-basins layer is a dissolved, non-self-overlapping layer without gaps.
         '''
 
         selected_layer_ezg = self.dlg.comboboxEZGLayer.currentText()
         self.ezgLayer = QgsProject.instance().mapLayersByName(selected_layer_ezg)[0]
         #self.dlg.comboboxIntersectEZGField.addItems([field.name() for field in self.ezgLayer.fields()])
+         #delete overlapping features in the catchment area layer
         outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': self.ezgLayer ,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
         self.ezgLayer, _ = self.editOverlappingFeatures(outputLayer)
         #Dissolve of catchment areas for better clipping performance
         result = processing.run("native:dissolve", {'INPUT': self.ezgLayer, 'FIELD':[],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
         outputLayer = result['OUTPUT']
 
-         #delete overlapping features in the catchment area layer
+        
         result_deleteholes = processing.run("native:deleteholes", {'INPUT':outputLayer,'MIN_AREA':0,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
         self.clippingEZG = result_deleteholes['OUTPUT'] #delete holes within the dissolved catchment area layer for clipping
         #QgsProject.instance().addMapLayer(self.clippingEZG)
 
         self.dlg.comboboxUICatchment.clear() #clear combobox EZG from previous runs
         self.dlg.comboboxUICatchment.addItems([field.name() for field in self.ezgLayer.fields()])
-
+        
         self.dlg.comboboxSlopeField.clear()
         self.dlg.comboboxSlopeField.addItems([field.name() for field in self.ezgLayer.fields()])
-        self.ezgLayer.setName("CatchmentArea")
+        self.ezgLayer.setName("Sub-basins")
         QgsProject.instance().addMapLayer(self.ezgLayer)
-        self.log_to_qtalsim_tab(f"Successfully selected and clipped catchment area layer: {self.ezgLayer.name()}.", Qgis.Info) 
+        self.log_to_qtalsim_tab(f"Successfully selected and clipped sub-basin layer: {self.ezgLayer.name()}.", Qgis.Info) 
+
+    '''
+       Soil Layer
+    '''
 
     def selectSoil(self):
         '''
@@ -667,9 +770,13 @@ class QTalsim:
         '''
             Creates a new Soil Talsim layer, which holds all the parameters of Table soilmapping. 
         '''
+
         self.log_to_qtalsim_tab(f"Starting Soil Mapping.", Qgis.Info) 
+
+        if self.soilLayerIntermediate:
+            QgsProject.instance().removeMapLayer(self.soilLayerIntermediate)
         #Create Layer
-        self.soilLayerIntermediate = QgsVectorLayer(f"Polygon?crs={self.soilLayer.crs().authid()}", "SoilLayer", "memory")
+        self.soilLayerIntermediate = QgsVectorLayer(f"Polygon?crs={self.soilLayer.crs().authid()}", "SoilLayerEdited", "memory")
 
         #Get features of input soil layer
         feats = [feat for feat in self.soilLayer.getFeatures()] 
@@ -690,11 +797,11 @@ class QTalsim:
             old_field = self.dlg.tableSoilMapping.cellWidget(row, 1).currentText() #Current Text of Combo-Box specified by user
             new_field = self.dlg.tableSoilMapping.item(row, 0).text() #Get talsim parameter
             value_mapping[old_field] = new_field
-            if textureTypes[row] == 'string':
+            if textureTypes[row].strip() == 'string':
                 type = QVariant.String
-            elif textureTypes[row] == 'float':
+            elif textureTypes[row].strip() == 'float':
                 type = QVariant.Double
-            elif textureTypes[row] == 'int':
+            elif textureTypes[row].strip() == 'int':
                 type = QVariant.Type.Int
             else:
                 type = QVariant.String
@@ -703,7 +810,7 @@ class QTalsim:
             if self.soilLayerIntermediate.fields().indexOf(old_field) != -1:
                 type_old = self.soilLayerIntermediate.fields().field(old_field).type()
                 if type_old != type:
-                    self.log_to_qtalsim_tab(f'The parameter {old_field} has type {QVariant.typeToName(type_old)}, when it should have type {QVariant.typeToName(type)}.', Qgis.Warning)
+                    self.log_to_qtalsim_tab(f'You entered {old_field} for Talsim parameter {new_field}. Your field has type {QVariant.typeToName(type_old)}, when it should have type {QVariant.typeToName(type)}.', Qgis.Warning)
                     fields_wrong_datatype.append(old_field)
                 #if new_field == 'Name' and old_field is 'Parameter not available':
                    
@@ -748,34 +855,88 @@ class QTalsim:
             self.log_to_qtalsim_tab(e, )
         self.soilLayerIntermediate.dataProvider().reloadData()
 
-        #populate soilTypesDelete
-        self.dlg.soilTypesDelete.clear()
+        self.log_to_qtalsim_tab(f"Finished soil parameter mapping. Inspect results in this temporary layer: {self.soilLayerIntermediate.name()}.", Qgis.Info) 
+        QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
+    
+    def checkOverlappingSoil(self):
+        '''
+            Checks for overlapping soilFeatures and fills the table to delete overlapping parts of features.
+        '''
+        self.overlapping_soil_features = self.checkOverlappingFeatures(self.soilLayerIntermediate)
 
-        # Get the fields of the selected layer
+        #Create unique combinations of the overlapping features
+        unique_combinations_set = set()
+        for feature_pair in self.overlapping_soil_features:
+            # Convert the list to a tuple for set compatibility
+            feature_pair_tuple = tuple(sorted(feature_pair))
+            unique_combinations_set.add(feature_pair_tuple)
+        self.overlapping_soil_features = [list(pair) for pair in unique_combinations_set]
+
+        self.dlg.tableSoilTypeDelete.clear()
+        #self.dlg.tableSoilTypeDelete.setSelectionMode(QListWidget.ExtendedSelection)
+
+        self.dlg.tableSoilTypeDelete.setRowCount(len(self.overlapping_soil_features))
+        self.dlg.tableSoilTypeDelete.setColumnCount(3)
+        self.dlg.tableSoilTypeDelete.setHorizontalHeaderLabels(['Overlapping Feature 1', 'Overlapping Feature 2', 'Show Features in Layer'])
+        
+        # Set the size of the table columns
+        self.dlg.tableSoilTypeDelete.setColumnWidth(0, 200)
+        self.dlg.tableSoilTypeDelete.setColumnWidth(1, 200)
+        self.dlg.tableSoilTypeDelete.setColumnWidth(2, 200)
+
         self.soilFields = self.soilLayerIntermediate.fields()
 
         field_index = self.soilFields.indexFromName(self.nameSoil)
-        # Check if the field index is valid
-        if field_index >= 0:
-            field_values = [feature.attributes()[field_index] for feature in self.soilLayerIntermediate.getFeatures()]
-            self.unique_soiltypes = set(field_values) #Fill data
-            self.dlg.soilTypesDelete.addItems([str(soiltype) for soiltype in self.unique_soiltypes]) 
-        if self.soilLayer:
-            QgsProject.instance().removeMapLayer(self.soilLayer)
-        
-        self.log_to_qtalsim_tab(f"Finished soil parameter mapping. Inspect results in this layer: {self.soilLayerIntermediate.name()}.", Qgis.Info) 
-        QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
+        self.radio_buttons_soil = []
+        self.radio_button_to_row_soil = {}
+        for row, feature_pair in enumerate(self.overlapping_soil_features):
+            feature_id1, feature_id2 = feature_pair
+            feature1 = self.soilLayerIntermediate.getFeature(feature_id1)
+            feature2 = self.soilLayerIntermediate.getFeature(feature_id2)
 
-    def checkOverlappingSoil(self):
+            overlappingName1 = feature1[field_index]
+            overlappingName2 = feature2[field_index]
+            item1 = QTableWidgetItem(overlappingName1) #add first name
+            self.dlg.tableSoilTypeDelete.setItem(row, 0, item1)
+            item2 = QTableWidgetItem(overlappingName2)
+            self.dlg.tableSoilTypeDelete.setItem(row, 1, item2)
+
+            transparent_item = QTableWidgetItem()
+            transparent_item.setFlags(Qt.ItemIsEnabled)
+            self.dlg.tableSoilTypeDelete.setItem(row, 2, transparent_item)
+
+            #Add radio buttons to select features in the layer
+            radio_button = QRadioButton()
+            self.radio_buttons_soil.append(radio_button)
+            self.dlg.tableSoilTypeDelete.setCellWidget(row, 2, radio_button)
+            self.radio_button_to_row_soil[radio_button] = row
+
+
+        self.dlg.tableSoilTypeDelete.itemSelectionChanged.connect(lambda: self.on_selection_change(self.dlg.tableSoilTypeDelete))
+        for radio_button in self.radio_buttons_soil:
+            radio_button.toggled.connect(
+                lambda checked, rb=radio_button: self.on_radio_button_toggled(
+                    checked, self.soilLayerIntermediate, self.overlapping_soil_features, self.radio_button_to_row_soil, rb
+                )
+            )
+        
+    
+    def deleteSoilTypes(self):
         '''
-            Checks for overlapping soilFeatures.
-        '''
-        self.checkOverlappingFeatures(self.soilLayerIntermediate)
+            Deletes overlapping soil features, selected by the user.
+        ''' 
+        for radio_button in self.radio_buttons_soil:
+            radio_button.setChecked(False)
+        self.soilLayerIntermediate = self.deleteOverlappingFeatures(self.soilLayerIntermediate, self.dlg.tableSoilTypeDelete, self.overlapping_soil_features)
+        self.checkOverlappingSoil()
+        self.soilLayerIntermediate.setName("SoilLayerEdited")
+        QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
+        self.log_to_qtalsim_tab(f"Deleting overlapping parts finished.", Qgis.Info)
 
     def deleteOverlappingSoilFeatures(self):
         '''
             Deletes Overlapping Soil Features.
-                Function 'editOverlappingFeatures' is run multiple times (as long as overlapping features exist) to remove all overlapping features.
+                Function 'editOverlappingFeatures' is executed multiple times (as long as overlapping features exist) to remove all overlapping features.
         '''
         changes_made = True
         max_iteration = 5
@@ -791,35 +952,13 @@ class QTalsim:
 
         self.soilLayerIntermediate.setName("SoilLayerEdited")
         QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
-
-    def deleteSoilTypes(self):
-        '''
-            Deletes unwanted soiltypes, selected by the user.
-        '''
-
-        self.soilLayerIntermediate.startEditing()
-        ids_to_delete = []
-        self.soiltypes_to_delete = [item.text() for item in self.dlg.soilTypesDelete.selectedItems()] 
-        field_index = self.soilFields.indexFromName(self.nameSoil)
         
-        for feature in self.soilLayerIntermediate.getFeatures(): 
-            #wenn Feature von self.soiltypeField ist makiert in soilTypesDelete --> löschen
-            if str(feature.attributes()[field_index]) in self.soiltypes_to_delete:
-                ids_to_delete.append(feature.id())
-
-        for fid in ids_to_delete:
-            self.soilLayerIntermediate.deleteFeature(fid)
-        self.log_to_qtalsim_tab(f"Number of Features deleted: {len(ids_to_delete)}", Qgis.Info)
-        self.soilLayerIntermediate.commitChanges()
-
-        self.soilLayerIntermediate.setName("SoilLayerEdited")
-        QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
 
     def checkGapsSoil(self):
         '''
             Checks for gaps in soil layer.
         '''
-        self.checkGaps(self.soilLayerIntermediate, self.clippingEZG)
+        self.soilGaps = self.checkGaps(self.soilLayerIntermediate, self.clippingEZG)
 
     def fillGapsSoil(self):
         '''
@@ -836,6 +975,8 @@ class QTalsim:
         layerWithoutGaps = self.fillGaps(self.soilLayerIntermediate, self.clippingEZG, mode)
         if self.soilLayerIntermediate:
             QgsProject.instance().removeMapLayer(self.soilLayerIntermediate)
+        if self.soilGaps:
+            QgsProject.instance().removeMapLayer(self.soilGaps)
         self.soilLayerIntermediate = layerWithoutGaps
         self.soilLayerIntermediate.setName("SoilLayerEdited")
         self.log_to_qtalsim_tab(f"Filled gaps of layer {self.soilLayerIntermediate.name()}.", Qgis.Info) 
@@ -858,17 +999,25 @@ class QTalsim:
         self.soilTalsim.commitChanges()
         self.soilTalsim.updateFields()
         
+        if self.soilLayer:
+            QgsProject.instance().removeMapLayer(self.soilLayer)
+
         if self.soilLayerIntermediate:
             QgsProject.instance().removeMapLayer(self.soilLayerIntermediate)
         self.soilTalsim.setName("Talsim Soil")
         self.log_to_qtalsim_tab(f"Created Soil Layer with Talsim Parameters: {self.soilTalsim.name()}.", Qgis.Info) 
         QgsProject.instance().addMapLayer(self.soilTalsim)  
 
+    '''
+        Land Use Layer
+    '''
     def selectLanduse(self):
         '''
             Clips Landuse Layer and deletes duplicate geometries. 
         '''
-        self.log_to_qtalsim_tab(f"Starting the clipping process of the Landuse Layer.", Qgis.Info) 
+        self.log_to_qtalsim_tab(f"QTalsim is currently loading. Starting the clipping process of the Landuse Layer.", Qgis.Info)
+        if self.landuseLayer:
+            QgsProject.instance().removeMapLayer(self.landuseLayer)
         selected_layer_name = self.dlg.comboboxLanduseLayer.currentText()
         self.landuseLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
         self.dlg.comboboxLanduseFields.setVisible(True)
@@ -904,6 +1053,9 @@ class QTalsim:
             self.log_to_qtalsim_tab(e,Qgis.Critical)
 
     def updateCsvDelimiter(self):
+        '''
+            Connected with delimiters of CSV-user-upload
+        '''
         try:
             # Load the CSV file into a pandas DataFrame
             if self.dlg.radioButtonComma.isChecked():
@@ -925,6 +1077,9 @@ class QTalsim:
             self.log_to_qtalsim_tab(f"Error: {e}", Qgis.Warning)
 
     def landuseAssigning(self):
+        '''
+            Selects Land use type field.   
+        '''
         self.landuseField = self.dlg.comboboxLanduseFields.currentText()
         field_index = self.landuseFields.indexFromName(self.landuseField)
     
@@ -932,16 +1087,17 @@ class QTalsim:
         if field_index >= 0:
             field_values = [feature.attributes()[field_index] for feature in self.landuseLayer.getFeatures()]
             self.unique_values_landuse = set(field_values)
+        self.log_to_qtalsim_tab(f'Land use field confirmed: {self.landuseField}.', Qgis.Info)
 
     def fillLanduseTable(self):
         '''
-            Fills the Landuse Table with data of the csv-File and Landuse Input Layer.
-                The User can then assign the Landuses to Talsim Landuses.
+            Fills the Land use Table with data of the csv-File and Land use Input Layer.
+                The User can then assign the Landuses to Talsim Land uses.
         '''
         #Create Table
         self.dlg.tableLanduseMapping.setRowCount(len(self.unique_values_landuse))
         self.dlg.tableLanduseMapping.setColumnCount(2)
-        self.dlg.tableLanduseMapping.setHorizontalHeaderLabels(['Landuse Types Input Layer', 'Talsim Fields'])
+        self.dlg.tableLanduseMapping.setHorizontalHeaderLabels(['Land use Types Input Layer', 'Talsim Fields'])
         
         # Set the size of the table columns
         self.dlg.tableLanduseMapping.setColumnWidth(0, 300)
@@ -964,7 +1120,7 @@ class QTalsim:
             self.dlg.tableLanduseMapping.setItem(row, 0, item)
             
             combo_box = QComboBox()
-    
+
             # Get the 'Name' value based on 'Key' or use the original data
             name_value = get_name_from_key(data)
             
@@ -972,6 +1128,8 @@ class QTalsim:
             combo_box.addItem(str(name_value))
             combo_box.addItem('Delete Landuse')
             combo_box.addItems([str(landuse) for landuse in uniqueTalsimLanduse])
+            completer = QCompleter([combo_box.itemText(i) for i in range(combo_box.count())]) #needed so you can search for objects in the combo_box
+            combo_box.setCompleter(completer)
             self.dlg.tableLanduseMapping.setCellWidget(row, 1, combo_box)
             #item = QTableWidgetItem(name_value)
             #self.dlg.tableLanduseMapping.setItem(row, 1, item)
@@ -982,6 +1140,8 @@ class QTalsim:
             Creates the Talsim Landuse Layer according to the Landuse Mapping.
                 The resulting layer can still have gaps and overlaps, these are removed in another step.
         '''
+        if self.landuseTalsim:
+            QgsProject.instance().removeMapLayer(self.landuseTalsim)
         self.log_to_qtalsim_tab("Start Landuse Mapping", Qgis.Info)
         self.landuseTalsim = QgsVectorLayer(f"Polygon?crs={self.landuseLayer.crs().authid()}", "Talsim Landuse", "memory")
         feats = [feat for feat in self.landuseLayer.getFeatures()]
@@ -1037,18 +1197,85 @@ class QTalsim:
         for fid in ids_to_delete:
             self.landuseTalsim.deleteFeature(fid)
         self.landuseTalsim.commitChanges()
-        
+
         self.landuseTalsim.setName("Talsim Landuse")
         self.log_to_qtalsim_tab(f"Finished landuse mapping. Inspect results in this layer: {self.landuseTalsim.name()}.", Qgis.Info) 
         QgsProject.instance().addMapLayer(self.landuseTalsim)
         self.dlg.onCreateLanduseLayer.setVisible(True)
     
+
+    
     def checkOverlappingLanduse(self):
-        self.checkOverlappingFeatures(self.landuseTalsim)
+        '''
+            Checks for overlapping land use Features and fills the table to delete overlapping parts of features.
+        '''
+        
+        self.overlapping_landuse_features = self.checkOverlappingFeatures(self.landuseTalsim)
+        #Create unique combinations of the overlapping features
+        unique_combinations_set = set()
+        for feature_pair in self.overlapping_landuse_features:
+            # Convert the list to a tuple for set compatibility
+            feature_pair_tuple = tuple(sorted(feature_pair))
+            unique_combinations_set.add(feature_pair_tuple)
+        self.overlapping_landuse_features = [list(pair) for pair in unique_combinations_set]
+
+        self.dlg.tableLanduseDelete.clear()
+
+        self.dlg.tableLanduseDelete.setRowCount(len(self.overlapping_landuse_features))
+        self.dlg.tableLanduseDelete.setColumnCount(3)
+        self.dlg.tableLanduseDelete.setHorizontalHeaderLabels(['Overlapping Feature 1', 'Overlapping Feature 2','Show Features in Layer'])
+        
+        # Set the size of the table columns
+        self.dlg.tableLanduseDelete.setColumnWidth(0, 200)
+        self.dlg.tableLanduseDelete.setColumnWidth(1, 200)
+        self.dlg.tableLanduseDelete.setColumnWidth(2, 200)
+        self.landuseFields = self.landuseTalsim.fields()
+
+        field_index = self.landuseFields.indexFromName(self.landuseField)
+        self.radio_buttons_landuse = []
+        self.radio_button_to_row_landuse = {}
+        for row, feature_pair in enumerate(self.overlapping_landuse_features):
+            feature_id1, feature_id2 = feature_pair
+            feature1 = self.landuseTalsim.getFeature(feature_id1)
+            feature2 = self.landuseTalsim.getFeature(feature_id2)
+
+            overlappingName1 = feature1[field_index]
+            overlappingName2 = feature2[field_index]
+            item1 = QTableWidgetItem(overlappingName1) #add first name
+            self.dlg.tableLanduseDelete.setItem(row, 0, item1)
+            item2 = QTableWidgetItem(overlappingName2)
+            self.dlg.tableLanduseDelete.setItem(row, 1, item2)
+
+            #Styling
+            transparent_item = QTableWidgetItem()
+            transparent_item.setFlags(Qt.ItemIsEnabled)
+            self.dlg.tableLanduseDelete.setItem(row, 2, transparent_item)
+
+            #Add chechboxes to select features in the layer
+            radio_button = QRadioButton()
+            self.radio_buttons_landuse.append(radio_button)
+            self.dlg.tableLanduseDelete.setCellWidget(row, 2, radio_button)
+            self.radio_button_to_row_landuse[radio_button] = row
+
+        self.dlg.tableLanduseDelete.itemSelectionChanged.connect(lambda: self.on_selection_change(self.dlg.tableLanduseDelete))
+        for radio_button in self.radio_buttons_landuse:
+            radio_button.toggled.connect(
+                lambda checked, rb=radio_button: self.on_radio_button_toggled(
+                    checked, self.landuseTalsim, self.overlapping_landuse_features, self.radio_button_to_row_landuse, rb
+                )
+            )
+    def deleteLanduseFeatures(self):
+        for radio_button in self.radio_buttons_landuse:
+            radio_button.setChecked(False)
+        self.landuseTalsim = self.deleteOverlappingFeatures(self.landuseTalsim, self.dlg.tableLanduseDelete, self.overlapping_landuse_features)
+        self.checkOverlappingLanduse()
+        self.landuseTalsim.setName("LanduseLayerEdited")
+        QgsProject.instance().addMapLayer(self.landuseTalsim)
+        self.log_to_qtalsim_tab(f"Deleting overlapping parts finished.", Qgis.Info)
 
     def deleteOverlappingLanduseFeatures(self):
         '''
-            Deletes the overlapping features of landuse layer. Multiple runs necessary because removing overlapping features 
+            Deletes all overlapping features of landuse layer. Multiple runs necessary because removing overlapping features 
             can result in more overlapping features.
         '''
         changes_made = True
@@ -1070,7 +1297,7 @@ class QTalsim:
         QgsProject.instance().addMapLayer(self.landuseTalsim)
     
     def checkGapsLanduse(self):
-        self.checkGaps(self.landuseTalsim, self.clippingEZG)
+        self.landuseGaps = self.checkGaps(self.landuseTalsim, self.clippingEZG)
 
     def fillGapsLanduse(self):
         mode = 0 
@@ -1081,8 +1308,11 @@ class QTalsim:
         elif self.dlg.comboboxModeEliminateLanduse.currentText() == 'Largest Area':
             mode = 0
         layerWithoutGaps = self.fillGaps(self.landuseTalsim,self.clippingEZG, mode)
+        if self.landuseGaps:
+            QgsProject.instance().removeMapLayer(self.landuseGaps)
         if self.landuseTalsim:
             QgsProject.instance().removeMapLayer(self.landuseTalsim)
+        
         self.landuseTalsim = layerWithoutGaps
         self.landuseTalsim.setName("LanduseLayerEdited")
         QgsProject.instance().addMapLayer(self.landuseTalsim)
@@ -1098,6 +1328,8 @@ class QTalsim:
         dissolvedLayer = resultDissolve['OUTPUT']
         if self.landuseTalsim:
             QgsProject.instance().removeMapLayer(self.landuseTalsim)
+        if self.landuseLayer:
+            QgsProject.instance().removeMapLayer(self.landuseLayer)
         self.landuseTalsim = dissolvedLayer
         self.landuseTalsim.setName("Talsim Landuse")
         self.log_to_qtalsim_tab(f"Created Landuse Layer with Talsim Parameters: {self.landuseTalsim.name()}.", Qgis.Info) 
@@ -1110,7 +1342,7 @@ class QTalsim:
         self.log_to_qtalsim_tab(f"Starting the intersecting process of layers: {self.ezgLayer.name()}, {self.landuseTalsim.name()} and {self.soilTalsim.name()}.", Qgis.Info) 
         self.slopeField = self.dlg.comboboxSlopeField.currentText()
         try:
-            #Create a copy of the catchment area layer to not edit the input layer
+            #Create a copy of the sub-basins layer to not edit the input layer
             ezgLayer1 = QgsVectorLayer(f"Polygon?crs={self.ezgLayer.crs().authid()}", "EZG", "memory")
             feats = [feat for feat in self.ezgLayer.getFeatures()]
 
@@ -1164,12 +1396,12 @@ class QTalsim:
         intersectedDissolvedLayer = resultDissolve['OUTPUT']
 
         intersectedDissolvedLayer = self.fillGaps(intersectedDissolvedLayer, self.clippingEZG, 0)
-        ezgDissolved = processing.run("native:dissolve", {'INPUT': self.ezgLayer,'FIELD': [],'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
+        ezgDissolved = processing.run("native:dissolve", {'INPUT': self.ezgLayer,'FIELD': [],'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
         intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayer, ezgDissolved)
         intersectedDissolvedLayer, _ = self.editOverlappingFeatures(intersectedDissolvedLayer)
         #Split the intersected areas and create own layer for each catchment area
             # --> necessary for eliminating: deleted areas (e.g. area too small) should only take the attributes of features in the same catchment area
-        resultSplit = processing.run("native:splitvectorlayer", {'INPUT': intersectedDissolvedLayer,'FIELD':self.ezgUniqueIdentifier,'PREFIX_FIELD':True,'FILE_TYPE':0,'OUTPUT':'TEMPORARY_OUTPUT'},feedback = self.feedback)
+        resultSplit = processing.run("native:splitvectorlayer", {'INPUT': intersectedDissolvedLayer,'FIELD':self.ezgUniqueIdentifier,'PREFIX_FIELD':True,'FILE_TYPE':0,'OUTPUT':'TEMPORARY_OUTPUT'},feedback = None)
         outputDirSplit = resultSplit['OUTPUT']
         splitLayers = []
         for filename in os.listdir(outputDirSplit):
@@ -1182,7 +1414,7 @@ class QTalsim:
                 tempLayersplit = processing.run("native:multiparttosingleparts", {
                     'INPUT': tempLayersplit,
                     'OUTPUT': 'memory:'
-                },feedback=self.feedback)['OUTPUT']
+                },feedback=None)['OUTPUT']
             fieldAreaEFL = QgsField(self.fieldNameAreaEFL, QVariant.Double)
             tempLayersplit.dataProvider().addAttributes([fieldAreaEFL]) #create new field
             tempLayersplit.updateFields()
@@ -1212,14 +1444,14 @@ class QTalsim:
                 mode = 2
             elif self.dlg.comboboxModeEliminateSoil.currentText() == 'Largest Area':
                 mode = 0
-            tempLayerSplitEliminated = processing.run("qgis:eliminateselectedpolygons", {'INPUT':tempLayersplit,'MODE':mode,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+            tempLayerSplitEliminated = processing.run("qgis:eliminateselectedpolygons", {'INPUT':tempLayersplit,'MODE':mode,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback = None)['OUTPUT']
             splitLayers.append(tempLayerSplitEliminated)
 
         #Merge all of the split layers
-        resultMerge = processing.run("native:mergevectorlayers", {'LAYERS':splitLayers,'CRS':intersectedDissolvedLayer.crs(),'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
+        resultMerge = processing.run("native:mergevectorlayers", {'LAYERS':splitLayers,'CRS':intersectedDissolvedLayer.crs(),'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
         
         #Dissolve Layer 2
-        resultDissolve = processing.run("native:dissolve", {'INPUT': resultMerge,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
+        resultDissolve = processing.run("native:dissolve", {'INPUT': resultMerge,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
         self.finalLayer = resultDissolve['OUTPUT']
         self.finalLayer = self.fillGaps(self.finalLayer, self.clippingEZG, 0)
         self.finalLayer = self.clipLayer(self.finalLayer, ezgDissolved)
@@ -1243,7 +1475,7 @@ class QTalsim:
         for key in ezgAreas:
             if key in sum_areas:
                 if round(ezgAreas[key],0) != round(sum_areas[key],0):
-                    self.log_to_qtalsim_tab(f'Catchment area with Unique-Identifier {key} has a different area {ezgAreas[key]} than the sum of all features in this catchment area {sum_areas[key]}.', Qgis.Warning)
+                    self.log_to_qtalsim_tab(f'Sub-basin with Unique-Identifier {key} has a different area {ezgAreas[key]} than the sum of all features in this sub-basin {sum_areas[key]}.', Qgis.Warning)
         
         '''
             Create .EFL
@@ -1255,7 +1487,7 @@ class QTalsim:
         eflFieldList.append(self.slopeField) #Slope Field
         
         #self.eflLayer = QgsVectorLayer(f"Polygon?crs={self.finalLayer.crs().authid()}", 'eflLayer', 'memory') #create layer
-        self.eflLayer = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
+        self.eflLayer = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
         
         #Add Fields
         eflLayerDP = self.eflLayer.dataProvider()
@@ -1353,6 +1585,7 @@ class QTalsim:
         soilTypeList = []
         soilTypeList.append(self.soilTypeThickness)
         soilTypeList.append(self.IDSoil)
+        soilTypeList.append(self.nameSoil)
         #if there are more SoilTypes --> add names of LayerThickness here
         resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': soilTypeList,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
         self.soilTypeFinal = resultDissolve['OUTPUT']
@@ -1368,7 +1601,7 @@ class QTalsim:
         self.soilTypeFinal.startEditing()
         
         soilTypeDP = self.soilTypeFinal.dataProvider()
-        soilTypeDP.addAttributes([QgsField("Id", QVariant.Int), QgsField("Name", QVariant.Int)])
+        soilTypeDP.addAttributes([QgsField("Id", QVariant.Int)])
         self.soilTypeFinal.commitChanges()
         self.soilTypeFinal.updateFields()
 
@@ -1380,14 +1613,26 @@ class QTalsim:
 
         self.soilTypeFinal.setName("BOD")
 
-        field_index = self.soilTypeFinal.fields().indexFromName(self.IDSoil)
+
         self.soilTypeFinal.startEditing()
+        
+        field_index = self.soilTypeFinal.fields().indexFromName("Id")
+        self.soilTypeFinal.renameAttribute(field_index, 'Id')
+        field_index = self.soilTypeFinal.fields().indexFromName(self.nameSoil)
+        self.soilTypeFinal.renameAttribute(field_index, 'Name')
+        field_index = self.soilTypeFinal.fields().indexFromName(self.soilTypeThickness)
+        self.soilTypeFinal.renameAttribute(field_index, self.soilTypeThickness)
+        field_index = self.soilTypeFinal.fields().indexFromName(self.IDSoil)
         self.soilTypeFinal.renameAttribute(field_index, 'SoilTextureId1')
         self.soilTypeFinal.commitChanges()
 
         QgsProject.instance().addMapLayer(self.soilTypeFinal) 
-        
+        self.log_to_qtalsim_tab(f"Finished intersection of layers.", Qgis.Info)
+
     def selectOutputFolder(self):
+        '''
+            Function to select the output folder for the geopackage. 
+        '''
         self.outputFolder = None
         self.outputFolder = QFileDialog.getExistingDirectory(self.dlg, "Select Folder","") #, options=options
         geopackage_name, ok = QInputDialog.getText(None, "GeoPackage Name", "Enter the name of the GeoPackage:")
@@ -1396,15 +1641,35 @@ class QTalsim:
             self.dlg.outputPath.setText(self.geopackage_path)
     
     def connectButtontoFunction(self, button, function):
+        '''
+            Needed to only connect the button to the function once.
+        '''
         try:
             button.clicked.disconnect()
         except TypeError:
             pass  # No connection exists yet 
         button.clicked.connect(function)
     
-    #Eliminate
+    def reloadPlugin(self):
+        '''
+            Runs when user resets the plugin. 
+        '''
+        self.initialize_parameters()
+        self.dialog_status = 'Reset'
+        self.run()
+        self.dialog_status = None
+
+    def openDocumentation(self):
+        '''
+            Opens documentation of QTalsim.
+        '''
+        doc_path = os.path.join(os.path.dirname(__file__), 'README.html')
+        webbrowser.open('file://' + doc_path)
+
     def run(self):
-        """Run method that performs all the real work"""
+        '''
+            Run method that performs all the real work.
+        '''
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
         if self.first_start == True:
             self.first_start = False
@@ -1413,6 +1678,21 @@ class QTalsim:
             self.dlg.onLanduseConfirm.setVisible(False)
             self.dlg.onCreateLanduseLayer.setVisible(False)
 
+        #Translating the buttons to English for constistency
+        if self.dlg.finalButtonBox:
+            # Set button texts in English
+            self.dlg.finalButtonBox.button(QDialogButtonBox.Ok).setText('OK')
+            self.dlg.finalButtonBox.button(QDialogButtonBox.Cancel).setText('Cancel')
+            self.dlg.finalButtonBox.button(QDialogButtonBox.Reset).setText('Reset')
+            self.dlg.finalButtonBox.button(QDialogButtonBox.Help).setText('Help')
+
+        #Reload Function
+        self.connectButtontoFunction(self.dlg.finalButtonBox.button(QDialogButtonBox.Reset), self.reloadPlugin)
+
+        #Open help - documentation
+        self.connectButtontoFunction(self.dlg.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
+
+        #Load Layers
         def getAllLayers(root):
             layers = []
             for child in root.children():
@@ -1426,22 +1706,36 @@ class QTalsim:
                         layers.append(layer)
             return layers
 
-        # Usage
+        
         root = QgsProject.instance().layerTreeRoot()
         layers = getAllLayers(root)
-        #layers = QgsProject.instance().layerTreeRoot().children() #fetch layers of Project
+
         self.feedback = self.CustomFeedback(self.log_to_qtalsim_tab)
+        
+        #Clear Boxes
+        self.dlg.comboboxUICatchment.clear()
+        self.dlg.tableSoilMapping.clear()        
+        self.dlg.tableSoilTypeDelete.clear()
+        self.dlg.tableLanduseMapping.clear()
+        self.dlg.tableLanduseDelete.clear()
+        self.dlg.comboboxLanduseFields.clear()
+        self.dlg.comboboxSlopeField.clear()
+
+        self.dlg.checkboxIntersectMinSizeArea.setChecked(False)
+        self.dlg.spinboxIntersectMinSizeArea.setValue(self.dlg.spinboxIntersectMinSizeArea.minimum())
+        self.dlg.checkboxIntersectShareofArea.setChecked(False)
+        self.dlg.spinboxIntersectShareofArea.setValue(self.dlg.spinboxIntersectShareofArea.minimum())
         
         #EZG
         self.connectButtontoFunction(self.dlg.onEZG, self.selectEZG)
-
-
 
         #Soil
         self.connectButtontoFunction(self.dlg.onSoil, self.selectSoil)
         self.connectButtontoFunction(self.dlg.onConfirmSoilMapping, self.confirmSoilMapping)
         self.connectButtontoFunction(self.dlg.onSoilTypeDelete, self.deleteSoilTypes)
         self.connectButtontoFunction(self.dlg.onOverlappingSoils, self.checkOverlappingSoil)
+        self.dlg.tableSoilTypeDelete.setSelectionBehavior(QAbstractItemView.SelectItems)
+        self.dlg.tableSoilTypeDelete.setSelectionMode(QAbstractItemView.MultiSelection)
         self.connectButtontoFunction(self.dlg.onDeleteOverlappingSoilFeatures, self.deleteOverlappingSoilFeatures)
         self.connectButtontoFunction(self.dlg.onCheckGapsSoil, self.checkGapsSoil)
         self.dlg.comboboxModeEliminateSoil.clear()
@@ -1456,12 +1750,16 @@ class QTalsim:
         self.connectButtontoFunction(self.dlg.onLanduseTalsimCSV, self.openLanduseTalsimCSV)
         self.connectButtontoFunction(self.dlg.onLanduseStart, self.fillLanduseTable)
         self.connectButtontoFunction(self.dlg.onLanduseConfirm, self.confirmLanduseClassification)
+        self.dlg.tableLanduseDelete.setSelectionBehavior(QAbstractItemView.SelectItems)
+        self.dlg.tableLanduseDelete.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.connectButtontoFunction(self.dlg.onLanduseTypeDelete, self.deleteLanduseFeatures)
         self.connectButtontoFunction(self.dlg.onCheckOverlappingLanduse, self.checkOverlappingLanduse)
         self.connectButtontoFunction(self.dlg.onDeleteOverlapsLanduse, self.deleteOverlappingLanduseFeatures)
         self.connectButtontoFunction(self.dlg.onCheckGapsLanduse, self.checkGapsLanduse)
 
       
         self.dlg.comboboxModeEliminateLanduse.clear()
+        self.dlg.csvPath.clear()
         self.dlg.comboboxModeEliminateLanduse.addItems(['Largest Area', 'Smallest Area','Largest Common Boundary'])  
         
         self.connectButtontoFunction(self.dlg.onFillGapsLanduse, self.fillGapsLanduse)
@@ -1490,6 +1788,7 @@ class QTalsim:
         self.dlg.comboboxEliminateModes.addItems(['Largest Area', 'Smallest Area','Largest Common Boundary'])
 
         #Outputfile
+        self.dlg.outputPath.clear()
         self.connectButtontoFunction(self.dlg.onOutputFolder, self.selectOutputFolder) 
         
         # show the dialog
@@ -1497,8 +1796,14 @@ class QTalsim:
 
         # Run the dialog event loop
         result = self.dlg.exec_()
+        if self.dialog_status == 'Reset':
+            return
         # See if OK was pressed
         if result:
+            '''
+                Saving to Geopackage.
+            '''
+            self.log_to_qtalsim_tab(f"Saving the layers to {self.outputFolder}.", Qgis.Info)
             def create_gpkg_save_layer(layer, gpkg_path, layer_name):
                 params = {
                     'INPUT': layer,
@@ -1520,8 +1825,7 @@ class QTalsim:
                         os.remove(gpkg_path)
                     except Exception as e:
                         self.log_to_qtalsim_tab(f"Failed to delete existing GeoPackage: {e}",Qgis.Critical)
-                create_gpkg_save_layer(self.finalLayer, gpkg_path, 'hru_total')
-                add_layers_to_gpkg(self.eflLayer, gpkg_path,'hru') 
+                create_gpkg_save_layer(self.eflLayer, gpkg_path,'hru') 
                 add_layers_to_gpkg(self.landuseFinal, gpkg_path, 'landuse')
                 add_layers_to_gpkg(self.soilTextureFinal, gpkg_path, 'soiltexture') 
                 add_layers_to_gpkg(self.soilTypeFinal, gpkg_path, 'soiltype') 
