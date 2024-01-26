@@ -36,11 +36,13 @@
 <body>
     <div class="container">
         <h1>QTalsim Documentation Version 0.1</h1>
-        <p>QTalsim is a QGIS plugin designed to create hyrological response units (HRUs) suitable for Talsim. 
+        <p>QTalsim is a QGIS plugin designed to create hydrological response units (HRUs) suitable for Talsim. 
             The plugin processes three layer, including a sub-basin layer, soil layer and land use layer.
             It clips the layers in accordance with the sub-basin layer’s boundaries. The plugin then intersects 
             those three layers and creates HRUs. Additionally, the plugin offers functionality to remove duplicate geometries, 
             overlapping features and unwanted gaps.</p>
+
+        <img src="qtalsim_screenshots/overviewQTalsim.png" alt="Overview QTalsim">    
 
         <p><b>Input:</b></p>
             <ul>
@@ -71,58 +73,67 @@
        <h3> Requirements for input layers</h3>
        <p>All three input layers must be polygon layers and included in the current QGIS project. </p>
        <ol>
-            <li>Sub-basin layer</li>
-            <p>This layer should contain the sub-basins as well as a field for Unique Identifiers and another one for slope.</p>
-            <li>Soil Layer</li>
-            <p>This layer should contain all soil types within the study area, but it must only consist of one soil layer. 
-                It must contain a field specifying the names of the soil types.</p>
-            <li>Land Use Layer</li>
-            <p>This layer should contain all land use areas within the study area, 
-                and it must contain a field specifying the names of the land use types.</p>
+            <li>Sub-basin layer
+                <p>This layer should contain the sub-basins as well as a field for Unique Identifiers and another one for slope.</p>
+            </li>
+            <li>Soil Layer
+                <p>This layer should contain all soil types within the study area, but it must only consist of one soil layer. 
+                    It must contain a field specifying the names of the soil types.</p>
+            </li>
+            <li>Land Use Layer
+                <p>This layer should contain all land use areas within the study area, 
+                    and it must contain a field specifying the names of the land use types.</p>
+            </li>
                 <ul>
-                    <li>CSV-File with Talsim land use types + parameters</li>    
-                    <p>In addition to the land use layer, a CSV-File containing the necessary Talsim land use types and their 
-                        associated parameters is also required. The screenshot below shows one example of what the first 
-                        lines of the CSV-file could look like:</p>
-                        <img src="QTalsim_Screenshots/CSVFile_Landuse.png" alt="Screenshot CSV-File">
-                    <p>The following fields should be included in the CSV-file, the bold fields must be included:</p> 
-                       <p><b>Id</b>, <b>Name</b>, RootDepth, RootDepthMonthlyPatternId, PlantCoverage, PlantCoverageAnnualPatternId, 
-                       LeafAreaIndex, LeafAreaIndexAnnualPatternId, RoughnessCoefficient, KcCoeffAnnualPatternId, 
-                       KyYieldAnnualPatternId, BulkDensityChange, pTAW</p> 
-                       <p>However, the plugin does not require every field to contain values.</p>
+                    <li>CSV-File with Talsim land use types + parameters   
+                        <p>In addition to the land use layer, a CSV-File containing the necessary Talsim land use types and their 
+                            associated parameters is also required. The screenshot below shows one example of what the first 
+                            lines of the CSV-file could look like:</p>
+                        <img src="qtalsim_screenshots/CSVFile_Landuse.png" alt="Screenshot CSV-File">
+                    
+                        <p>The following fields should be included in the CSV-file, the bold fields must be included:</p> 
+                        <p><b>Id</b>, <b>Name</b>, RootDepth, RootDepthMonthlyPatternId, PlantCoverage, PlantCoverageAnnualPatternId, 
+                        LeafAreaIndex, LeafAreaIndexAnnualPatternId, RoughnessCoefficient, KcCoeffAnnualPatternId, 
+                        KyYieldAnnualPatternId, BulkDensityChange, pTAW</p> 
+                        <p>However, the plugin does not require every field to contain values.</p>
+                    </li>
                 </ul>
         </ol>
         <h2>Step by Step</h2>
         <ol>
-            <li>Select Sub-basin Layer</li>
+            <li><strong>Select Sub-basin Layer</strong>
             <p>First, select the layer containing the sub-basins from the drop-down-menu that lists all polygon layers 
                 in your current QGIS project. Confirm your selection by clicking on the ‘Confirm Sub-basins’-Button. 
                 Upon clicking this button the Sub-basin layer is selected, and overlapping features and duplicates are removed.
                 You can inspect the result in your QGIS project (layer 'Sub-basins'). 
-            </p>    
+            </p>
+            
             <p> After selecting the sub-basin layer's fields containing 1) the unique identifier and 2) the slope values must be selected 
                 from the drop-down menu. These fields are utilized in the final EFL-layer and serve as input parameters to Talsim. 
             </p>
-            <img src="QTalsim_Screenshots/SelectSubBasin.png" alt="Select Sub-basin">
-            <li>Select & Edit Soil Layer</li>
+            <img src="qtalsim_screenshots/SelectSubBasin.png" alt="Select Sub-basin">
+
+            </li>
+            <li><strong>Select & Edit Soil Layer</strong>
                 <ul>
-                    <li>Select Soil Layer</li>
-                    <p> Choose the soil layer from the drop-down menu and confirm your selection by clicking ‘Confirm Soil’. 
-                    Upon doing so, all valid geometries of this layer are selected and clipped to match the boundaries of the Sub-basin layer.
-                    During this step duplicate geometries are removed from the layer and the soil mapping table is populated 
-                    with the fields of the soil layer.
-                </p>
-                    <li>Soil Mapping</li>
-                    <p> This table contains Talsim soil parameters in the first column and all the field names of the soil layer in drop-down 
-                        menus in the second column. In this step, users are required to map each Talsim parameter to its corresponding field 
-                        in the soil layer. The table below shows the necessary type for these parameters. If the user-mapped field has a 
-                        different datatype, the plugin, where possible, converts the field’s values to the parameter’s type. 
-                        If ‘Parameter not available’ is selected, that parameter will be added with null values.  
-                    </p>
-                    <p> To finalize the soil mapping, click ‘Confirm Soil Mapping’. This creates a new layer, containing all fields from the 
-                        soil layer and all parameters from the soil mapping table, assigned with values from their corresponding fields. 
-                        If there is a datatype mismatch between the soil layer’s field and the parameter, a warning is logged. 
-                    </p>
+                    <li>Select Soil Layer
+                        <p> Choose the soil layer from the drop-down menu and confirm your selection by clicking ‘Confirm Soil’. 
+                        Upon doing so, all valid geometries of this layer are selected and clipped to match the boundaries of the Sub-basin layer.
+                        During this step duplicate geometries are removed from the layer and the soil mapping table is populated 
+                        with the fields of the soil layer.
+                        </p> 
+                    </li>
+                    <li>Soil Mapping
+                        <p> This table contains Talsim soil parameters in the first column and all the field names of the soil layer in drop-down 
+                            menus in the second column. In this step, users are required to map each Talsim parameter to its corresponding field 
+                            in the soil layer. The table below shows the necessary type for these parameters. If the user-mapped field has a 
+                            different datatype, the plugin, where possible, converts the field’s values to the parameter’s type. 
+                            If ‘Parameter not available’ is selected, that parameter will be added with null values.  
+                        </p>
+                        <p> To finalize the soil mapping, click ‘Confirm Soil Mapping’. This creates a new layer, containing all fields from the 
+                            soil layer and all parameters from the soil mapping table, assigned with values from their corresponding fields. 
+                            If there is a datatype mismatch between the soil layer’s field and the parameter, a warning is logged. 
+                        </p>
                     <table>
                         <tr>
                             <th>Parameter</th>
@@ -177,9 +188,9 @@
                             <td>float</td>
                         </tr>
                     </table>
-                    <img src="QTalsim_Screenshots/SelectandEditSoilLayer.png" alt="Select and Edit Soil Layer">
-                    
-                    <li>Optional Soil Editing Steps</li>
+                    <img src="qtalsim_screenshots/SelectandEditSoilLayer.png" alt="Select and Edit Soil Layer">
+                    </li>
+                    <li>Optional Soil Editing Steps
                         <p>Before finalizing the soil layer, users have the option to perform some editing steps. 
                             Please refer to section <a href="#optional-editing-steps">Optional Editing Steps</a> below for a detailed explanation of 
                             ‘Check for Overlapping Features’, ‘Delete Overlapping Features’, ‘Check for Gaps’ and ‘Fill Gaps’.
@@ -195,34 +206,36 @@
                             the unwanted overlapping parts, simply press 'Delete overlapping part of selected Features' to remove the 
                             overlapping parts from the selected features.
                         </p>
-                        <img src="QTalsim_Screenshots/optionalStepsSoilLayer.png" alt="Optional Soil Layer Steps">
-
-                    <li>Create Soil Layer</li>
+                        <img src="qtalsim_screenshots/optionalStepsSoilLayer.png" alt="Optional Soil Layer Steps">
+                    </li>
+                    <li>Create Soil Layer
                     <p>This step dissolves the layer according to the Talsim parameters, removes the fields that are not required for
                         Talsim and creates the soil layer used for the intersection.
                     </p>
-                </ul>   
-            <li>Select and Edit Land use layer</li>  
+                    </li>
+                </ul>
+            </li>
+            <li><strong>Select and Edit Land use layer</strong>  
                 <ul>
-                    <li>Select Land use Layer</li>
+                    <li>Select Land use Layer
                         <p>First, select the land use layer from the drop-down menu and confirm your selection by clicking ‘Confirm Layer’.
                             Upon doing so, all valid geometries of this layer are selected and clipped to align with the boundaries of the 
                             sub-basin layer. During this process, any duplicate geometries within the layer are also removed. After 
                             confirming the layer, you must then select the field containing the land use types and confirm this selection 
                             by clicking ‘Confirm Field’. The unique land use types identified here will be used in a subsequent step.
                         </p>
-                        <img src="QTalsim_Screenshots/SelectLanduseLayer.png" alt="Select Land use Layer">
-                    
-                    <li>Upload Talsim Land use Names and Parameters</li>
+                        <img src="qtalsim_screenshots/SelectLanduseLayer.png" alt="Select Land use Layer">
+                    </li>
+                    <li>Upload Talsim Land use Names and Parameters
                         <p>The user must upload a CSV-file that includes the Talsim land use types and their associated parameter values. 
                             This can be done by by clicking ‘Select CSV-File’, which allows the user to choose the CSV-file. It is important 
                             to select the correct delimiter for the file. After uploading, users can check the parameters by reviewing the 
                             QTalsim-Log.
                         </p>
-                        <img src="QTalsim_Screenshots/CSVFile_Landuse.png" alt="CSV-File Land use">
-                        <img src="QTalsim_Screenshots/UploadCSVFile.png" alt="Upload CSV-File">
-                        
-                    <li>Land use Mapping</li>
+                        <img src="qtalsim_screenshots/CSVFile_Landuse.png" alt="CSV-File Land use">
+                        <img src="qtalsim_screenshots/UploadCSVFile.png" alt="Upload CSV-File">
+                    </li>    
+                    <li>Land use Mapping
                         <p>When you click on ‘Start Landuse Mapping’, the land use mapping table will be populated with all unique land use
                              types from the layer in the first column. In the second column, a dropdown-menu with all Talsim fields of the 
                              CSV-file will appear. Here, you must match each land use type from your data (in the first column) with the 
@@ -231,9 +244,9 @@
                              the mapping, click ‘Confirm Landuse Mapping’ to create a new layer containing the input fields from your layer 
                              and the Talsim parameter values, as specified in the CSV-file.
                         </p>
-                        <img src="QTalsim_Screenshots/LanduseMapping.png" alt="Land use Mapping">
-                    
-                    <li>Optional Editing Steps for Land use Layer</li>
+                        <img src="qtalsim_screenshots/LanduseMapping.png" alt="Land use Mapping">
+                    </li>
+                    <li>Optional Editing Steps for Land use Layer
                         <p>
                             After confirming the land use mapping you have the option to perform additional editing steps, 
                             such as deleting overlapping features and filling gaps. For more detailed information on these steps, 
@@ -252,15 +265,18 @@
                             overlapping parts from the selected features.
                         </p>
 
-                        <img src="QTalsim_Screenshots/optionalStepsLanduseLayer.png" alt="Optional Steps Land Use Layer">
-                    <li>Create Land use Layer</li>
+                        <img src="qtalsim_screenshots/optionalStepsLanduseLayer.png" alt="Optional Steps Land Use Layer">
+                    </li>
+                    <li>Create Land use Layer
                         <p>
                             Clicking ‘Create Land Use Layer’ dissolves the layer according to the Talsim parameters, removes any 
                             fields that are not required for Talsim and generates the land use layer that will be used for intersection.
                         </p>
-                        <img src="QTalsim_Screenshots/CreateLanduseLayer.png" alt="Create Land use Layer">
+                        <img src="qtalsim_screenshots/CreateLanduseLayer.png" alt="Create Land use Layer">
+                    </li>
                 </ul>  
-                <li>Intersection of Layers</li>
+            </li>
+            <li>Intersection of Layers
                     <p>
                         This step results in the creation of the files: BOD, BOA, LNZ and EFL, which can be used as input files for Talsim. 
                         To generate the HRUs, the three layers (sub-basins, soil and land use) are intersected in a first step. The user 
@@ -274,7 +290,7 @@
                         Gaps within the sub-basin layer are left unfilled, while all other gaps are appropriately filled. Any 
                         overlapping features within the resulted intersected layer are removed. 
                     </p>
-                    <img src="QTalsim_Screenshots/Intersection.png" alt="Intersect Layers">
+                    <img src="qtalsim_screenshots/Intersection.png" alt="Intersect Layers">
                     <p>
                         The resulting layers are then automatically added to the current QGIS project.
                     </p>
@@ -284,39 +300,43 @@
                      a suitable folder. Once the folder is selected, you can enter a desired name for the geopackage. By Clicking ‘Ok’ the 
                      layers are saved to the selected folder in a geopackage, named as specified by the user.
                 </p>
-                <img src="QTalsim_Screenshots/FinalSteps.png" alt="Final Steps">
-                
+                <img src="qtalsim_screenshots/FinalSteps.png" alt="Final Steps">
+            </li>    
         </ol>
         <h3 id="optional-editing-steps">Optional Editing Steps</h3>
             <p>For both the soil layer and the land use layer, the user has the option to perform additional editing steps.</p>
             <ul>
-                <li> Check for Overlapping Features</li>
+                <li> Check for Overlapping Features
                     <p>
                         This function checks for overlapping features within the layer. It identifies features that are either partially or 
                         completely overlapping. The feature-IDs of the overlapping features are logged to the QTalsim-Log. Additionally, a 
                         layer named ‘Layer with overlapping features’ is added to the QGIS project. You can then inspect the overlapping 
                         features by reviewing this layer’s attribute table by searching for the overlapping feature IDs.
                     </p>
-                <img src="QTalsim_Screenshots/CheckOverlappingFeatures.png" alt="Check for overlapping Features">
-                <li>Delete Overlapping Features</li>
+                <img src="qtalsim_screenshots/CheckOverlappingFeatures.png" alt="Check for overlapping Features">
+                </li>
+                <li>Delete Overlapping Features
                     <p>
                         This function removes all overlapping parts of a layer. If two polygons overlap, the overlapping part is assigned 
                         to the smaller of the two polygons. 
                     </p>
-                <li>Check for Gaps</li>
+                </li>
+                <li>Check for Gaps
                     <p>
                         This function checks for gaps in the soil/land use layer. It identifies not only gaps within the layer itself but also 
                         gaps that occur along the boundary of the sub-basin layer. A separate layer, which includes all detected gaps 
                         from the soil or land use layer, is then added to the QGIS project. This allows the user to inspect and analyze 
                         these gaps more closely.
                     </p>
-                <li>Fill Gaps</li>
+                </li>
+                <li>Fill Gaps
                     <p>
                         This function fills all detected gaps in the layer using the Eliminate-tool. You can specify the elimination-mode 
                         from a drop-down menu (find further information <a href="https://docs.qgis.org/3.28/en/docs/user_manual/processing_algs/qgis/vectorgeometry.html?highlight=eliminate#eliminate-selected-polygons" 
                         target="_blank">here</a>). The result of this step is a layer free of gaps and matching the extent 
                         of the sub-basin layer.
                     </p>
+                </li>
             </ul>
     </div>
 </body>

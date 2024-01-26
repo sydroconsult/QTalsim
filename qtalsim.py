@@ -732,7 +732,7 @@ class QTalsim:
         '''
         fieldsSoil = [field.name() for field in self.soilLayer.fields()]
         current_path = os.path.dirname(os.path.abspath(__file__))
-        soilTalsimPath = os.path.join(current_path, "talsim parameter", "soilParameter.csv")
+        soilTalsimPath = os.path.join(current_path, "talsim_parameter", "soilParameter.csv")
         self.dfsoilParametersTalsim = pd.read_csv(soilTalsimPath,delimiter = ';')
 
         #Create Table
@@ -1663,7 +1663,7 @@ class QTalsim:
         '''
             Opens documentation of QTalsim.
         '''
-        doc_path = os.path.join(os.path.dirname(__file__), 'README.html')
+        doc_path = os.path.join(os.path.dirname(__file__), 'docs', '_build', 'html', 'doc_qtalsim.html')
         webbrowser.open('file://' + doc_path)
 
     def run(self):
