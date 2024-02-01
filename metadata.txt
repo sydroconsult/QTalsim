@@ -2,7 +2,7 @@
 name=QTalsim
 qgisMinimumVersion=3.0
 description=This plugin creates hydrological response units (HRUs) suitable for Talsim (http://www.talsim.de/).
-version=1.0
+version=1.0.0
 author=SYDRO Consult GmbH
 email=l.treitler@sydro.de
 
@@ -15,13 +15,12 @@ license=GPL-3.0
 # Recommended items:
 
 hasProcessingProvider=no
-# Uncomment the following line and add your changelog:
-# changelog=
+changelog=https://github.com/sydroconsult/QTalsim/main/CHANGELOG.md
 
 # Tags are comma separated with spaces allowed
-tags=python, talsim
+tags=python, talsim, hydrological-modelling
 
-homepage=http://homepage
+homepage=https://sydroconsult.github.io/QTalsim/doc_qtalsim.html
 category=Vector
 icon=icon.png
 # experimental flag
@@ -34,9 +33,6 @@ deprecated=False
 # (or upgraded) can be specified.
 # Check the documentation for more information.
 # plugin_dependencies=
-
-Category of the plugin: Raster, Vector, Database or Web
-# category=Vector
 
 # If the plugin can run on QGIS Server.
 server=False
