@@ -1493,7 +1493,6 @@ class QTalsim:
         eflLayerDP = self.eflLayer.dataProvider()
 
         self.eflLayer.startEditing()
-        #eflLayerDP.addAttributes(eflFields)
         eflLayerDP.addAttributes([QgsField(self.fieldNameAreaEFL, QVariant.Double)])
         self.eflLayer.commitChanges()
         self.eflLayer.updateFields()
@@ -1586,6 +1585,7 @@ class QTalsim:
         soilTypeList.append(self.soilTypeThickness)
         soilTypeList.append(self.IDSoil)
         soilTypeList.append(self.nameSoil)
+
         #if there are more SoilTypes --> add names of LayerThickness here
         resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': soilTypeList,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
         self.soilTypeFinal = resultDissolve['OUTPUT']
@@ -1597,6 +1597,7 @@ class QTalsim:
             if i not in dissolve_fields_indices:
                 self.soilTypeFinal.deleteAttribute(i)
         self.soilTypeFinal.commitChanges()
+        
         #Add Fields Id and Name
         self.soilTypeFinal.startEditing()
         
