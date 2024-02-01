@@ -1663,8 +1663,7 @@ class QTalsim:
         '''
             Opens documentation of QTalsim.
         '''
-        doc_path = os.path.join(os.path.dirname(__file__), 'docs', '_build', 'html', 'doc_qtalsim.html')
-        webbrowser.open('file://' + doc_path)
+        webbrowser.open('https://sydroconsult.github.io/QTalsim/doc_qtalsim.html')
 
     def run(self):
         '''
