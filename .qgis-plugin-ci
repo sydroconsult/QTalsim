@@ -1,0 +1,12 @@
+plugin_path: ./ 
+plugin_name: QTalsim
+github_organization_slug: sydroconsult
+version: metadata.txt
+changelog: CHANGELOG.md
+
+# Deployment settings
+deployment:
+  - zip_package: true
+  - create_plugin_xml: true
+  - publish_to_qgis: true
+  - publish_to_github: true
