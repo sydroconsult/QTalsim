@@ -23,7 +23,7 @@ jobs:
     - name: Create Plugin Directory Structure
       run: |
         mkdir QTalsim
-        mv !(QTalsim) QTalsim/
+        find . -maxdepth 1 -not -name 'QTalsim' -not -name '.' -exec mv {} QTalsim/ \;
 
     - name: Deploy plugin
       run: >-
