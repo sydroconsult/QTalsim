@@ -23,7 +23,7 @@ jobs:
     - name: Create Plugin Directory Structure
       run: |
         mkdir QTalsim
-        find . -maxdepth 1 -not -name 'QTalsim' -not -name '.' -exec mv {} QTalsim/ \;
+        find . -maxdepth 1 ! -name 'QTalsim' ! -name '.' ! -name '.qgis-plugin-ci' ! -name '.git' -exec mv {} QTalsim/ \;
 
     - name: Deploy plugin
       run: >-
