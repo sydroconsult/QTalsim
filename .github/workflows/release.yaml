@@ -19,7 +19,10 @@ jobs:
 
     - name: Install qgis-plugin-ci
       run: pip3 install qgis-plugin-ci
-
+    
+    - name: Package Plugin With Allowance for Uncommitted Changes
+      run: qgis-plugin-ci package ${{ github.ref_name }} --allow-uncommitted-changes
+      
     - name: Create Plugin Directory Structure
       run: |
         mkdir QTalsim
@@ -28,8 +31,7 @@ jobs:
     - name: Deploy plugin
       run: >-
         qgis-plugin-ci
-        release ${GITHUB_REF/refs\/tags\//} \
-        --allow-uncommitted-changes \
-        --github-token ${{ secrets.GITHUB_TOKEN }} \
-        --osgeo-username ${{ secrets.OSGEO_USER }} \
+        release ${GITHUB_REF/refs\/tags\//}
+        --github-token ${{ secrets.GITHUB_TOKEN }}
+        --osgeo-username ${{ secrets.OSGEO_USER }
         --osgeo-password ${{ secrets.OSGEO_PASSWORD }}
