@@ -12,7 +12,10 @@ import os
 import unittest
 import logging
 import configparser
+from qgis.core import QgsApplication
 
+qgs = QgsApplication([], False)
+qgs.initQgis()
 LOGGER = logging.getLogger('QGIS')
 
 
@@ -62,3 +65,4 @@ class TestInit(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+qgs.exitQgis()

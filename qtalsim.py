@@ -797,9 +797,9 @@ class QTalsim:
         value_mapping = {}
         new_fields = []
         fields_wrong_datatype = [] #store those fields that have a wrong datatype 
-        for row in range(self.dlg.tableSoilMapping.rowCount()): #Loop over all entries of the Soil Mpaping Table
+        for row in range(self.dlg.tableSoilMapping.rowCount()): #Loop over all entries of the Soil Mapping Table
             old_field = self.dlg.tableSoilMapping.cellWidget(row, 1).currentText() #Current Text of Combo-Box specified by user
-            new_field = self.dlg.tableSoilMapping.item(row, 0).text() #Get talsim parameter
+            new_field = self.dlg.tableSoilMapping.item(row, 0).text() #Get Talsim parameter
             value_mapping[old_field] = new_field
             if textureTypes[row].strip() == 'string':
                 type = QVariant.String

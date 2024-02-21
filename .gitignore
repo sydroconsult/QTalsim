@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 .DS_Store
 compile.bat
+Dockerfile
+.dockerignore
+.pytest_cache/
+test-plugin.yaml

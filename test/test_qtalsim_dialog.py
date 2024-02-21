@@ -14,11 +14,19 @@ __copyright__ = 'Copyright 2023, SYDRO Consult GmbH'
 
 import unittest
 
-from qgis.PyQt.QtGui import QDialogButtonBox, QDialog
+from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox
+import os
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+parent_dir = os.path.dirname(current_dir)
+
+sys.path.insert(0, parent_dir)
 
 from qtalsim_dialog import QTalsimDialog
+sys.path.remove(parent_dir)
 
-from utilities import get_qgis_app
+from .utilities import get_qgis_app
 QGIS_APP = get_qgis_app()
 
 
