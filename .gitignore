@@ -6,3 +6,6 @@ Dockerfile
 .dockerignore
 .pytest_cache/
 test-plugin.yaml
+test/testdata
+prepare_for_push.bat
+undo_prepare_for_push.bat

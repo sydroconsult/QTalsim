@@ -19,16 +19,6 @@ jobs:
 
     - name: Install qgis-plugin-ci
       run: pip3 install qgis-plugin-ci
-    
-
-    - name: Create Plugin Directory Structure
-      run: |
-        mkdir QTalsim
-        find . -maxdepth 1 ! -name 'QTalsim' ! -name '.' ! -name '.qgis-plugin-ci' ! -name '.git' -exec mv {} QTalsim/ \;
-    
-    - name: Package Plugin With Allowance for Uncommitted Changes
-      run: qgis-plugin-ci package ${{ github.ref_name }} --allow-uncommitted-changes
-      
       
     - name: Deploy plugin
       run: >-
