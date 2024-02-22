@@ -1,4 +1,4 @@
-plugin_path: qtalsim
+plugin_path: QTalsim
 plugin_name: QTalsim
 github_organization_slug: sydroconsult
 version: metadata.txt
