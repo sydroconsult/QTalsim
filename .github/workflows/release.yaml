@@ -20,6 +20,9 @@ jobs:
     - name: Install qgis-plugin-ci
       run: pip3 install qgis-plugin-ci
       
+     - name: Package Plugin
+      run: qgis-plugin-ci package ${GITHUB_REF/refs\/tags\//} --no-upload
+
     - name: Deploy plugin
       run: >-
         qgis-plugin-ci
