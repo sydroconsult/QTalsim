@@ -1,0 +1,13 @@
+﻿SoilTexture;TextureUnit;TextureType;TexturRestrictions;SoilType;TypeUnit;TypeType;TypeRestrictions
+ID_Soil;-;int;;Id;-;int;
+NameSoil;-;string;max length 4;Name;-;int;
+Description;-;string;;LayerThickness1;m;float ;0 > x
+BulkDensityClass;-;int;1 >= x >= 5;SoilTextureId1;-;int;
+Category;-;int;1 = Sand , 2 = Silt , 3 = Clay;;;;
+WiltingPoint;mm/m;float ;0 >= x >= 1000;;;;
+FieldCapacity;mm/m;float ;0 >= x >= 1000;;;;
+TotalPoreVolume;mm/m;float ;0 >= x >= 1000;;;;
+KfValue;mm/h;float ;0 > x;;;;
+MaxInfiltration;mm/h;float ;0 > x;;;;
+MaxCapillarySuction;mm/h;float ;0 >= x;;;;
+LayerThickness1;m;float ;0 > x;;;;

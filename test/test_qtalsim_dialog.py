@@ -23,7 +23,7 @@ parent_dir = os.path.dirname(current_dir)
 
 sys.path.insert(0, parent_dir)
 
-from qtalsim_dialog import QTalsimDialog
+from QTalsim.qtalsim_dialog import QTalsimDialog
 sys.path.remove(parent_dir)
 
 from .utilities import get_qgis_app
