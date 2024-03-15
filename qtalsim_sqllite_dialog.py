@@ -2,7 +2,7 @@ from qgis.PyQt import QtCore, QtGui, QtWidgets
 import os
 from qgis.PyQt import uic
 from qgis.PyQt.QtWidgets import QAction, QTableWidgetItem, QComboBox, QFileDialog
-from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsFeature, QgsGeometry, Qgis, QgsPointXY, QgsPoint, QgsFields
+from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsFeature, QgsGeometry, Qgis, QgsPointXY, QgsPoint, QgsFields, QgsLayerTreeLayer
 from qgis.PyQt.QtCore import QVariant
 import sqlite3
 import sys
@@ -48,44 +48,51 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.setupUi(self)
 
         self.mainPlugin = mainPluginInstance
+
+        #Parameter initialization
+        self.elementTypeCharacter = 'A'
+        self.noLayerSelected = 'No Layer selected'
+        self.geometryFieldName = 'Geometry' #muss evtl. noch angepasst werden
+        self.updateFieldName = 'Updated'
+        self.elementIdentifier = 'ElementIdentifier'
+        self.layerGroup = None
+        #Functions
         self.connectButtontoFunction = self.mainPlugin.connectButtontoFunction
         self.log_to_qtalsim_tab = self.mainPlugin.log_to_qtalsim_tab
-        #self.onSelectDB.clicked.connect(self.selectDB)
         self.connectButtontoFunction(self.onSelectDB, self.selectDB)
         self.comboxDBScenarios.currentIndexChanged.connect(self.on_scenario_change)
         
         self.connectButtontoFunction(self.onCreateSubBasinsLayer, self.createSubBasinsLayerInputDB)
-        self.connectButtontoFunction(self.onAddSystemElementPolygons, self.addPolygonsSubBasins)
-        self.connectButtontoFunction(self.onConfirmPolygonLayer, self.confirmPolygonLayer)
+        self.connectButtontoFunction(self.onUpdateCoordinatesToCenter, self.updateCoordinatesSystemElements)
+        self.connectButtontoFunction(self.onConfirmPolygonLayer, self.createUpdateLayer)
 
-        self.connectButtontoFunction(self.onFinishedEditingSystemPolygons, self.finishedEditingSystemPolygons)
-        root = QgsProject.instance().layerTreeRoot()
+        self.connectButtontoFunction(self.onLoadFeaturesinDB, self.loadUpdatedFeaturesinDB)
+        self.connectButtontoFunction(self.onReconnectToDB, self.reconnectTriggeredByButton)
+
+        #Get layers
+        self.root = QgsProject.instance().layerTreeRoot()
         self.getAllLayers = self.mainPlugin.getAllLayers
-        layers = self.getAllLayers(root)
-        self.comboboxElementType.currentIndexChanged.connect(self.on_elementType_change)
+        layers = self.getAllLayers(self.root)
         self.comboboxPolygonLayer.currentIndexChanged.connect(self.on_polygon_layer_changed)
         self.comboboxPolygonLayer.clear() #clear combobox EZG from previous runs
-        self.noLayerSelected = 'No Layer selected'
+        
         self.comboboxPolygonLayer.addItems([self.noLayerSelected])
         self.comboboxPolygonLayer.addItems([layer.name() for layer in layers])
-        
-        
-        self.connectButtontoFunction(self.onLoadFeaturesinDB, self.loadUpdatedFeaturesinDB)
 
-        #Parameter initialization
-        self.geometryFieldName = 'Geometry' #muss evtl. noch angepasst werden
-        self.updateFieldName = 'Updated'
-        self.elementIdentifier = 'ElementIdentifier'
-        
         #Options for inserting/updating polygons
-        self.updateOption1 = 'Insert Polygons'
-        self.updateOption2 = 'Insert Polygons & Update Coordinates'
-        self.updateOption3 = 'Insert new Features'
-        self.updateOption4 = 'Update existing Polygon'
-        self.updateOption5 = 'Update existing Polygons and Coordinates'
+        #CHANGE TO 4326!!!!
+        self.epsg = 25832
+        self.updateOption1 = 'Insert Sub-basins only'
+        self.updateOption2 = 'Insert Sub-basins & Update Coordinates'
+        self.updateOption3 = 'Insert new Sub-basins'
+        self.updateOption4 = 'Update existing Sub-basins'
+        self.updateOption5 = 'Update existing Sub-basins and Coordinates'
         self.updatedPolygonFeatures = []
 
     def selectDB(self):
+        '''
+            Prompt for user to select DB and then connect to DB and select Scenarios
+        '''
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
         self.file_path_db = None
@@ -108,24 +115,36 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.log_to_qtalsim_tab(e,Qgis.Critical)
 
     def on_scenario_change(self):
+        '''
+            Whenever the Scenario is changed by the user (in the corresponding combobox)
+        '''
         try:
             #scenarioCombo = self.comboxDBScenarios.currentText()
+            self.reconnectDatabase()
             scenarioComboId = self.comboxDBScenarios.currentIndex()
-            scenarioName = self.scenariosAvailable[scenarioComboId][0]
+            self.scenarioName = self.scenariosAvailable[scenarioComboId][0]
             #scenarioName = scenarioCombo.split(" (", 1)[0]
             self.scenarioId = self.scenariosAvailable[scenarioComboId][1]
             sql_query = f"SELECT Distinct ElementTypeCharacter FROM SystemElement WHERE scenarioId = {self.scenarioId}"
             self.cur.execute(sql_query)
             self.elementTypes = self.cur.fetchall()
-            self.comboboxElementType.addItems([elementType[0] for elementType in self.elementTypes])
+            #self.comboboxElementType.addItems([elementType[0] for elementType in self.elementTypes])
 
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
-    
-    def on_elementType_change(self):
-        self.elementTypeCharacter = self.comboboxElementType.currentText()
 
     def createSubBasinsLayerInputDB(self):
+        self.createSystemElementsAndOutflows()
+        self.log_to_qtalsim_tab(f"SystemElements, Outflows and Sub-basins are now available in the project.", Qgis.Info)
+        self.log_to_qtalsim_tab("You can now edit the sub-basins polygons and save the edits to the DB.", Qgis.Info)
+
+    def createSystemElementsAndOutflows(self):
+        '''
+            Creates all Input Layers
+        '''
+        if self.layerGroup:
+            self.root.removeChildNode(self.layerGroup)
+        self.reconnectDatabase()
         sql_query = f"SELECT * FROM SystemElement WHERE scenarioId = {self.scenarioId}" #AND ElementTypeCharacter = '{self.elementTypeCharacter}'
         self.cur.execute(sql_query)
         columns = [description[0] for description in self.cur.description]
@@ -133,9 +152,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         lon_index = columns.index('Longitude')
         self.systemElementData = self.cur.fetchall()
 
-        #CHANGE TO 4326!!!!
-        epsg = 25832
-        self.elementsPointLayer = QgsVectorLayer(f"Point?crs=epsg:{epsg}", "SubBasins Talsim DB", "memory") #Qgis Layer with sub basin points
+        self.elementsPointLayer = QgsVectorLayer(f"Point?crs=epsg:{self.epsg}", "SystemElements", "memory") #Qgis Layer with sub basin points
 
         pr = self.elementsPointLayer.dataProvider()
         
@@ -166,7 +183,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.elementsPointLayer.triggerRepaint()
 
         #Create LineLayer for Outflows
-        line_layer = QgsVectorLayer(f"LineString?crs=epsg:{epsg}", "Outflows", "memory")
+        line_layer = QgsVectorLayer(f"LineString?crs=epsg:{self.epsg}", "Outflows", "memory")
         pr = line_layer.dataProvider()
 
         fields = QgsFields()
@@ -199,19 +216,36 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                     pr.addFeature(line)
         line_layer.updateExtents()
         
+        #Add Layer-Group
+        group_name = f"{self.scenarioName}"
+        self.layerGroup = self.root.insertGroup(0, group_name)
+
+        #Point Layer
         self.elementsPointLayer.setName("SystemElement")
-        QgsProject.instance().addMapLayer(line_layer)
-        QgsProject.instance().addMapLayer(self.elementsPointLayer)
+        self.elementsPointLayerTree = QgsLayerTreeLayer(self.elementsPointLayer)
+        QgsProject.instance().addMapLayer(self.elementsPointLayer, False)
+        self.layerGroup.addChildNode(self.elementsPointLayerTree)
 
-        self.elementsPointLayer.editingStopped.connect(self.on_editing_stopped)
+        #Line Layer
+        current_path = os.path.dirname(os.path.abspath(__file__))
+        pathSymbology = os.path.join(current_path, "symbology", "Outflows.qml")
+        line_layer.loadNamedStyle(pathSymbology)
+        line_layer.triggerRepaint()
 
-        self.log_to_qtalsim_tab(f"Layers with SystemElements and Outflows were added to the project.", Qgis.Info)
-    
+        QgsProject.instance().addMapLayer(line_layer, False)
+        line_layer_tree = QgsLayerTreeLayer(line_layer)
+        self.layerGroup.addChildNode(line_layer_tree)
+        
+        #Add polygons
+        self.addPolygonsSubBasins()
+        self.polygonSystemElementsLayer.editingStopped.connect(self.on_editing_stopped)
+        
+
     def on_editing_stopped(self):
-        print("Stopped editing.")
+        self.log_to_qtalsim_tab("Updating the edited geometries in DB.", Qgis.Info)
+        self.finishedEditingSystemPolygons()
 
     def addPolygonsSubBasins(self):
-        
         self.polygonSystemElementsLayer = QgsVectorLayer(f"Polygon?crs={self.elementsPointLayer.crs().authid()}", "WKT Polygons", "memory")
         dp = self.polygonSystemElementsLayer.dataProvider()
 
@@ -235,11 +269,77 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             
         self.polygonSystemElementsLayer.commitChanges()
 
-        self.polygonSystemElementsLayer.setName(f"Polygons of ElementType {self.elementTypeCharacter}")
-        QgsProject.instance().addMapLayer(self.polygonSystemElementsLayer)
-        self.polygonSystemElementsLayer.startEditing()
-        self.log_to_qtalsim_tab("Polygon Layer (SystemElements) was added. You can now edit the polygons.", Qgis.Info)
+        self.polygonSystemElementsLayer.setName(f"Sub-basins")
+        self.elementsPolygonLayerTree = QgsLayerTreeLayer(self.polygonSystemElementsLayer)
+        QgsProject.instance().addMapLayer(self.polygonSystemElementsLayer, False)
+        self.layerGroup.addChildNode(self.elementsPolygonLayerTree)
+        #self.polygonSystemElementsLayer.startEditing()
+    def finishedEditingSystemPolygons(self):
+        try:
+            self.updatedPolygonFeatures = []
+            self.insertPolygonFeatures = []
+            storedWKT = {feat['Id']: feat[self.geometryFieldName] for feat in self.elementsPointLayer.getFeatures()}
 
+            for feature in self.polygonSystemElementsLayer.getFeatures():
+                elementId = feature['Id']
+                if elementId in storedWKT:
+                    current_wkt = storedWKT[elementId]
+                    new_wkt = feature.geometry().asWkt() 
+                    if new_wkt != current_wkt:
+                        field_index = feature.fields().indexFromName(self.geometryFieldName)
+                        # Ensure the field index is found
+                        if field_index != -1:
+                            feature.setAttribute(field_index, new_wkt)
+                            self.polygonSystemElementsLayer.updateFeature(feature)
+                            # Store this feature for later
+                            self.updatedPolygonFeatures.append(feature)
+                            longitude = float(feature['Longitude'])
+                            latitude = float(feature['Latitude'])
+                            point_feature = QgsGeometry.fromPointXY(QgsPointXY(longitude, latitude))
+                            if not feature.geometry().contains(point_feature):
+                                self.log_to_qtalsim_tab(f"Spatial containment check failed: Element {feature} is not within the target polygon. Despite this, the element was updated. ", Qgis.Warning)            
+                else:
+                    new_wkt = feature.geometry().asWkt()
+                    field_index = feature.fields().indexFromName(self.geometryFieldName)
+                    # Ensure the field index is found
+                    if field_index != -1:
+                        feature.setAttribute(field_index, new_wkt)
+                        centroid = feature.geometry().centroid().asPoint()
+                        centroid_geometry = QgsGeometry.fromPointXY(centroid)
+                        feature.setAttribute(feature.fields().indexFromName('Latitude'), centroid.y())
+                        feature.setAttribute(feature.fields().indexFromName('Longitude'), centroid.x())
+                        self.polygonSystemElementsLayer.updateFeature(feature)
+                        # Store this feature for later
+                        self.insertPolygonFeatures.append(feature)
+
+            for feature in self.updatedPolygonFeatures:
+                #new_feature = QgsFeature(self.updatedElementsLayer.fields())
+                self.insertPolygonsToExistingFeatures(feature)
+        
+            for feature in self.insertPolygonFeatures:
+                self.insertNewElements(feature)
+            self.log_to_qtalsim_tab(f"Finished editing Sub-basins.", Qgis.Info)
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Info)
+    
+    def updateCoordinatesSystemElements(self):
+        try:
+            self.reconnectDatabase()
+            updated_coordinates = []
+            for feature in self.polygonSystemElementsLayer.getFeatures():
+                if feature.geometry() != 'NULL' and feature.geometry() is not None: #str(feature[self.geometryFieldName]).strip().upper()
+                    polygon_geometry = QgsGeometry.fromWkt(feature[self.geometryFieldName])
+                    centroid = feature.geometry().centroid().asPoint() #polygon_geometry
+                    epsilon = 0.0000001
+                    if abs(float(feature['Latitude']) - centroid.y()) > epsilon or abs(float(feature['Longitude']) - centroid.x()) > epsilon:
+                        updated_coordinates.append(feature['Id'])
+                        self.updateCoordinates(feature, centroid.y(), centroid.x())
+            if len(updated_coordinates) == 0:
+                self.log_to_qtalsim_tab("No coordinates were updated.", Qgis.Info)
+            self.reconnectTriggeredByButton()
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            
     def on_polygon_layer_changed(self):
         selected_layer_name = self.comboboxPolygonLayer.currentText()
         if selected_layer_name != self.noLayerSelected:
@@ -247,38 +347,18 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.comboboxUIFieldPolygon.clear()
             self.fieldsPolygonLayer = [field.name() for field in self.polygonLayer.fields()]
             self.comboboxUIFieldPolygon.addItems([str(field) for field in self.fieldsPolygonLayer])
+
+            self.comboboxFieldName.clear()
+            self.fieldsPolygonLayer = [field.name() for field in self.polygonLayer.fields()]
+            self.comboboxFieldName.addItems(['No Field selected'])
+            self.comboboxFieldName.addItems([str(field) for field in self.fieldsPolygonLayer])
         else:
             self.polygonLayer = None
 
-    def finishedEditingSystemPolygons(self):
-        self.updatedPolygonFeatures = []
-        storedWKT = {feat['Id']: feat[self.geometryFieldName] for feat in self.elementsPointLayer.getFeatures()}
-
-        for feature in self.polygonSystemElementsLayer.getFeatures():
-            elementId = feature['Id']
-            if elementId in storedWKT:
-                current_wkt = storedWKT[elementId]
-                new_wkt = feature.geometry().asWkt() 
-                if new_wkt != current_wkt:
-                    field_index = feature.fields().indexFromName(self.geometryFieldName)
-                    # Ensure the field index is found
-                    if field_index != -1:
-                        feature.setAttribute(field_index, new_wkt)
-                        self.polygonSystemElementsLayer.updateFeature(feature)
-                        # Store this feature for later
-                        self.updatedPolygonFeatures.append(feature)
-            else:
-                new_wkt = feature.geometry().asWkt()
-                field_index = feature.fields().indexFromName(self.geometryFieldName)
-                # Ensure the field index is found
-                if field_index != -1:
-                    feature.setAttribute(field_index, new_wkt)
-                    self.polygonSystemElementsLayer.updateFeature(feature)
-                    # Store this feature for later
-                    self.updatedPolygonFeatures.append(feature)
-        self.log_to_qtalsim_tab(f"Finished editing Polygon Layer (SystemElements).", Qgis.Info)
-
-    def confirmPolygonLayer(self):
+    def createUpdateLayer(self):
+        '''
+            Creates a layer that holds all features that will be edited/inserted by a new (external) sub-basins-layer.
+        '''
         self.uniqueIdentifierElements = self.comboboxUIFieldPolygon.currentText()
         
         #Create new layer to store updated features
@@ -297,224 +377,221 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.updatedElementsLayer.updateFields()
 
         self.updatedElementsLayer.startEditing()
-        point_index = {feature[self.elementIdentifier]: feature for feature in self.elementsPointLayer.getFeatures()}
+        point_index = {str(feature['ElementTypeCharacter']) + str(feature[self.elementIdentifier]): feature for feature in self.elementsPointLayer.getFeatures()}
+        
         '''
             Store Elements of external Polygons
         '''  
-        if self.checkboxImportExternalPolygons.isChecked():
-            try:
-                #Polygon index
-                polygon_index = {feature[self.uniqueIdentifierElements]: feature.geometry().asWkt() for feature in self.polygonLayer.getFeatures()}
-                self.updatedElements = {1: [], 2: [], 3: []}
+        try:
+            #Polygon index
+            polygon_index = {feature[self.uniqueIdentifierElements]: feature.geometry().asWkt() for feature in self.polygonLayer.getFeatures()}
+            self.updatedElements = {1: [], 2: [], 3: []}
 
-                editedFeatures = []
-                for point_feature in self.elementsPointLayer.getFeatures():
-                    if point_feature['ElementTypeCharacter'] == self.elementTypeCharacter:
-                        join_value = point_feature[self.elementIdentifier]
-                        #Insert Polygons to SystemElements, where no polygon exists
-                        if join_value in polygon_index and (self.geometryFieldName not in fieldNamesPointLayer or str(point_feature[self.geometryFieldName]).strip().upper() == 'NULL' or point_feature[self.geometryFieldName] is None):
-                            update_feature = QgsFeature(self.updatedElementsLayer.fields())
-                            update_feature.setAttributes(point_feature.attributes())
-                            update_feature.setGeometry(point_feature.geometry())
-                            self.updatedElementsLayer.dataProvider().addFeatures([update_feature])
-                            update_feature[self.geometryFieldName] = str(polygon_index[join_value])
-                            self.updatedElementsLayer.updateFeature(update_feature)
-                            polygon_geometry = QgsGeometry.fromWkt(polygon_index[join_value])
-                            if not polygon_geometry.contains(point_feature.geometry()):
-                                self.log_to_qtalsim_tab(f"Spatial containment check failed: Element {join_value} is not within the target polygon. Despite this, the element was updated. ", Qgis.Warning) 
-                        
-                        #Update existing polygons with external polygons (for polygons edited directly see below)
-                        elif self.checkboxUpdateExistingPolygons.isChecked() and join_value in polygon_index and point_feature[self.geometryFieldName] != polygon_index[join_value] and str(point_feature[self.geometryFieldName]).strip().upper() != 'NULL' and point_feature[self.geometryFieldName] is not None:
-                            update_feature = QgsFeature(self.updatedElementsLayer.fields())
-                            update_feature.setAttributes(point_feature.attributes())
-                            update_feature.setGeometry(point_feature.geometry())
-                            
-                            #self.updatedElementsLayer.changeAttributeValue(update_feature.id(), self.updatedElementsLayer.fields().indexFromName(self.geometryFieldName), polygon_index[join_value]) 
-                            #self.updatedElementsLayer.updateFeature(update_feature)
-                            geom_field_index = self.updatedElementsLayer.fields().indexFromName(self.geometryFieldName)
-                            if geom_field_index != -1:
-                                update_feature.setAttribute(geom_field_index, polygon_index[join_value])
-                            self.updatedElementsLayer.dataProvider().addFeatures([update_feature])
-                            editedFeatures.append(update_feature['Id'])
-                            polygon_geometry = QgsGeometry.fromWkt(polygon_index[join_value])
-                            if not polygon_geometry.contains(point_feature.geometry()):
-                                self.log_to_qtalsim_tab(f"Spatial containment check failed: Element {join_value} is not within the target polygon. Despite this, the element was updated. ", Qgis.Warning) 
-                            
-                            
-                self.updatedElementsLayer.commitChanges()
+            editedFeatures = []
+            for point_feature in self.elementsPointLayer.getFeatures():
+                if point_feature['ElementTypeCharacter'] == self.elementTypeCharacter:
+                    join_value = str(point_feature['ElementTypeCharacter']) + str(point_feature[self.elementIdentifier])
+                   
+                    #Insert Polygons to SystemElements, where no polygon exists
+                    if join_value in polygon_index and (self.geometryFieldName not in fieldNamesPointLayer or str(point_feature[self.geometryFieldName]).strip().upper() == 'NULL' or point_feature[self.geometryFieldName] is None):
+                        update_feature = QgsFeature(self.updatedElementsLayer.fields())
+                        update_feature.setAttributes(point_feature.attributes())
+                        update_feature.setGeometry(point_feature.geometry())
+                        self.updatedElementsLayer.dataProvider().addFeatures([update_feature])
+                        update_feature[self.geometryFieldName] = str(polygon_index[join_value])
+                        self.updatedElementsLayer.updateFeature(update_feature)
+                        polygon_geometry = QgsGeometry.fromWkt(polygon_index[join_value])
+                        if not polygon_geometry.contains(point_feature.geometry()):
+                            self.log_to_qtalsim_tab(f"Spatial containment check failed: Element {join_value} is not within the target polygon. Despite this, the element was updated. ", Qgis.Warning) 
+                    
+                    #Update existing polygons with external polygons (for polygons edited directly see below)
+                    elif join_value in polygon_index and point_feature[self.geometryFieldName] != polygon_index[join_value] and str(point_feature[self.geometryFieldName]).strip().upper() != 'NULL' and point_feature[self.geometryFieldName] is not None:
+                        update_feature = QgsFeature(self.updatedElementsLayer.fields())
+                        update_feature.setAttributes(point_feature.attributes())
+                        update_feature.setGeometry(point_feature.geometry())
 
-                self.updatedElementsLayer.startEditing()
-                for update_feature in self.updatedElementsLayer.getFeatures():
-                    join_value = update_feature[self.elementIdentifier]
-                    field_index = self.updatedElementsLayer.fields().indexFromName(self.geometryFieldName)
-                    self.updatedElementsLayer.changeAttributeValue(update_feature.id(), field_index, polygon_index[join_value])
-                    polygon_geometry = QgsGeometry.fromWkt(polygon_index[join_value])
-                    if self.checkboxUpdateCoordinates.isChecked():
-                        #Change the coordinates of SystemElement
-                        centroid = polygon_geometry.centroid().asPoint()
-                        self.updatedElementsLayer.changeAttributeValue(update_feature.id(), self.updatedElementsLayer.fields().indexFromName('Longitude'), centroid.x())    
-                        self.updatedElementsLayer.changeAttributeValue(update_feature.id(), self.updatedElementsLayer.fields().indexFromName('Latitude'), centroid.y())  
-                        centroid_geometry = QgsGeometry.fromPointXY(centroid)
-                        self.updatedElementsLayer.dataProvider().changeGeometryValues({update_feature.id(): centroid_geometry}) #Change the geometry of SystemElement
-                        #self.updatedElements[2].append(join_value)
-                        if update_feature['Id'] in editedFeatures:
-                            self.updatedElementsLayer.changeAttributeValue(update_feature.id(), self.updatedElementsLayer.fields().indexFromName(self.updateFieldName), self.updateOption5)  
-                        else:
-                            self.updatedElementsLayer.changeAttributeValue(update_feature.id(), self.updatedElementsLayer.fields().indexFromName(self.updateFieldName), self.updateOption2)  
-                    else:
-                        #Don't change coordinates, only insert new polygon
-                        self.updatedElements[1].append(join_value)
-                        self.updatedElementsLayer.changeAttributeValue(update_feature.id(), self.updatedElementsLayer.fields().indexFromName(self.updateFieldName), self.updateOption1)  
+                        geom_field_index = self.updatedElementsLayer.fields().indexFromName(self.geometryFieldName)
 
-                self.updatedElementsLayer.commitChanges()
-                
-                #Adding new Polygons/System Elements
-                self.updatedElementsLayer.startEditing()
-               
-                for polygon_feature in self.polygonLayer.getFeatures():
-                    join_value = polygon_feature[self.uniqueIdentifierElements]
-                    if join_value not in point_index:
-                        new_feature = QgsFeature(self.updatedElementsLayer.fields())
-                        centroid = polygon_feature.geometry().centroid().asPoint() 
-                        centroid_geometry = QgsGeometry.fromPointXY(centroid)
-                        new_feature.setGeometry(centroid_geometry)
-                        new_feature[self.elementIdentifier] = join_value
-                        new_feature[self.geometryFieldName] = polygon_feature.geometry().asWkt()
-                        new_feature['Longitude'] = centroid.x()
-                        new_feature['Latitude'] = centroid.y()
-                        new_feature['ElementType'] = 2 #nur für SubBasins!!
-                        new_feature['ElementTypeCharacter'] = self.elementTypeCharacter
-                        new_feature[self.updateFieldName] = self.updateOption3
-                        self.updatedElementsLayer.dataProvider().addFeatures([new_feature])
-                        self.updatedElements[3].append(join_value)
+                        if geom_field_index != -1:
+                            update_feature.setAttribute(geom_field_index, polygon_index[join_value])
+                        self.updatedElementsLayer.dataProvider().addFeatures([update_feature])
+                        editedFeatures.append(update_feature['Id'])
+                        polygon_geometry = QgsGeometry.fromWkt(polygon_index[join_value])
+                        if not polygon_geometry.contains(point_feature.geometry()):
+                            self.log_to_qtalsim_tab(f"Spatial containment check failed: Element {join_value} is not within the target polygon. Despite this, the element was updated. ", Qgis.Warning) 
+                                 
+            self.updatedElementsLayer.commitChanges()
 
-                self.updatedElementsLayer.commitChanges()
-
-            except Exception as e:
-                self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
-
-        #Update existing polygons
-        if len(self.updatedPolygonFeatures) >= 0 and self.checkboxUpdateExistingPolygons.isChecked():
             self.updatedElementsLayer.startEditing()
-            #self.updatedPolygonFeatures are features that were manually edited by the user
-            for updated_feat in self.updatedPolygonFeatures:
-                # Create a new feature for self.updatedElementsLayer
-                new_feature = QgsFeature(self.updatedElementsLayer.fields())
-                centroid = updated_feat.geometry().centroid().asPoint()
-                centroid_geometry = QgsGeometry.fromPointXY(centroid)
-                new_feature.setGeometry(centroid_geometry)
-                #Necessary to add None value to the attributes, as the layer self.updatedElementsLayer holds an additional column (updatetype)
-                adjusted_attributes = [None] * len(self.updatedElementsLayer.fields())
-                for i, field in enumerate(self.updatedElementsLayer.fields()):
-                    if updated_feat.fields().indexFromName(field.name()) != -1:
-                        source_index = updated_feat.fields().indexFromName(field.name())
-                        adjusted_attributes[i] = updated_feat.attributes()[source_index]
-                new_feature.setAttributes(adjusted_attributes)
-
-                # Add the new feature
-                self.updatedElementsLayer.addFeature(new_feature)
-
-                if self.checkboxUpdateCoordinates.isChecked() and new_feature[self.elementIdentifier] in point_index:
-                    centroid = new_feature.geometry().centroid().asPoint() 
-                    self.updatedElementsLayer.changeAttributeValue(new_feature.id(), self.updatedElementsLayer.fields().indexFromName('Longitude'), centroid.x())    
-                    self.updatedElementsLayer.changeAttributeValue(new_feature.id(), self.updatedElementsLayer.fields().indexFromName('Latitude'), centroid.y())  
-                    self.updatedElementsLayer.changeAttributeValue(new_feature.id(), self.updatedElementsLayer.fields().indexFromName(self.updateFieldName), self.updateOption5)  
-                    #if str(new_feature[self.geometryFieldName]).strip().upper() == 'NULL':
-                    #    self.updatedElementsLayer.changeAttributeValue(new_feature.id(), self.updatedElementsLayer.fields().indexFromName(self.geometryFieldName), new_feature.geometry().asWkt())                   
-                
-                elif new_feature[self.elementIdentifier] in point_index and not self.checkboxUpdateCoordinates.isChecked():
-                    self.updatedElementsLayer.changeAttributeValue(new_feature.id(), self.updatedElementsLayer.fields().indexFromName(self.updateFieldName), self.updateOption4)  
-                
-                elif new_feature[self.elementIdentifier] not in point_index:
-                    self.updatedElementsLayer.changeAttributeValue(new_feature.id(), self.updatedElementsLayer.fields().indexFromName('Longitude'), centroid.x())    
-                    self.updatedElementsLayer.changeAttributeValue(new_feature.id(), self.updatedElementsLayer.fields().indexFromName('Latitude'), centroid.y())
-                    #if str(new_feature[self.geometryFieldName]).strip().upper() == 'NULL':
-                    #    self.updatedElementsLayer.changeAttributeValue(new_feature.id(), self.updatedElementsLayer.fields().indexFromName(self.geometryFieldName), new_feature.geometry().asWkt())
-                    self.updatedElementsLayer.changeAttributeValue(new_feature.id(), self.updatedElementsLayer.fields().indexFromName(self.updateFieldName), self.updateOption3)  
+            for update_feature in self.updatedElementsLayer.getFeatures():
+                join_value = str(update_feature['ElementTypeCharacter']) + str(update_feature[self.elementIdentifier])
+                field_index = self.updatedElementsLayer.fields().indexFromName(self.geometryFieldName)
+                self.updatedElementsLayer.changeAttributeValue(update_feature.id(), field_index, polygon_index[join_value])
+                polygon_geometry = QgsGeometry.fromWkt(polygon_index[join_value])
+                if self.checkboxUpdateCoordinates.isChecked():
+                    #Change the coordinates of SystemElement
+                    centroid = polygon_geometry.centroid().asPoint()
+                    self.updatedElementsLayer.changeAttributeValue(update_feature.id(), self.updatedElementsLayer.fields().indexFromName('Longitude'), centroid.x())    
+                    self.updatedElementsLayer.changeAttributeValue(update_feature.id(), self.updatedElementsLayer.fields().indexFromName('Latitude'), centroid.y())  
+                    centroid_geometry = QgsGeometry.fromPointXY(centroid)
+                    self.updatedElementsLayer.dataProvider().changeGeometryValues({update_feature.id(): centroid_geometry}) #Change the geometry of SystemElement
+                    #self.updatedElements[2].append(join_value)
+                    if update_feature['Id'] in editedFeatures:
+                        self.updatedElementsLayer.changeAttributeValue(update_feature.id(), self.updatedElementsLayer.fields().indexFromName(self.updateFieldName), self.updateOption5)  
+                    else:
+                        self.updatedElementsLayer.changeAttributeValue(update_feature.id(), self.updatedElementsLayer.fields().indexFromName(self.updateFieldName), self.updateOption2)  
+                else:
+                    #Don't change coordinates, only insert new polygon
+                    self.updatedElements[1].append(join_value)
+                    self.updatedElementsLayer.changeAttributeValue(update_feature.id(), self.updatedElementsLayer.fields().indexFromName(self.updateFieldName), self.updateOption1)  
 
             self.updatedElementsLayer.commitChanges()
+            
+            #Adding new Polygons/System Elements
+            self.updatedElementsLayer.startEditing()
+            
+            for polygon_feature in self.polygonLayer.getFeatures():
+                join_value = polygon_feature[self.uniqueIdentifierElements]
+                if join_value not in point_index:
+                    new_feature = QgsFeature(self.updatedElementsLayer.fields())
+                    centroid = polygon_feature.geometry().centroid().asPoint() 
+                    centroid_geometry = QgsGeometry.fromPointXY(centroid)
+                    new_feature.setGeometry(centroid_geometry)
+                    new_feature[self.elementIdentifier] = join_value[1:]
+                    new_feature[self.geometryFieldName] = polygon_feature.geometry().asWkt()
+                    new_feature['Longitude'] = centroid.x()
+                    new_feature['Latitude'] = centroid.y()
+                    new_feature['ElementType'] = 2 #nur für SubBasins!!
+                    new_feature['ElementTypeCharacter'] = join_value[0]
+                    if self.comboboxFieldName.currentText() != 'No Field selected':
+                        new_feature['Name'] = polygon_feature[self.comboboxFieldName.currentText()]
+                    new_feature[self.updateFieldName] = self.updateOption3
+                    self.updatedElementsLayer.dataProvider().addFeatures([new_feature])
+                    self.updatedElements[3].append(join_value)
+
+            self.updatedElementsLayer.commitChanges()
+
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
 
         current_path = os.path.dirname(os.path.abspath(__file__))
         pathSymbology = os.path.join(current_path, "symbology", "UpdatedElements.qml")
         self.updatedElementsLayer.loadNamedStyle(pathSymbology)
         self.updatedElementsLayer.triggerRepaint()
 
-        QgsProject.instance().addMapLayer(self.updatedElementsLayer)
+        QgsProject.instance().addMapLayer(self.updatedElementsLayer, False)
+        self.updatedElementsLayerTree = QgsLayerTreeLayer(self.updatedElementsLayer)
+        self.layerGroup.addChildNode(self.updatedElementsLayerTree)
         self.log_to_qtalsim_tab(f"Created Layer with all Features to be updated when confirmed.", Qgis.Info)
 
-        #Existing polygons überarbeiten
+    def reconnectTriggeredByButton(self):
+        '''
+            Reconnect to DB and reload Layers.
+        '''
+        self.reconnectDatabase()
+        self.createSystemElementsAndOutflows()
+        self.log_to_qtalsim_tab("Reconnected with DB.", Qgis.Info)
+
+    #Existing polygons überarbeiten
     def reconnectDatabase(self):
         try:
             self.conn = sqlite3.connect(self.file_path_db)
             self.cur = self.conn.cursor()
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}",Qgis.Critical)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+
+    '''
+        Functions to update elements in DB/insert new elements to DB
+    '''
+    def insertNewElements(self, feature):
+        '''
+            Insert new sub-basins that haven't existed.
+        '''
+        self.reconnectDatabase()
+        sql_query = f'''
+            INSERT INTO SystemElement 
+            (ScenarioId, ElementType, ElementTypeCharacter, ElementIdentifier, Name, Latitude, Longitude, {self.geometryFieldName}) 
+            VALUES
+            ('{self.scenarioId}', {feature['ElementType']}, '{feature['ElementTypeCharacter']}', '{feature[self.elementIdentifier]}', 
+            '{feature['Name']}', {feature['Latitude']}, {feature['Longitude']}, '{feature[self.geometryFieldName]}')
+        '''
+        self.cur.execute(sql_query)
+        self.conn.commit()
+        self.conn.close()
+
+        self.reconnectDatabase()
+        sql_query = f'''
+                        SELECT Id FROM SystemElement
+                        WHERE ElementIdentifier = '{feature[self.elementIdentifier]}'
+                        AND ElementTypeCharacter = '{feature['ElementTypeCharacter']}'
+                        AND ScenarioId = '{self.scenarioId}'
+                    '''
+        self.cur.execute(sql_query)
+        feature_id_tuple = self.cur.fetchone()
+        
+        feature_id = feature_id_tuple[0]
+        sql_query = '''
+                        INSERT INTO SubBasin 
+                        (SystemElementId) 
+                        VALUES 
+                        (?)
+                    '''
+        self.cur.execute(sql_query, (feature_id,))
+        self.conn.commit()
+        self.log_to_qtalsim_tab(f"Feature {feature[self.elementIdentifier]} was inserted in DB.", Qgis.Info)
+        self.conn.close()
+
+    def insertPolygonsToExistingFeatures(self, feature):
+        self.reconnectDatabase()
+        sql_query = f'''
+            UPDATE SystemElement
+            SET {self.geometryFieldName} = ?
+            WHERE Id = ?;
+        '''
+        #muss man hier auch das Szenario definieren?
+        params = (feature[self.geometryFieldName], feature['Id'])
+        self.cur.execute(sql_query, params)
+        self.conn.commit()
+        self.log_to_qtalsim_tab(f"Feature {feature[self.elementIdentifier]} was updated in DB.", Qgis.Info)
+        self.conn.close()
+
+    def updatePolygonsAndCoordinates(self, feature):
+        self.reconnectDatabase()
+        sql_query = f'''
+            UPDATE SystemElement
+            SET {self.geometryFieldName} = ?, Longitude = ?, Latitude = ?
+            WHERE Id = ?;
+        '''
+        params = (feature[self.geometryFieldName], feature['Longitude'], feature['Latitude'], feature['Id'])
+        self.cur.execute(sql_query, params)
+        self.conn.commit()
+        self.log_to_qtalsim_tab(f"Feature {feature[self.elementIdentifier]} was updated in DB.",Qgis.Info)
+        self.conn.close()
+
+    def updateCoordinates(self, feature, y, x):
+        self.reconnectDatabase()
+        sql_query = f'''
+                        UPDATE SystemElement
+                        SET Longitude = ?, Latitude = ?
+                        WHERE Id = ?;
+                    '''
+        params = (x, y, feature['Id'])
+        self.cur.execute(sql_query, params)
+        self.conn.commit()
+        self.log_to_qtalsim_tab(f"Feature {str(feature['ElementTypeCharacter']) + str(feature[self.elementIdentifier])} was updated in DB.",Qgis.Info)
+        self.conn.close()
 
     def loadUpdatedFeaturesinDB(self):
         try:
             for feature in self.updatedElementsLayer.getFeatures():
                 if feature[self.updateFieldName] == self.updateOption3:
-                    sql_query = f'''
-                        INSERT INTO SystemElement 
-                        (ScenarioId, ElementType, ElementTypeCharacter, ElementIdentifier, Name, Latitude, Longitude, {self.geometryFieldName}) 
-                        VALUES
-                        ('{self.scenarioId}', {feature['ElementType']}, '{feature['ElementTypeCharacter']}', '{feature[self.elementIdentifier]}', 
-                        '{feature['Name']}', {feature['Latitude']}, {feature['Longitude']}, '{feature[self.geometryFieldName]}')
-                    '''
-                    self.cur.execute(sql_query)
-                    self.conn.commit()
-                    self.conn.close()
+                    self.insertNewElements(feature)
 
-                    self.reconnectDatabase()
-                    sql_query = f'''
-                                    SELECT Id FROM SystemElement
-                                    WHERE ElementIdentifier = '{feature[self.elementIdentifier]}'
-                                    AND ElementTypeCharacter = '{feature['ElementTypeCharacter']}'
-                                    AND ScenarioId = '{self.scenarioId}'
-                                '''
-                    self.cur.execute(sql_query)
-                    feature_id_tuple = self.cur.fetchone()
-                    
-                    feature_id = feature_id_tuple[0]
-                    sql_query = '''
-                                    INSERT INTO SubBasin 
-                                    (SystemElementId) 
-                                    VALUES 
-                                    (?)
-                                '''
-                    self.cur.execute(sql_query, (feature_id,))
-                    self.conn.commit()
-                    self.log_to_qtalsim_tab(f"Feature {feature[self.elementIdentifier]} was inserted in DB.", Qgis.Info)
-                    
                 elif feature[self.updateFieldName] == self.updateOption1 or feature[self.updateFieldName] == self.updateOption4:
-                    sql_query = f'''
-                        UPDATE SystemElement
-                        SET {self.geometryFieldName} = ?
-                        WHERE Id = ?;
-                    '''
-                    #muss man hier auch das Szenario definieren?
-                    params = (feature[self.geometryFieldName], feature['Id'])
-                    self.cur.execute(sql_query, params)
-                    self.conn.commit()
-                    self.log_to_qtalsim_tab(f"Feature {feature[self.elementIdentifier]} was updated in DB.", Qgis.Info)
+                    self.insertPolygonsToExistingFeatures(feature)
 
                 elif feature[self.updateFieldName] == self.updateOption2 or feature[self.updateFieldName] == self.updateOption5:
-                    sql_query = f'''
-                        UPDATE SystemElement
-                        SET {self.geometryFieldName} = ?, Longitude = ?, Latitude = ?
-                        WHERE Id = ?;
-                    '''
-                    params = (feature[self.geometryFieldName], feature['Longitude'], feature['Latitude'], feature['Id'])
-                    self.cur.execute(sql_query, params)
-                    self.conn.commit()
-                    self.log_to_qtalsim_tab(f"Feature {feature[self.elementIdentifier]} was updated in DB.",Qgis.Info)
+                    self.updatePolygonsAndCoordinates(feature)
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
         self.conn.close()
-        #Über Unique Identifier (muss man über ComboBox aller Felder?) dann an Unique Identifier der SubBasins automatisch joinen
-        #Option, dass man über 
-        
-    #def 
-    #    comboboxPolygonLayer
-        #finally:
-        #    self.conn.close()

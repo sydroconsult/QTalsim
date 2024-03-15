@@ -23,7 +23,7 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon, QCursor, QMovie
-from qgis.PyQt.QtWidgets import QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton
+from qgis.PyQt.QtWidgets import QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton
 from qgis.PyQt.QtCore import QVariant
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -197,6 +197,12 @@ class QTalsim:
         action.triggered.connect(callback)
         action.setEnabled(enabled_flag)
 
+        self.menu = 'QTalsim'
+
+        if not hasattr(self, 'plugin_menu'):
+            self.plugin_menu = QMenu(self.menu, parent)
+            self.iface.mainWindow().menuBar().insertMenu(self.iface.firstRightStandardMenu().menuAction(), self.plugin_menu)
+
         if status_tip is not None:
             action.setStatusTip(status_tip)
 
@@ -205,12 +211,12 @@ class QTalsim:
 
         if add_to_toolbar:
             # Adds plugin icon to Plugins toolbar
-            self.iface.addToolBarIcon(action)
+            self.dropdownMenu.addAction(action)
+
+            #self.iface.addToolBarIcon(action)
 
         if add_to_menu:
-            self.iface.addPluginToVectorMenu(
-                self.menu,
-                action)
+            self.plugin_menu.addAction(action)
 
         self.actions.append(action)
 
@@ -219,30 +225,50 @@ class QTalsim:
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
-        icon_path = ':/plugins/qtalsim/icon.png'
-        self.add_action(
-            icon_path,
-            text=self.tr(u'QTalsim'),
-            callback=self.run,
-            parent=self.iface.mainWindow())
+        self.actions = []  # Ensure this is initialized
+        self.menu = 'QTalsim'
         
-        self.add_action(
-            icon_path,
-            text=self.tr(u'Connect to Talsim DB'),
-            callback=self.open_secondary_window,
-            parent=self.iface.mainWindow()
-        )
-        # will be set False in run()
+        # Create the plugin menu once
+        if not hasattr(self, 'plugin_menu'):
+            self.plugin_menu = QMenu(self.menu, self.iface.mainWindow())
+            menuBar = self.iface.mainWindow().menuBar()
+            menuBar.insertMenu(self.iface.firstRightStandardMenu().menuAction(), self.plugin_menu)
+        
+        # Create toolbar and toolButton once
+        if not hasattr(self, 'toolbar'):
+            self.toolbar = self.iface.addToolBar(u'QTalsim')
+            self.toolbar.setObjectName(u'QTalsim')
+            self.toolButton = QToolButton()
+            self.toolbar.addWidget(self.toolButton)
+            self.dropdownMenu = QMenu(self.iface.mainWindow())
+            self.toolButton.setMenu(self.dropdownMenu)
+            self.toolButton.setPopupMode(QToolButton.InstantPopup)
+            icon_path = ':/plugins/qtalsim/icon.png'
+            self.toolButton.setIcon(QIcon(icon_path))
+        
+        # Add actions
+        icon_path = ':/plugins/qtalsim/icon.png'
+        self.add_action(icon_path, text=self.tr(u'QTalsim'), callback=self.run, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_secondary_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        
         self.first_start = True
 
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
-            self.iface.removePluginVectorMenu(
-                self.tr(u'&QTalsim'),
-                action)
+            if hasattr(self, 'plugin_menu') and self.plugin_menu is not None:
+                self.plugin_menu.removeAction(action)
             self.iface.removeToolBarIcon(action)
+
+        if hasattr(self, 'toolbar'):
+            self.iface.mainWindow().removeToolBar(self.toolbar)
+            self.toolbar = None
+        
+        # Now remove the entire custom menu from the main menu bar
+        if hasattr(self, 'plugin_menu') and self.plugin_menu is not None:
+            self.iface.mainWindow().menuBar().removeAction(self.plugin_menu.menuAction())
+            self.plugin_menu = None
 
 
     class CustomFeedback(QgsProcessingFeedback):

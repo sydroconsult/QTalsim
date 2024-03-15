@@ -21,7 +21,7 @@ changelog=https://github.com/sydroconsult/QTalsim/main/CHANGELOG.md
 tags=python, talsim, hydrological-modelling
 
 homepage=https://sydroconsult.github.io/QTalsim/doc_qtalsim.html
-category=Vector
+category=Custom
 icon=icon.png
 # experimental flag
 experimental=True

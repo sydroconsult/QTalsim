@@ -1,0 +1,124 @@
+<svg
+   width="30mm"
+   height="30mm"
+   viewBox="0 0 30 30"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.2 (dc2aedaf03, 2022-05-15)"
+   sodipodi:docname="Diversion.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+	<sodipodi:namedview
+	   id="namedview7"
+	   pagecolor="#ffffff"
+	   bordercolor="#000000"
+	   borderopacity="0.25"
+	   inkscape:showpageshadow="2"
+	   inkscape:pageopacity="0.0"
+	   inkscape:pagecheckerboard="0"
+	   inkscape:deskcolor="#d1d1d1"
+	   inkscape:document-units="mm"
+	   showgrid="false"
+	   inkscape:zoom="5.9710957"
+	   inkscape:cx="11.974352"
+	   inkscape:cy="55.015029"
+	   inkscape:window-width="1920"
+	   inkscape:window-height="1018"
+	   inkscape:window-x="2553"
+	   inkscape:window-y="-6"
+	   inkscape:window-maximized="1"
+	   inkscape:current-layer="layer1" />
+	<defs
+	   id="defs2">
+		<linearGradient
+		   id="linearGradient27885"
+		   inkscape:swatch="solid">
+			<stop
+			   style="stop-color:#000080;stop-opacity:1;"
+			   offset="0"
+			   id="stop27883" />
+		</linearGradient>
+		<clipPath
+		   id="clip0">
+			<rect
+			   x="605"
+			   y="378"
+			   width="115"
+			   height="237"
+			   id="rect19116" />
+		</clipPath>
+		<clipPath
+		   id="clip0-6">
+			<rect
+			   x="607"
+			   y="388"
+			   width="110"
+			   height="221"
+			   id="rect19982" />
+		</clipPath>
+		<clipPath
+		   id="clip0-5">
+			<rect
+			   x="607"
+			   y="390"
+			   width="110"
+			   height="219"
+			   id="rect20728" />
+		</clipPath>
+		<clipPath
+		   id="clip0-7">
+			<rect
+			   x="607"
+			   y="390"
+			   width="110"
+			   height="219"
+			   id="rect27790" />
+		</clipPath>
+		<clipPath
+		   id="clip0-0">
+			<rect
+			   x="408"
+			   y="516"
+			   width="85"
+			   height="85"
+			   id="rect27810" />
+		</clipPath>
+	</defs>
+	<g
+	   inkscape:label="Ebene 1"
+	   inkscape:groupmode="layer"
+	   id="layer1">
+		<rect
+		   style="fill:#000040;fill-opacity:1;stroke-width:0.239324"
+		   id="rect27786"
+		   width="1.9939806"
+		   height="15.331497"
+		   x="14.00301"
+		   y="0.088621363" />
+		<rect
+		   style="fill:#000040;fill-opacity:1;stroke-width:0.353237"
+		   id="rect27941"
+		   width="1.5987881"
+		   height="18.025898"
+		   x="20.729504"
+		   y="-0.57241035"
+		   transform="matrix(0.65939292,0.7517985,-0.67393226,0.73879315,0,0)" />
+		<rect
+		   style="fill:#000040;fill-opacity:1;stroke-width:0.353237"
+		   id="rect27941-1"
+		   width="1.5987881"
+		   height="18.025898"
+		   x="-1.5738513"
+		   y="22.18354"
+		   transform="matrix(-0.65939292,0.7517985,0.67393226,0.73879315,0,0)" />
+		<rect
+		   style="fill:#000040;fill-opacity:1;stroke-width:0.264583"
+		   id="rect28775"
+		   width="1.7724273"
+		   height="1.0634564"
+		   x="14.135108"
+		   y="15.242875" />
+	</g>
+</svg>
