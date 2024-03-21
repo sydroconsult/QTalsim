@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Getting Started with HRUs &#8212; QTalsim 0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
+    
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=e031e9a9"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Step by Step" href="hrus_step_by_step.html" />
+    <link rel="prev" title="HRU calculation" href="doc_qtalsim.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="hrus_step_by_step.html" title="Step by Step"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="doc_qtalsim.html" title="HRU calculation"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="doc_qtalsim.html" accesskey="U">HRU calculation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Getting Started with HRUs</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="getting-started-with-hrus">
+<h1>Getting Started with HRUs<a class="headerlink" href="#getting-started-with-hrus" title="Permalink to this heading">¶</a></h1>
+<section id="requirements-for-input-layers">
+<span id="getting-started"></span><h2>Requirements for Input Layers<a class="headerlink" href="#requirements-for-input-layers" title="Permalink to this heading">¶</a></h2>
+<blockquote>
+<div><p id="id1">All three input layers must be polygon layers and included in the
+current QGIS project.</p>
+<ol class="arabic">
+<li><p>Sub-basin layer</p>
+<p>This layer should contain the sub-basins as well as a field for
+Unique Identifiers and another one for slope.</p>
+</li>
+<li><p>Soil Layer</p>
+<p>This layer should contain all soil types within the study area,
+but it must only consist of one soil layer. It must contain a
+field specifying the names of the soil types.</p>
+</li>
+<li><p>Land Use Layer</p>
+<p>This layer should contain all land use areas within the study
+area, and it must contain a field specifying the names of the land
+use types.</p>
+<p>3.1 CSV-File with Talsim land use types + parameters</p>
+<blockquote>
+<div><p>In addition to the land use layer, a CSV-File containing the
+necessary Talsim land use types and their associated parameters
+is also required. The screenshot below shows one example of
+what the first lines of the CSV-file could look like:</p>
+<p><img alt="Screenshot CSV-File" src="_images/CSVFile_Landuse.png" /></p>
+<p>The following fields should be included in the CSV-file, the
+bold fields must be included:</p>
+<p><strong>Id</strong>, <strong>Name</strong>, RootDepth, RootDepthMonthlyPatternId,
+PlantCoverage, PlantCoverageAnnualPatternId, LeafAreaIndex,
+LeafAreaIndexAnnualPatternId, RoughnessCoefficient,
+KcCoeffAnnualPatternId, KyYieldAnnualPatternId,
+BulkDensityChange, pTAW</p>
+<p>However, the plugin does not require every field to contain
+values.</p>
+</div></blockquote>
+</li>
+</ol>
+</div></blockquote>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <div>
+    <h3><a href="index.html">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">Getting Started with HRUs</a><ul>
+<li><a class="reference internal" href="#requirements-for-input-layers">Requirements for Input Layers</a></li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="doc_qtalsim.html"
+                          title="previous chapter">HRU calculation</a></p>
+  </div>
+  <div>
+    <h4>Next topic</h4>
+    <p class="topless"><a href="hrus_step_by_step.html"
+                          title="next chapter">Step by Step</a></p>
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/hrus_getting_started.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="hrus_step_by_step.html" title="Step by Step"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="doc_qtalsim.html" title="HRU calculation"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="doc_qtalsim.html" >HRU calculation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Getting Started with HRUs</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2024, Sydro Consult GmbH.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
+    </div>
+  </body>
+</html>

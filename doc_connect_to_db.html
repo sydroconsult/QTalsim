@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Connect to Talsim DB &#8212; QTalsim 0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
+    
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=e031e9a9"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Step by Step" href="hrus_step_by_step.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="hrus_step_by_step.html" title="Step by Step"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 0.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Connect to Talsim DB</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="connect-to-talsim-db">
+<h1>Connect to Talsim DB<a class="headerlink" href="#connect-to-talsim-db" title="Permalink to this heading">¶</a></h1>
+<blockquote>
+<div><p>The second functionality of QTalsim allows users to connect to a Talsim Database, load system elements, and sub-basins.
+Moreover, users can edit existing sub-basins and import new sub-basins from an external polygon layer.</p>
+<p><img alt="DB Connection Overview" src="_images/db_connectionOverview.png" /></p>
+</div></blockquote>
+<section id="id1">
+<h2>Connect to Talsim DB<a class="headerlink" href="#id1" title="Permalink to this heading">¶</a></h2>
+<blockquote>
+<div><p>The next step requires selecting a scenario from the list and confirming this scenario by clicking “Confirm Scenario and load Layers”.
+As a result, the System Elements, Outflows and Sub-basins are added to a layer group (named after the scenario) in the active QGIS-Project.
+The SystemElements-layer contains all system elements, located based on longitude and latitude attributes. The outflows
+depict the corresponding lines between the system elements. These two layers cannot be edited, and edits are not saved to the DB.</p>
+<p>At any stage, you can click the “Reconnect to DB and Reload Layers” button at the bottom to reconnect to the database, e.g., if you wish to inspect changes.</p>
+</div></blockquote>
+</section>
+<section id="edit-features-of-talsim-db">
+<h2>Edit features of Talsim DB<a class="headerlink" href="#edit-features-of-talsim-db" title="Permalink to this heading">¶</a></h2>
+<blockquote>
+<div><p>Additionally, inserting new sub-basins is possible by simply adding new polygons while in editing mode.
+When confirming the geometry of the new sub-basin, you must insert values into the fields ‘ElementIdentifier’ and optionally into the field ‘Name’.
+The fields ‘Latitude’ and ‘Longitude’ are automatically filled with the coordinates of the sub-basin’s center.
+The fields ‘ElementType’ and ‘ElementTypeCharacter’ are also automatically filled with the respective values for sub-basins.
+However, please note that any other fields are not filled by the plugin and must be manually inserted into the database.</p>
+<p><img alt="Edit Sub-basins" src="_images/db_editSubBasins.png" /></p>
+<p>Once you have finished editing existing polygons and/or inserting all new sub-basins, it is important to save the edits and end the editing session
+by clicking the ‘Toggle Editing’ button again. As a result, newly added features are inserted into the database, and the edited geometries of
+existing sub-basins are updated in the database. A log message (QTalsim-log) provides details of all updated/inserted features.</p>
+<p>Another feature provided is the option to update the coordinates of sub-basins to the center of the sub-basins (button “Optional: Update Coordinates to Center of Sub-basins”).
+Clicking this button calculates the centroid of all sub-basins, and updates all coordinates (columns ‘Latitude’ and ‘Longitude’) with the centroid’s coordinates.</p>
+</div></blockquote>
+</section>
+<section id="external-sub-basins-layer">
+<h2>External Sub-basins Layer<a class="headerlink" href="#external-sub-basins-layer" title="Permalink to this heading">¶</a></h2>
+<blockquote id="external-layer">
+<div><p>An additional feature allows for adding an external polygon layer to include sub-basin geometries into existing sub-basins or to add new sub-basins to the database.
+First, you must select a polygon layer from the list. This layer must contain a Unique Identifier field with the ‘ElementTypeCharacter’ and the ‘ElementIdentifier’ (e.g., AA001).
+Select this field from the list, and you can optionally also select a field containing the name of the sub-basin.
+When selecting a name-field the content is added to the feature’s ‘Name’-field in the DB. When selecting a name field, the content is added to the feature’s ‘Name’ field in the database.
+If you are updating existing features, you can update the point coordinates by selecting the corresponding checkbox.</p>
+<p>By clicking ‘Save New/Updated Features in DB,’ all new features or features with updated geometry are saved in the database.
+Again, the information about the updated/inserted features is logged to the QTalsim-log.</p>
+<p><img alt="External layer" src="_images/db_externalLayer.png" /></p>
+</div></blockquote>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <div>
+    <h3><a href="index.html">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">Connect to Talsim DB</a><ul>
+<li><a class="reference internal" href="#id1">Connect to Talsim DB</a></li>
+<li><a class="reference internal" href="#edit-features-of-talsim-db">Edit features of Talsim DB</a></li>
+<li><a class="reference internal" href="#external-sub-basins-layer">External Sub-basins Layer</a></li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="hrus_step_by_step.html"
+                          title="previous chapter">Step by Step</a></p>
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/doc_connect_to_db.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="hrus_step_by_step.html" title="Step by Step"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 0.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Connect to Talsim DB</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2024, Sydro Consult GmbH.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
+    </div>
+  </body>
+</html>
