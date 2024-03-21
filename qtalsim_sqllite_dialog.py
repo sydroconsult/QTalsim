@@ -48,7 +48,9 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.setupUi(self)
 
         self.mainPlugin = mainPluginInstance
-
+        self.initialize_parameters()
+        
+    def initialize_parameters(self):
         #Parameter initialization
         self.elementTypeCharacter = 'A'
         self.noLayerSelected = 'No Layer selected'
@@ -56,6 +58,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.updateFieldName = 'Updated'
         self.elementIdentifier = 'ElementIdentifier'
         self.layerGroup = None
+
         #Functions
         self.connectButtontoFunction = self.mainPlugin.connectButtontoFunction
         self.log_to_qtalsim_tab = self.mainPlugin.log_to_qtalsim_tab
@@ -64,9 +67,9 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         
         self.connectButtontoFunction(self.onCreateSubBasinsLayer, self.createSubBasinsLayerInputDB)
         self.connectButtontoFunction(self.onUpdateCoordinatesToCenter, self.updateCoordinatesSystemElements)
-        self.connectButtontoFunction(self.onConfirmPolygonLayer, self.createUpdateLayer)
+        self.connectButtontoFunction(self.onViewUpdatedFeatures, self.loadUpdateLayer)
 
-        self.connectButtontoFunction(self.onLoadFeaturesinDB, self.loadUpdatedFeaturesinDB)
+        self.connectButtontoFunction(self.onLoadFeaturesinDB, self.createUpdateLayer) #self.loadUpdatedFeaturesinDB
         self.connectButtontoFunction(self.onReconnectToDB, self.reconnectTriggeredByButton)
 
         #Get layers
@@ -116,7 +119,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def on_scenario_change(self):
         '''
-            Whenever the Scenario is changed by the user (in the corresponding combobox)
+            not used at the moment - Whenever the Scenario is changed by the user (in the corresponding combobox)
         '''
         try:
             #scenarioCombo = self.comboxDBScenarios.currentText()
@@ -274,7 +277,11 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         QgsProject.instance().addMapLayer(self.polygonSystemElementsLayer, False)
         self.layerGroup.addChildNode(self.elementsPolygonLayerTree)
         #self.polygonSystemElementsLayer.startEditing()
+
     def finishedEditingSystemPolygons(self):
+        '''
+            Store the sub-basins that were updated by the user.
+        '''
         try:
             self.updatedPolygonFeatures = []
             self.insertPolygonFeatures = []
@@ -282,10 +289,11 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
             for feature in self.polygonSystemElementsLayer.getFeatures():
                 elementId = feature['Id']
-                if elementId in storedWKT:
+                
+                if elementId in storedWKT: #if the element exists in the DB
                     current_wkt = storedWKT[elementId]
                     new_wkt = feature.geometry().asWkt() 
-                    if new_wkt != current_wkt:
+                    if new_wkt != current_wkt: #if there is a difference between the geometry of the same element in QGIS and in the DB
                         field_index = feature.fields().indexFromName(self.geometryFieldName)
                         # Ensure the field index is found
                         if field_index != -1:
@@ -298,7 +306,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                             point_feature = QgsGeometry.fromPointXY(QgsPointXY(longitude, latitude))
                             if not feature.geometry().contains(point_feature):
                                 self.log_to_qtalsim_tab(f"Spatial containment check failed: Element {feature} is not within the target polygon. Despite this, the element was updated. ", Qgis.Warning)            
-                else:
+                else: #if the element does not exist in the DB = new feature
                     new_wkt = feature.geometry().asWkt()
                     field_index = feature.fields().indexFromName(self.geometryFieldName)
                     # Ensure the field index is found
@@ -319,6 +327,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             for feature in self.insertPolygonFeatures:
                 self.insertNewElements(feature)
             self.log_to_qtalsim_tab(f"Finished editing Sub-basins.", Qgis.Info)
+
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Info)
     
@@ -421,7 +430,10 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                             self.log_to_qtalsim_tab(f"Spatial containment check failed: Element {join_value} is not within the target polygon. Despite this, the element was updated. ", Qgis.Warning) 
                                  
             self.updatedElementsLayer.commitChanges()
-
+            
+            '''
+                Edit Update-Layer
+            '''
             self.updatedElementsLayer.startEditing()
             for update_feature in self.updatedElementsLayer.getFeatures():
                 join_value = str(update_feature['ElementTypeCharacter']) + str(update_feature[self.elementIdentifier])
@@ -474,15 +486,22 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
 
-        current_path = os.path.dirname(os.path.abspath(__file__))
-        pathSymbology = os.path.join(current_path, "symbology", "UpdatedElements.qml")
-        self.updatedElementsLayer.loadNamedStyle(pathSymbology)
-        self.updatedElementsLayer.triggerRepaint()
 
-        QgsProject.instance().addMapLayer(self.updatedElementsLayer, False)
-        self.updatedElementsLayerTree = QgsLayerTreeLayer(self.updatedElementsLayer)
-        self.layerGroup.addChildNode(self.updatedElementsLayerTree)
-        self.log_to_qtalsim_tab(f"Created Layer with all Features to be updated when confirmed.", Qgis.Info)
+        self.loadUpdatedFeaturesinDB()
+
+    def loadUpdateLayer(self):
+        try:
+            current_path = os.path.dirname(os.path.abspath(__file__))
+            pathSymbology = os.path.join(current_path, "symbology", "UpdatedElements.qml")
+            self.updatedElementsLayer.loadNamedStyle(pathSymbology)
+            self.updatedElementsLayer.triggerRepaint()
+
+            QgsProject.instance().addMapLayer(self.updatedElementsLayer, False)
+            self.updatedElementsLayerTree = QgsLayerTreeLayer(self.updatedElementsLayer)
+            self.layerGroup.addChildNode(self.updatedElementsLayerTree)
+            self.log_to_qtalsim_tab(f"Added Layer with updated Features.", Qgis.Info)
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
 
     def reconnectTriggeredByButton(self):
         '''
@@ -538,10 +557,13 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                     '''
         self.cur.execute(sql_query, (feature_id,))
         self.conn.commit()
-        self.log_to_qtalsim_tab(f"Feature {feature[self.elementIdentifier]} was inserted in DB.", Qgis.Info)
+        self.log_to_qtalsim_tab(f"Feature {str(feature['ElementTypeCharacter']) + str(feature[self.elementIdentifier])} was inserted in DB.", Qgis.Info)
         self.conn.close()
 
     def insertPolygonsToExistingFeatures(self, feature):
+        '''
+            Insert only polygon-geometries to existing sub-basins.
+        '''
         self.reconnectDatabase()
         sql_query = f'''
             UPDATE SystemElement
@@ -552,10 +574,11 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         params = (feature[self.geometryFieldName], feature['Id'])
         self.cur.execute(sql_query, params)
         self.conn.commit()
-        self.log_to_qtalsim_tab(f"Feature {feature[self.elementIdentifier]} was updated in DB.", Qgis.Info)
+        self.log_to_qtalsim_tab(f"Feature {str(feature['ElementTypeCharacter']) + str(feature[self.elementIdentifier])} was updated in DB.", Qgis.Info)
         self.conn.close()
 
     def updatePolygonsAndCoordinates(self, feature):
+
         self.reconnectDatabase()
         sql_query = f'''
             UPDATE SystemElement
@@ -565,10 +588,13 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         params = (feature[self.geometryFieldName], feature['Longitude'], feature['Latitude'], feature['Id'])
         self.cur.execute(sql_query, params)
         self.conn.commit()
-        self.log_to_qtalsim_tab(f"Feature {feature[self.elementIdentifier]} was updated in DB.",Qgis.Info)
+        self.log_to_qtalsim_tab(f"Feature {str(feature['ElementTypeCharacter']) + str(feature[self.elementIdentifier])} was updated in DB.",Qgis.Info)
         self.conn.close()
 
     def updateCoordinates(self, feature, y, x):
+        '''
+            Update only coordinates (lat, long) of features.
+        '''
         self.reconnectDatabase()
         sql_query = f'''
                         UPDATE SystemElement
@@ -582,6 +608,9 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.conn.close()
 
     def loadUpdatedFeaturesinDB(self):
+        '''
+            Insert the features to connected DB or update features in DB.
+        '''
         try:
             for feature in self.updatedElementsLayer.getFeatures():
                 if feature[self.updateFieldName] == self.updateOption3:

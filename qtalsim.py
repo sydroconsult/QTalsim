@@ -23,7 +23,7 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon, QCursor, QMovie
-from qgis.PyQt.QtWidgets import QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton
+from qgis.PyQt.QtWidgets import QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton, QDockWidget, QMessageBox
 from qgis.PyQt.QtCore import QVariant
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -248,9 +248,9 @@ class QTalsim:
         
         # Add actions
         icon_path = ':/plugins/qtalsim/icon.png'
-        self.add_action(icon_path, text=self.tr(u'QTalsim'), callback=self.run, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_secondary_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        
+        self.add_action(icon_path, text=self.tr(u'HRU calculation'), callback=self.run, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        #self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_secondary_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_sql_connect_dock, parent=self.iface.mainWindow(), add_to_toolbar=True)
         self.first_start = True
 
 
@@ -2063,10 +2063,7 @@ class QTalsim:
 
         #Open help - documentation
         self.connectButtontoFunction(self.dlg.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
-
-
-
-        
+    
         root = QgsProject.instance().layerTreeRoot()
         layers = self.getAllLayers(root)
 
@@ -2194,15 +2191,53 @@ class QTalsim:
                 self.log_to_qtalsim_tab(f"File was saved to this folder: {self.outputFolder}", Qgis.Info)
             except Exception as e:
                 self.log_to_qtalsim_tab(f"Error: {e}", Qgis.Critical)
-                
+    '''            
     def open_secondary_window(self):
-        '''
-            Method to open the secondary window.
-        '''
+
         if self.first_start:
             self.first_start = False
             # Initialize and show the secondary window
             # Assuming you have a class for the secondary window named SecondaryWindow
         self.sqlConnect = SQLConnectDialog(self.iface.mainWindow(),self)
         self.sqlConnect.show()
+    '''
+    def open_sql_connect_dock(self):
+        '''
+        Method to open or show the SQL Connect dock.
+        '''
+        if self.first_start:
+            self.first_start = False
+        if not hasattr(self, 'sqlConnectDock'):
+            # Create the dock widget if it doesn't exist
+            self.sqlConnectDock = CustomDockWidget("Connect to Talsim DB", self.iface.mainWindow())
+            self.sqlConnect = SQLConnectDialog(self.iface.mainWindow(), self)
+            self.sqlConnectDock.setWidget(self.sqlConnect)
+            self.iface.mainWindow().addDockWidget(Qt.RightDockWidgetArea, self.sqlConnectDock)
+        else:
+            self.sqlConnectDock = CustomDockWidget("Connect to Talsim DB", self.iface.mainWindow())
+            self.sqlConnect = SQLConnectDialog(self.iface.mainWindow(), self)
+            self.sqlConnectDock.setWidget(self.sqlConnect)
+            self.iface.mainWindow().addDockWidget(Qt.RightDockWidgetArea, self.sqlConnectDock)
+        self.sqlConnectDock.show()
+
+'''
+    Custom Dock Widget for 'Connect to Talsim DB' to overwrite the closeEvent-Action with a custom function. 
+'''
+class CustomDockWidget(QDockWidget):
+    def __init__(self, title, parent=None):
+        super(CustomDockWidget, self).__init__(title, parent)
+
+    def closeEvent(self, event):
+        
+        reply = QMessageBox.question(self, 'Confirm Close',
+                                     "Warning: Closing this window will disconnect you from the Talsim DB and any unsaved changes will be lost. Are you sure you want to proceed?",
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            QTalsim.log_to_qtalsim_tab(self, "Talsim DB was disconnected.", Qgis.Info)
+            super(CustomDockWidget, self).closeEvent(event)
+        
+        else:
+            event.ignore()
+
+
 

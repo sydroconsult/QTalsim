@@ -240,21 +240,25 @@ p, li { white-space: pre-wrap; }
                   </widget>
                  </item>
                  <item>
-                  <widget class="QPushButton" name="onConfirmPolygonLayer">
-                   <property name="toolTip">
-                    <string>Creates a Layer that holds all features that are updated in the DB, if user presses &quot;Load Features in DB&quot;.</string>
-                   </property>
-                   <property name="text">
-                    <string>Create Update Layer</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QPushButton" name="onLoadFeaturesinDB">
-                   <property name="text">
-                    <string>Load new Features in DB</string>
-                   </property>
-                  </widget>
+                  <layout class="QHBoxLayout" name="horizontalLayout_10">
+                   <item>
+                    <widget class="QPushButton" name="onLoadFeaturesinDB">
+                     <property name="text">
+                      <string>Save new/updated Features in DB</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QPushButton" name="onViewUpdatedFeatures">
+                     <property name="toolTip">
+                      <string>Creates a Layer that holds all features that are updated in the DB, if user presses &quot;Load Features in DB&quot;.</string>
+                     </property>
+                     <property name="text">
+                      <string>Optional: View updated/new Features in Layer</string>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
                  </item>
                 </layout>
                </widget>
@@ -275,7 +279,7 @@ p, li { white-space: pre-wrap; }
      <item>
       <widget class="QPushButton" name="onReconnectToDB">
        <property name="text">
-        <string>Reconnect to DB and reload layers</string>
+        <string>Reconnect to DB and reload Layers</string>
        </property>
       </widget>
      </item>
@@ -285,7 +289,7 @@ p, li { white-space: pre-wrap; }
         <enum>Qt::Horizontal</enum>
        </property>
        <property name="standardButtons">
-        <set>QDialogButtonBox::Cancel</set>
+        <set>QDialogButtonBox::NoButton</set>
        </property>
        <property name="centerButtons">
         <bool>false</bool>
