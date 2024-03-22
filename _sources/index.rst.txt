@@ -1,6 +1,9 @@
 Welcome to QTalsim's documentation!
 ===================================
 
+   QTalsim is a QGIS plugin with two principal functionalities that enable the processing of spatial data suitable for `Talsim <https://www.talsim.de/docs/index.php?title=Hauptseite/en>`__.  
+   Firstly, it enables users to calculate Hydrological Response Units (HRUs). Secondly, the plugin faciliates a direct connection to a Talsim database, enabling users to edit sub-basins. 
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
