@@ -2016,7 +2016,7 @@ class QTalsim:
 
     def openDocumentation(self):
         '''
-            Opens documentation of QTalsim.
+            Opens documentation of HRUS calculation.
         '''
         webbrowser.open('https://sydroconsult.github.io/QTalsim/doc_qtalsim.html')
 

@@ -1,36 +1,13 @@
 from qgis.PyQt import QtCore, QtGui, QtWidgets
 import os
 from qgis.PyQt import uic
-from qgis.PyQt.QtWidgets import QAction, QTableWidgetItem, QComboBox, QFileDialog
+from qgis.PyQt.QtWidgets import QAction, QTableWidgetItem, QComboBox, QFileDialog, QDialogButtonBox
 from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsFeature, QgsGeometry, Qgis, QgsPointXY, QgsPoint, QgsFields, QgsLayerTreeLayer
 from qgis.PyQt.QtCore import QVariant
 import sqlite3
+import webbrowser
 import sys
 
-'''
-import sys
-
-
-import subprocess
-plugin_dir = os.path.dirname(__file__)
-get_pip_path = os.path.join(plugin_dir, 'get_pip.py')
-
-try:
-    import pip
-except:
-    with open(get_pip_path, "r") as file:
-        exec(file.read())
-    import pip
-    # just in case the included version is old
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip'])
-try:
-    import sqlalchemy
-    from sqlalchemy import create_engine
-except ImportError:
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'SQLAlchemy'])
-    import sqlalchemy
-    from sqlalchemy import create_engine
-'''
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'qtalsim_sqllite.ui'))
@@ -49,18 +26,20 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.mainPlugin = mainPluginInstance
         self.initialize_parameters()
-        
+        self.finalButtonBox.button(QDialogButtonBox.Help).setText('Help')
+
     def initialize_parameters(self):
         #Parameter initialization
         self.elementTypeCharacter = 'A'
         self.noLayerSelected = 'No Layer selected'
-        self.geometryFieldName = 'Geometry' #muss evtl. noch angepasst werden
+        self.geometryFieldName = 'Geometry' 
         self.updateFieldName = 'Updated'
         self.elementIdentifier = 'ElementIdentifier'
         self.layerGroup = None
 
         #Functions
         self.connectButtontoFunction = self.mainPlugin.connectButtontoFunction
+        self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
         self.log_to_qtalsim_tab = self.mainPlugin.log_to_qtalsim_tab
         self.connectButtontoFunction(self.onSelectDB, self.selectDB)
         self.comboxDBScenarios.currentIndexChanged.connect(self.on_scenario_change)
@@ -84,13 +63,16 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
         #Options for inserting/updating polygons
         #CHANGE TO 4326!!!!
-        self.epsg = 25832
+        self.epsg = 4326 #25832
         self.updateOption1 = 'Insert Sub-basins only'
         self.updateOption2 = 'Insert Sub-basins & Update Coordinates'
         self.updateOption3 = 'Insert new Sub-basins'
         self.updateOption4 = 'Update existing Sub-basins'
         self.updateOption5 = 'Update existing Sub-basins and Coordinates'
         self.updatedPolygonFeatures = []
+
+    def openDocumentation(self):
+        webbrowser.open('https://sydroconsult.github.io/QTalsim/doc_connect_to_db.html')
 
     def selectDB(self):
         '''
