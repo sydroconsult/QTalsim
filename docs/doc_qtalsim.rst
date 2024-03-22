@@ -2,7 +2,7 @@
 HRU calculation
 ===============
 
-   HRU calculation is one core functionality of the QGIS plugin QTalsim
+   HRU calculation is one core functionality of the QGIS plugin QTalsim,
    designed to create hydrological response units (HRUs) suitable for Talsim. 
    The plugin processes three layer, including a sub-basin layer, soil layer 
    and land use layer. It clips the layers in accordance with the sub-basin layer’s boundaries. The plugin then intersects those three layers and creates HRUs.
