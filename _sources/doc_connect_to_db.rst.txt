@@ -53,7 +53,8 @@ External Sub-basins Layer
 	When selecting a name-field the content is added to the feature's 'Name'-field in the DB. When selecting a name field, the content is added to the feature's 'Name' field in the database. 
 	If you are updating existing features, you can update the point coordinates by selecting the corresponding checkbox.
 	
-	By clicking 'Save New/Updated Features in DB,' all new features or features with updated geometry are saved in the database. 
+	By clicking 'Save New/Updated Features in DB,' all new features or features with updated geometry are saved in the database. By clicking 'Optional: View updated/new Features in Layer' a new
+	layer with the updated/inserted features is added to the layer group. 
 	Again, the information about the updated/inserted features is logged to the QTalsim-log.
 	
 	|External layer|
