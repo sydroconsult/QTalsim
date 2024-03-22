@@ -2,7 +2,7 @@
 name=QTalsim
 qgisMinimumVersion=3.0
 description=This plugin creates hydrological response units (HRUs) suitable for Talsim (http://www.talsim.de/).
-version=1.1.0
+version=1.2.0
 author=SYDRO Consult GmbH
 email=l.treitler@sydro.de
 
