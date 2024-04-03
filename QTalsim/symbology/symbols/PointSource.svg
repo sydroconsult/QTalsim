@@ -1,0 +1,86 @@
+<svg
+   width="30mm"
+   height="30mm"
+   viewBox="0 0 30 30"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.2 (dc2aedaf03, 2022-05-15)"
+   sodipodi:docname="PointSource.Default.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+	<sodipodi:namedview
+	   id="namedview7"
+	   pagecolor="#ffffff"
+	   bordercolor="#000000"
+	   borderopacity="0.25"
+	   inkscape:showpageshadow="2"
+	   inkscape:pageopacity="0.0"
+	   inkscape:pagecheckerboard="0"
+	   inkscape:deskcolor="#d1d1d1"
+	   inkscape:document-units="mm"
+	   showgrid="false"
+	   inkscape:zoom="5.9710957"
+	   inkscape:cx="24.367387"
+	   inkscape:cy="55.015029"
+	   inkscape:window-width="1920"
+	   inkscape:window-height="1018"
+	   inkscape:window-x="2553"
+	   inkscape:window-y="-6"
+	   inkscape:window-maximized="1"
+	   inkscape:current-layer="layer1" />
+	<defs
+	   id="defs2">
+		<clipPath
+		   id="clip0">
+			<rect
+			   x="605"
+			   y="378"
+			   width="115"
+			   height="237"
+			   id="rect19116" />
+		</clipPath>
+		<clipPath
+		   id="clip0-6">
+			<rect
+			   x="607"
+			   y="388"
+			   width="110"
+			   height="221"
+			   id="rect19982" />
+		</clipPath>
+		<clipPath
+		   id="clip0-5">
+			<rect
+			   x="607"
+			   y="390"
+			   width="110"
+			   height="219"
+			   id="rect20728" />
+		</clipPath>
+	</defs>
+	<g
+	   inkscape:label="Ebene 1"
+	   inkscape:groupmode="layer"
+	   id="layer1">
+		<g
+		   clip-path="url(#clip0-5)"
+		   transform="matrix(0.17314219,0,0,0.1369119,-99.62013,-53.432643)"
+		   id="g20737"
+		   style="fill:#5e0080;fill-opacity:1">
+			<path
+			   d="M 717,424 662,609 607,424 Z"
+			   fill="#4472c4"
+			   fill-rule="evenodd"
+			   id="path20733"
+			   style="fill:#5e0080;fill-opacity:1" />
+			<path
+			   d="M 607,425.556 C 607,405.919 631.625,390 662,390 c 30.376,0 55,15.919 55,35.556 -9.167,5.926 -100.833,5.926 -110,0 z"
+			   fill="#4472c4"
+			   fill-rule="evenodd"
+			   id="path20735"
+			   style="fill:#5e0080;fill-opacity:1" />
+		</g>
+	</g>
+</svg>
