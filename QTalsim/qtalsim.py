@@ -31,7 +31,7 @@ from .resources import *
 from .qtalsim_dialog import QTalsimDialog
 from .qtalsim_sqllite_dialog import SQLConnectDialog
 import os.path
-from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest
+from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest, QgsMapLayer
 from qgis.analysis import QgsGeometrySnapper
 import processing
 import pandas as pd
@@ -2032,9 +2032,10 @@ class QTalsim:
                 layers.extend(self.getAllLayers(child))
             elif isinstance(child, QgsLayerTreeLayer):
                 layer = child.layer()
-                # If the child is a layer, add it to the list
-                if layer.geometryType() == QgsWkbTypes.PolygonGeometry:
-                    layers.append(layer)
+                if layer.type() == QgsMapLayer.VectorLayer:
+                    # If the child is a layer, add it to the list
+                    if layer.geometryType() == QgsWkbTypes.PolygonGeometry:
+                        layers.append(layer)
         return layers
     
     def run(self):
