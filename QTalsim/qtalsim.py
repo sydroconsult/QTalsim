@@ -2032,7 +2032,7 @@ class QTalsim:
                 layers.extend(self.getAllLayers(child))
             elif isinstance(child, QgsLayerTreeLayer):
                 layer = child.layer()
-                if layer.type() == QgsMapLayer.VectorLayer:
+                if layer and layer.type() == QgsMapLayer.VectorLayer:
                     # If the child is a layer, add it to the list
                     if layer.geometryType() == QgsWkbTypes.PolygonGeometry:
                         layers.append(layer)
