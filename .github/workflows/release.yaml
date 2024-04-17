@@ -24,7 +24,7 @@ jobs:
       run: qgis-plugin-ci package ${{ github.ref_name }}
       
     - name: Deploy plugin
-      run: >-
+      run: |
         qgis-plugin-ci release ${{ github.ref_name }} \
         --github-token ${{ secrets.GITHUB_TOKEN }} \
         --osgeo-username ${{ secrets.OSGEO_USER }} \
