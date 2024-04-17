@@ -384,6 +384,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.elementsPointLayer.attributeValueChanged.connect(self.on_change_made)
             self.elementsPointLayer.geometryChanged.connect(self.on_change_made)
             self.elementsPointLayer.beforeCommitChanges.connect(lambda: self.on_changes_committed(self.elementsPointLayer))
+            self.elementsPointLayer.afterCommitChanges.connect(self.reloadLayersAfterCommit)
 
             #Sub-basins 
             self.subBasinsLayer.editingStarted.connect(lambda: self.on_editing_started(self.subBasinsLayer))

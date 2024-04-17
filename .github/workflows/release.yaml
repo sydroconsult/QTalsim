@@ -21,7 +21,7 @@ jobs:
       run: pip install qgis-plugin-ci
       
     - name: Package Plugin
-      run: qgis-plugin-ci package ${GITHUB_REF/refs\/tags\//}
+      run: qgis-plugin-ci package ${{ github.ref_name }}
       
     - name: Deploy plugin
       run: >-

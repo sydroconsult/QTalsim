@@ -1,12 +1,12 @@
 [general]
 name=QTalsim
 qgisMinimumVersion=3.0
-description=This plugin creates hydrological response units (HRUs) suitable for Talsim (http://www.talsim.de/).
-version=1.2.0
+description=This plugin creates hydrological response units (HRUs) suitable for Talsim (http://www.talsim.de/) and allows users to connect to a Talsim DB.
+version=1.3.0
 author=SYDRO Consult GmbH
 email=l.treitler@sydro.de
 
-about=QTalsim is designed to create hydrological response units (HRUs) suitable for Talsim. The plugin processes three layers, including a sub-basins layer, soil layer and land use layer. It clips the layers in accordance with the catchment area layer’s boundaries. The plugin then intersects those three layers and creates HRUs. Additionally, the plugin offers functionality to remove duplicate geometries, overlapping features and unwanted gaps.
+about=QTalsim is a QGIS plugin with two principal functionalities that enable the processing of spatial data suitable for Talsim. Firstly, it enables users to calculate Hydrological Response Units (HRUs). Secondly, the plugin faciliates a direct connection to a Talsim database, enabling users to edit system elements, sub-basins and transport reaches.
 
 tracker=https://github.com/sydroconsult/QTalsim/issues
 repository=https://github.com/sydroconsult/QTalsim
@@ -24,7 +24,7 @@ homepage=https://sydroconsult.github.io/QTalsim/doc_qtalsim.html
 category=Custom
 icon=icon.png
 # experimental flag
-experimental=True
+experimental=False
 
 # deprecated flag (applies to the whole plugin, not just a single version)
 deprecated=False
