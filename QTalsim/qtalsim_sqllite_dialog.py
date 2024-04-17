@@ -70,7 +70,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.comboboxUIFieldPolygon.clear()
         self.connectButtontoFunction(self.onCreateSubBasinsLayer, self.createLayers)
         self.connectButtontoFunction(self.onUpdateCoordinatesToCenter, self.updateCoordinatesSystemElements)
-        self.connectButtontoFunction(self.onViewUpdatedFeatures, self.loadUpdateLayer)
+        #self.connectButtontoFunction(self.onViewUpdatedFeatures, self.loadUpdateLayer)
 
         self.connectButtontoFunction(self.onLoadExternalSubBasinsinDB, self.updateFromExternalSubBasinsLayer) #self.loadUpdatedFeaturesinDB
         self.connectButtontoFunction(self.onLoadExternalTransportReachinDB, self.updateFromExternalTransportReachLayer)

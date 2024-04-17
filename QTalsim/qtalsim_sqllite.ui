@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>791</width>
-    <height>737</height>
+    <width>787</width>
+    <height>728</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -33,8 +33,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>767</width>
-        <height>681</height>
+        <width>763</width>
+        <height>667</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -144,16 +144,6 @@ p, li { white-space: pre-wrap; }
                   <widget class="QPushButton" name="onLoadExternalSubBasinsinDB">
                    <property name="text">
                     <string>Save new/updated Features in DB</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QPushButton" name="onViewUpdatedFeatures">
-                   <property name="toolTip">
-                    <string>Creates a Layer that holds all features that are updated in the DB, if user presses &quot;Load Features in DB&quot;.</string>
-                   </property>
-                   <property name="text">
-                    <string>Optional: View updated/new Features in Layer</string>
                    </property>
                   </widget>
                  </item>
@@ -289,7 +279,7 @@ p, li { white-space: pre-wrap; }
                     <item>
                      <widget class="QLabel" name="labelFieldRotation">
                       <property name="text">
-                       <string>Select Rotation-Field</string>
+                       <string>Select Rotation-Field [°]</string>
                       </property>
                      </widget>
                     </item>
@@ -396,13 +386,6 @@ p, li { white-space: pre-wrap; }
                    </property>
                   </widget>
                  </item>
-                 <item>
-                  <widget class="QPushButton" name="pushButton">
-                   <property name="text">
-                    <string>Optional: View updated/inserted Features</string>
-                   </property>
-                  </widget>
-                 </item>
                 </layout>
                </item>
                <item row="0" column="0">
@@ -504,7 +487,7 @@ p, li { white-space: pre-wrap; }
                     <item>
                      <widget class="QLabel" name="labelFieldTRRotation">
                       <property name="text">
-                       <string>Select Rotation-Field</string>
+                       <string>Select Rotation-Field [°]</string>
                       </property>
                      </widget>
                     </item>
