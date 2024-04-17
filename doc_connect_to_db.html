@@ -39,73 +39,67 @@
   <section id="connect-to-talsim-db">
 <h1>Connect to Talsim DB<a class="headerlink" href="#connect-to-talsim-db" title="Permalink to this heading">¶</a></h1>
 <blockquote>
+<div><blockquote>
 <div><p>The second functionality of QTalsim allows users to connect to a Talsim Database, load system elements, sub-basins, outflows and transport reaches.
-Moreover, users can edit all existing system-elements and the geometries of sub-basins and transport reaches. It is also possible to import sub-basins and transport reaches from external layers.</p>
+Moreover, users can edit all existing system-elements and the geometries of sub-basins and transport reaches. It is also possible to import sub-basins and transport reaches from       external layers.</p>
+</div></blockquote>
 <p><img alt="DB Connection Overview" src="_images/db_connectionOverview.png" /></p>
 </div></blockquote>
 <section id="id1">
 <h2>Connect to Talsim DB<a class="headerlink" href="#id1" title="Permalink to this heading">¶</a></h2>
 <blockquote>
 <div><p>The next step requires selecting a scenario from the list and confirming this scenario by clicking “Confirm Scenario and load Layers”.
-As a result, the System Elements, Outflows, TransportReaches Sub-basins are added to a layer group (named after the scenario) in the active QGIS-Project.
+As a result, the System Elements, Outflows, TransportReaches and Sub-basins are added to a layer group (named after the scenario) in the active QGIS-Project.
 The SystemElement-layer contains all system elements, located based on longitude and latitude attributes. The Sub-basins layer contains the polygons of all
-sub-basins in the Talsim DB, while TransportReach contains all lines of the TransportReach as defined by the “Geometry”-column. These three layers can be edited. The outflows
-depict the corresponding lines between the system elements and this layer can not be edited and edits of the Ouflows layer are not saved to the DB.</p>
+sub-basins in the Talsim DB, while TransportReach contains all lines of the TransportReach as defined by the “Geometry”-column. These three layers can be edited. The Outflows- layer depicts the corresponding lines between the system elements and this layer can not be edited.</p>
 <p>At any stage, you can click the “Reconnect to DB and Reload Layers” button at the bottom to reconnect to the database, e.g., if you wish to inspect changes.</p>
 </div></blockquote>
 </section>
 <section id="edit-features-of-talsim-db">
 <h2>Edit features of Talsim DB<a class="headerlink" href="#edit-features-of-talsim-db" title="Permalink to this heading">¶</a></h2>
 <blockquote id="edit-existing">
-<div><p>The layers SystemElement, Sub-basins and TransportReach can be edited by the user. All edits/inserts/deletions made by the user are saved to the connected Talsim DB.
-As shown in the screenshot below, the user must select the layer to be edited in the layer group and then click the ‘Toggle Editing’ button to start the editing mode for this layer.
-Using the editing options of QGIS, the user is now able to make any changes to the geometries of these three layers
-(find further information <a class="reference external" href="https://docs.qgis.org/3.34/en/docs/user_manual/working_with_vector/editing_geometry_attributes.html">here</a>).
-<img alt="Edit Sub-basins" src="_images/db_editSubBasins.png" /></p>
+<div><p>The SystemElement, Sub-basins, and TransportReach layers can be edited by the user. All edits, inserts, and deletions made by the user are saved to the connected Talsim DB. As         shown in the screenshot below, the user must select the layer to be edited in the layer group and then click the ‘Toggle Editing’ button to start the editing mode for this layer.</p>
+<p>Using the editing options of QGIS, the user is now able to make any changes to the geometries
+(find further information <a class="reference external" href="https://docs.qgis.org/3.34/en/docs/user_manual/working_with_vector/editing_geometry_attributes.html">here</a>) and to the attributes of these three  layers.</p>
+<p><img alt="Edit Sub-basins" src="_images/db_editSubBasins.png" /></p>
 </div></blockquote>
-<section id="systemelement">
-<h3>SystemElement<a class="headerlink" href="#systemelement" title="Permalink to this heading">¶</a></h3>
+<section id="edit-systemelement-layer">
+<h3>Edit SystemElement Layer<a class="headerlink" href="#edit-systemelement-layer" title="Permalink to this heading">¶</a></h3>
 <blockquote>
-<div><p>The SystemElement-layer is a point layer that holds all SystemElements. Users can insert new elements, delete unwanted ones, or update existing elements.
-To insert new elements, simply add a new point to the SystemElement-layer and then fill in the fields displayed in the prompt.
-The most critical field to fill in is the ‘Identifier’ field. The first character of the identifier represents the ElementTypeCharacter of the system element (e.g., A for sub-basins).
-Therefore, it is essential for users to insert the correct ElementTypeCharacter here. The remainder of the ‘Identifier’ field serves as the ElementIdentifier.
-The Id (SystemElementId) is automatically added by the plugin. All other fields are optional and can be left empty (=’NULL’).</p>
+<div><p>The SystemElement layer is a point layer that holds all SystemElements. Users can insert new elements, delete unwanted ones, or update existing elements. To insert new elements,       simply add a new point to the SystemElement layer and then fill in the fields displayed in the prompt. The most critical field to fill in is the ‘Identifier’ field. The first  character of the identifier represents the ElementTypeCharacter of the system element (e.g., A for sub-basins). Therefore, it is essential for users to insert the correct      ElementTypeCharacter here. The remainder of the ‘Identifier’ field serves as the ElementIdentifier. Please note that the element types cannot be changed by this plugin. Changes        of the first character of the ‘Identifier’-field are not saved to the DB. The Id (SystemElementId) is automatically added by the plugin. All other fields are optional and can be       left empty (=’NULL’).</p>
 <p>Another option is to delete system elements by removing the unwanted point feature.</p>
-<p>Users can also edit existing system elements by either modifying the fields in the attribute table or editing the point geometries. Editing the geometries updates the
-‘Latitude’ and ‘Longitude’ columns to reflect the location as defined by the user. Please note that it is not possible to change the element type of system elements.</p>
-<p>Please note that it is important to save changes by clicking the ‘Commit Changes’ button. As a result, newly added features are inserted into the database, edited geometries of
-existing features are updated in the database and deleted features are deleted from the DB. A log message (QTalsim-log) provides details on all updated/inserted features.</p>
+<p>Users can also edit existing system elements by either modifying the fields in the attribute table or editing the point geometries. Editing the geometries updates the ‘Latitude’       and ‘Longitude’ columns to reflect the location as defined by the user. Please note that it is not possible to change the element type of system elements.</p>
+<p>It is important to save changes by clicking the ‘Commit Changes’ button. As a result, newly added features are inserted into the database, edited geometries/attributes of      existing features are updated in the database, and deleted features are deleted from the DB. A log message (QTalsim-log) provides details on all updated/inserted/deleted       features.</p>
 </div></blockquote>
 </section>
-<section id="sub-basins-and-transportreach-wip">
-<h3>Sub-basins and TransportReach - WIP<a class="headerlink" href="#sub-basins-and-transportreach-wip" title="Permalink to this heading">¶</a></h3>
+<section id="edit-layers-sub-basins-and-transportreach">
+<h3>Edit Layers Sub-basins and TransportReach<a class="headerlink" href="#edit-layers-sub-basins-and-transportreach" title="Permalink to this heading">¶</a></h3>
 <blockquote>
-<div><p>Additionally to editing SystemElements directly, it is also possible to edit the geometries of transport reaches (lines) and sub-basins (polygons).
-It is possible to update existing geometries/attributes, delete sub-basins, to insert geometries to existing system elements or to add new sub-basins/transport-reaches.</p>
-<p>When confirming the geometry of the new sub-basin, you must insert the identifier of the sub-basin into the field ‘Identifier’. Optionally you can update any other fields. Only fields,
-that do not have Null-values are updated in the DB.
-The field ‘Geometry’ is automatically filled with the WKT of the new geometry. Fields ‘Latitude’ and ‘Longitude’ are automatically filled with the coordinates of the sub-basin’s center.</p>
-<p>Once you have finished editing existing polygons and/or inserting all new sub-basins, it is again important to save the edits
-by clicking the ‘Commit Changes’ button.</p>
-<p>Another feature provided is the option to update the coordinates of sub-basins to the center of the sub-basins (button “Optional: Update Coordinates to Center of Sub-basins”).
-Clicking this button calculates the centroid of all sub-basins, and updates all coordinates (columns ‘Latitude’ and ‘Longitude’) with the centroid’s coordinates.</p>
+<div><p>In addition to editing SystemElements directly, it is also possible to edit the geometries of transport reaches (lines) and sub-basins (polygons), as well as their attributes.         The plugin offers functionalities to update existing geometries/attributes, delete sub-basins/transport reaches, insert geometries into existing system elements, or add new sub-       basin/transport reach elements. The functionality is similar to editing the SystemElement layer.</p>
+<p>Inserting new geometries into existing sub-basins/transport reaches, or adding entirely new elements, can be accomplished by simply adding a geometry to the corresponding layer        while in editing mode. When confirming the geometry of the new sub-basin, you must enter the identifier of the sub-basin into the ‘Identifier’ field. If this ‘Identifier’ already      exists, the geometry is inserted into the existing sub-basin/transport reach element (column geometry). However, if it does not exist, a new element is created (element type =         first character of ‘Identifier’ field). Optionally, you can update any other fields shown in the prompt. Only fields where you do not leave null values are updated in the DB. The      ‘Geometry’ field is automatically filled with the WKT of the new geometry. Fields ‘Latitude’ and ‘Longitude’ are automatically filled with the coordinates of the sub-basin’s   center. Once you have finished editing existing polygons and/or inserting all new sub-basins, it is important to save the edits by clicking the ‘Commit Changes’ button.</p>
+<p>Additionally, it is possible to edit existing geometries by simply moving the vertices while in editing mode. In the attribute table, you can again also edit the attributes of         the elements.</p>
 </div></blockquote>
 </section>
 </section>
 <section id="external-sub-basins-layer">
 <h2>External Sub-basins Layer<a class="headerlink" href="#external-sub-basins-layer" title="Permalink to this heading">¶</a></h2>
 <blockquote id="external-layer">
-<div><p>An additional feature allows for adding an external polygon layer to include sub-basin geometries into existing sub-basins or to add new sub-basins to the database.
-First, you must select a polygon layer from the list. This layer must contain a Unique Identifier field with the ‘ElementTypeCharacter’ and the ‘ElementIdentifier’ (e.g., AA001).
-Select this field from the list, and you can optionally also select a field containing the name of the sub-basin.
-When selecting a name-field the content is added to the feature’s ‘Name’-field in the DB. When selecting a name field, the content is added to the feature’s ‘Name’ field in the database.
-If you are updating existing features, you can update the point coordinates by selecting the corresponding checkbox.</p>
-<p>By clicking ‘Save New/Updated Features in DB,’ all new features or features with updated geometry are saved in the database. By clicking ‘Optional: View updated/new Features in Layer’ a new
-layer with the updated/inserted features is added to the layer group.
-Again, the information about the updated/inserted features is logged to the QTalsim-log.</p>
+<div><p>An additional feature enables the addition of geometries from an external polygon layer to either insert into existing sub-basins or create new sub-basins in the database. First,      you must select a polygon layer from the list. If the layer’s Coordinate Reference System (CRS) differs from WGS84, it is reprojected to EPSG-code 4326. The layer must include a       unique identifier field combining the ‘ElementTypeCharacter’ and the ‘ElementIdentifier’ (e.g., AA001 for a sub-basin). After selecting the unique identifier field from the list,      you may optionally choose other fields that contain various attributes of the sub-basins.</p>
+<p>When these fields are selected, their content is added to the corresponding fields in the database. Another option for updating existing features involves updating the point   coordinates (columns ‘Latitude’ and ‘Longitude’) to align with the center of the geometry, which can be done by selecting the appropriate checkbox.</p>
+<p>By clicking ‘Save New/Updated Features in DB,’ all new or updated features with changes in their geometries are saved to the database. Information about these updates and      insertions is logged in the QTalsim-log.</p>
 <p><img alt="External layer" src="_images/db_externalLayer.png" /></p>
 </div></blockquote>
+</section>
+<section id="external-transportreaches-layer">
+<h2>External TransportReaches Layer<a class="headerlink" href="#external-transportreaches-layer" title="Permalink to this heading">¶</a></h2>
+<blockquote id="external-transport-reach-layer">
+<div><p>Similarly to inserting external sub-basins, the plugin provides functionality to insert transport reach geometries using the corresponding window-tab. The user selects a line  layer containing the transport reaches to be imported from the list of external layers. If required, this layer is reprojected to EPSG 4326. The user can then map input fields to      Talsim fields.</p>
+<p>By clicking ‘Save New/Updated Features in DB,’ all new features or features with updated geometries are saved to the database. Once more, information about the updated/inserted        features is logged in the QTalsim-log.</p>
+<p><img alt="External TP Layer" src="_images/db_externalTransportReachLayer.png" /></p>
+</div></blockquote>
+</section>
+<section id="update-coordinates-to-center-of-geometry">
+<h2>Update Coordinates to Center of Geometry<a class="headerlink" href="#update-coordinates-to-center-of-geometry" title="Permalink to this heading">¶</a></h2>
 </section>
 </section>
 
@@ -122,11 +116,13 @@ Again, the information about the updated/inserted features is logged to the QTal
 <li><a class="reference internal" href="#">Connect to Talsim DB</a><ul>
 <li><a class="reference internal" href="#id1">Connect to Talsim DB</a></li>
 <li><a class="reference internal" href="#edit-features-of-talsim-db">Edit features of Talsim DB</a><ul>
-<li><a class="reference internal" href="#systemelement">SystemElement</a></li>
-<li><a class="reference internal" href="#sub-basins-and-transportreach-wip">Sub-basins and TransportReach - WIP</a></li>
+<li><a class="reference internal" href="#edit-systemelement-layer">Edit SystemElement Layer</a></li>
+<li><a class="reference internal" href="#edit-layers-sub-basins-and-transportreach">Edit Layers Sub-basins and TransportReach</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#external-sub-basins-layer">External Sub-basins Layer</a></li>
+<li><a class="reference internal" href="#external-transportreaches-layer">External TransportReaches Layer</a></li>
+<li><a class="reference internal" href="#update-coordinates-to-center-of-geometry">Update Coordinates to Center of Geometry</a></li>
 </ul>
 </li>
 </ul>
