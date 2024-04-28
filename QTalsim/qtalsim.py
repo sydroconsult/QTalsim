@@ -37,6 +37,7 @@ import processing
 import pandas as pd
 import webbrowser
 import numpy as np
+from collections import defaultdict
 
 class QTalsim:
     """QGIS Plugin Implementation."""
@@ -308,24 +309,30 @@ class QTalsim:
         '''
             Checks for overlapping features in an input layer.
         '''
-        checked_ids = set()
         index = QgsSpatialIndex()
-        for feature in layer.getFeatures():
-            index.addFeature(feature) #spatial index for faster processing
+        feature_dict = {feature.id(): feature for feature in layer.getFeatures()}
+        geometry_dict = {fid: feature.geometry() for fid, feature in feature_dict.items()}
 
+        checked_ids = set()
         overlapping_features = []
-        for feature in layer.getFeatures():
-            candidate_ids = index.intersects(feature.geometry().boundingBox())
-            for fid in candidate_ids:
-                if fid == feature.id() or fid in checked_ids:
-                    continue
-                other_feature = layer.getFeature(fid)
-                if feature.geometry().overlaps(other_feature.geometry()):
-                    overlapping_features.append((feature.id(), other_feature.id()))
-                elif feature.geometry().contains(other_feature.geometry()):
-                    overlapping_features.append((feature.id(), other_feature.id()))
-                elif feature.geometry().within(other_feature.geometry()):
-                    overlapping_features.append((feature.id(), other_feature.id()))
+
+        for fid, geom in geometry_dict.items():
+            index.addFeature(feature_dict[fid])
+
+        for fid, geom in geometry_dict.items():
+            candidate_ids = index.intersects(geom.boundingBox())
+
+            for cid in candidate_ids:
+                if cid == fid or (fid, cid) in checked_ids or (cid, fid) in checked_ids:
+                    continue  # Skip if the same feature or already checked
+
+                candidate_geom = geometry_dict[cid]
+                if geom.overlaps(candidate_geom) or geom.contains(candidate_geom) or geom.within(candidate_geom):
+                    overlapping_features.append((fid, cid))
+
+                # Mark this pair as checked to avoid redundant checks
+                checked_ids.add((fid, cid))
+                checked_ids.add((cid, fid))
 
         if len(overlapping_features) >= 1:
             self.log_to_qtalsim_tab(f"The following features overlap: {overlapping_features}", level=Qgis.Info)
@@ -340,91 +347,73 @@ class QTalsim:
         '''
             Deletes overlapping features of input layer.
         '''
-        snapper = QgsGeometrySnapper(layer)
-        checked_ids = set()
         layer.startEditing()
         index = QgsSpatialIndex()
-        for feature in layer.getFeatures():
-            index.addFeature(feature) #spatial index for faster processing
-        changes_made = False #needed as some overlapping features still existed after one run --> run the function multiple times, until nothing is changed
+        snapper = QgsGeometrySnapper(layer)
+        changes_made = False
+
+        # Prepare spatial index for all features
+        feature_dict = {feature.id(): feature for feature in layer.getFeatures()}
+        for feature_id, feature in feature_dict.items():
+            index.addFeature(feature)
+
+        # Store geometry updates to apply in batch
+        geometry_updates = {}
         '''
             Overlapping Logic
         '''
-        for feature in layer.getFeatures(): #Looping over all features in input layer
-            candidate_ids = index.intersects(feature.geometry().boundingBox()) #Possibly overlapping candidates of feature
-            for fid in candidate_ids: #loop over possibly overlapping features
-                if fid == feature.id() or fid in checked_ids:
-                    continue #if the feature itself the overlapping feature or the candidate was already visited --> continue to next candidat
-                other_feature = layer.getFeature(fid) #get the feature id of the possibly overlapping feature
-                if feature.geometry().overlaps(other_feature.geometry()) or feature.geometry().contains(other_feature.geometry()) or feature.geometry().within(other_feature.geometry()):
-                    #1st possibility: Feature contains the other_feature
-                    if feature.geometry().contains(other_feature.geometry()):
+        for feature_id, feature in feature_dict.items():
+            feature_geom = feature.geometry()
+            candidate_ids = index.intersects(feature_geom.boundingBox())
 
-                        #Calculate the difference between feature and other_feature and create new geom for the feature (that contains other_feature)
-                        new_geom = feature.geometry().difference(other_feature.geometry())
-                        snapped_geometry = snapper.snapGeometry(new_geom,snapTolerance=0.01) #snap the new_geom to the nearest points (necessary to delete slight gaps/overlaps)
-                        index.deleteFeature(feature)
-                        layer.changeGeometry(feature.id(), snapped_geometry)
-                        index.addFeature(layer.getFeature(feature.id()))
+            for fid in candidate_ids:
+                if fid == feature_id or fid not in feature_dict:
+                    continue
+                
+                other_feature = feature_dict[fid]
+                other_geom = other_feature.geometry()
+
+                # Handle feature being within or containing other_feature, or based on area comparison.
+                if feature_geom.overlaps(other_geom) or feature_geom.contains(other_geom) or feature_geom.within(other_geom):
+                    if feature_geom.contains(other_geom):
+                        # Calculate the difference and snap geometries to correct minor inaccuracies.
+                        new_geom = feature_geom.difference(other_geom)
+                        snapped_geometry = snapper.snapGeometry(new_geom, snapTolerance=0.01)
+                        
+                        # Check if containment still exists after initial adjustment.
+                        if snapped_geometry.contains(other_geom):
+                            buffered_geometry = other_geom.buffer(0.0001, 5)  # Small buffer to finalize adjustments
+                            new_geom = snapped_geometry.difference(buffered_geometry)
+                            snapped_geometry = snapper.snapGeometry(new_geom, snapTolerance=0.01)
+                        
+                        geometry_updates[feature_id] = snapped_geometry
                         changes_made = True
-                        if feature.geometry().contains(other_feature.geometry()): #if feature still contains other_feature
-                            buffered_geometry = other_feature.geometry().buffer(0.0001, 5) #very small buffer
-                            new_geom = feature.geometry().difference(buffered_geometry)
-                            snapped_geometry = snapper.snapGeometry(new_geom,snapTolerance=0.01) #snapping the feature to the nearest feature
-                            index.deleteFeature(feature)
-                            layer.changeGeometry(feature.id(), snapped_geometry)
-                            index.addFeature(layer.getFeature(feature.id()))
-                    #2nd possibility: Feature is within other_feature
-                    elif feature.geometry().within(other_feature.geometry()):
-                        #Calculate the difference between feature and other_feature and create new geom for the feature (that contains other_feature)
-                        new_geom = other_feature.geometry().difference(feature.geometry())
-                        snapped_geometry = snapper.snapGeometry(new_geom,snapTolerance=0.01) #snap the new_geom to the nearest points (necessary to delete slight gaps/overlaps)
-                        index.deleteFeature(other_feature)
-                        layer.changeGeometry(other_feature.id(), snapped_geometry)
-                        index.addFeature(layer.getFeature(other_feature.id()))
+
+                    elif feature_geom.within(other_geom):
+                        new_geom = other_geom.difference(feature_geom)
+                        snapped_geometry = snapper.snapGeometry(new_geom, snapTolerance=0.01)
+                        geometry_updates[other_feature.id()] = snapped_geometry
                         changes_made = True
-                        if feature.geometry().within(other_feature.geometry()): #if feature still contains other_feature
-                            buffered_geometry = feature.geometry().buffer(0.0001, 5) #very small buffer
-                            new_geom = other_feature.geometry().difference(buffered_geometry)
-                            snapped_geometry = snapper.snapGeometry(new_geom,snapTolerance=0.01) #snapping the feature to the nearest feature
-                            index.deleteFeature(other_feature)
-                            layer.changeGeometry(other_feature.id(), snapped_geometry)
-                            index.addFeature(layer.getFeature(other_feature.id()))
-                    #3rd possibility: Feature is larger than other_feature  
-                    elif feature.geometry().area() >= other_feature.geometry().area():
-                        new_geom = feature.geometry().difference(other_feature.geometry())
-                        snapped_geometry = snapper.snapGeometry(new_geom,snapTolerance=0.01)
-                        index.deleteFeature(feature)
-                        layer.changeGeometry(feature.id(), snapped_geometry)
-                        index.addFeature(layer.getFeature(feature.id()))
-                        #Sometimes when using .difference, slight overlap still exists.
-                        #Therefore in the next step the other feature is buffered with a very low buffer_distance
-                        if feature.geometry().overlaps(other_feature.geometry()):
-                            buffered_geometry = other_feature.geometry().buffer(0.0001, 5)
-                            new_geom = feature.geometry().difference(buffered_geometry)
-                            snapped_geometry = snapper.snapGeometry(new_geom,snapTolerance=0.01)
-                            index.deleteFeature(feature)
-                            layer.changeGeometry(feature.id(), snapped_geometry)
-                            index.addFeature(layer.getFeature(feature.id()))              
+
+                    elif feature_geom.area() >= other_geom.area():
+                        new_geom = feature_geom.difference(other_geom)
+                        snapped_geometry = snapper.snapGeometry(new_geom, snapTolerance=0.01)
+                        geometry_updates[feature_id] = snapped_geometry
                         changes_made = True
+
                     else:
-                        #3rd posssibility: other_feature is larger
-                        new_geom = other_feature.geometry().difference(feature.geometry())
-                        snapped_geometry = snapper.snapGeometry(new_geom,snapTolerance=0.01)
-                        index.deleteFeature(other_feature)
-                        layer.changeGeometry(other_feature.id(), snapped_geometry)
-                        index.addFeature(layer.getFeature(other_feature.id()))
-                        if other_feature.geometry().overlaps(feature.geometry()):
-                            buffered_geometry = feature.geometry().buffer(0.0001, 5)
-                            new_geom = other_feature.geometry().difference(buffered_geometry)
-                            snapped_geometry = snapper.snapGeometry(new_geom, snapTolerance=1)
-                            index.deleteFeature(other_feature)
-                            layer.changeGeometry(other_feature.id(), snapped_geometry)
-                            index.addFeature(layer.getFeature(other_feature.id()))
+                        new_geom = other_geom.difference(feature_geom)
+                        snapped_geometry = snapper.snapGeometry(new_geom, snapTolerance=0.01)
+                        geometry_updates[other_feature.id()] = snapped_geometry
                         changes_made = True
-            checked_ids.add(feature.id())
-        layer.commitChanges()
 
+        # Apply all geometry updates in batch
+        for fid, geom in geometry_updates.items():
+            index.deleteFeature(feature_dict[fid])
+            layer.changeGeometry(fid, geom)
+            index.addFeature(layer.getFeature(fid))
+
+        layer.commitChanges()
         #Edit invalid features
         invalid_feature_ids = []
         for feature in layer.getFeatures():
@@ -473,8 +462,10 @@ class QTalsim:
         extent = result_buffer['OUTPUT']
 
         #Find Gaps between layer and extent
-        union_geom = QgsGeometry.unaryUnion([feature.geometry() for feature in layer.getFeatures()])
-        union_geom_extent = QgsGeometry.unaryUnion([feature.geometry() for feature in extent.getFeatures()])
+        layer_features = [feature.geometry() for feature in layer.getFeatures()]
+        extent_features = [feature.geometry() for feature in extent.getFeatures()]
+        union_geom = QgsGeometry.unaryUnion(layer_features)
+        union_geom_extent = QgsGeometry.unaryUnion(extent_features)
         holes = union_geom_extent.difference(union_geom)
         
         #Find gaps within the layer 
@@ -484,7 +475,6 @@ class QTalsim:
             'OUTPUT': 'memory:'
         },feedback=self.feedback)['OUTPUT']
 
-        
         gaps = []
         for feature in dissolved.getFeatures():
             geom = feature.geometry()
@@ -498,7 +488,6 @@ class QTalsim:
                 for interior_ring in polygon[1:]:
                     gaps.append(QgsGeometry.fromPolygonXY([interior_ring]))
 
-        
         #Create Gaps Layer
         crs = layer.crs().authid()
         gapsLayer = QgsVectorLayer(f"Polygon?crs={crs}","Gaps","memory")
@@ -516,7 +505,6 @@ class QTalsim:
             else:
                 # If holes is a single geometry
                 holes = holes.combine(gap_geom)
-
         if holes.isMultipart():
             geom_parts = holes.asGeometryCollection()
         else:
@@ -527,12 +515,11 @@ class QTalsim:
             feat.setGeometry(hole_geom)
             dp.addFeature(feat)
         gapsLayer.updateExtents()
-
         dp.addAttributes([QgsField("gapFeature", QVariant.Int)])
         gapsLayer.updateFields()
         gapsLayer.startEditing()
         # Set this new attribute for all features in gapsLayer
-        for feature in gapsLayer.getFeatures():
+        for feature in gapsLayer.getFeatures():#
             feature['gapFeature'] = 1  # Set identifier
             gapsLayer.updateFeature(feature)
         gapsLayer.commitChanges()
@@ -562,7 +549,6 @@ class QTalsim:
             'OUTPUT': 'memory:'
         }, feedback=self.feedback)['OUTPUT']
 
-        
         gaps = []
         for feature in dissolved.getFeatures():
             geom = feature.geometry()
@@ -575,16 +561,33 @@ class QTalsim:
                 # Interior rings are at index 1 and onwards
                 for interior_ring in polygon[1:]:
                     gaps.append(QgsGeometry.fromPolygonXY([interior_ring]))
-
         
         #Create Gaps Layer
         crs = layer.crs().authid()
         gapsLayer = QgsVectorLayer(f"Polygon?crs={crs}","Gaps","memory")
+        valid_gaps = []
+        for geom in gaps:
+            if not geom.isGeosValid():
+                fixed_geom = geom.makeValid()  # This requires QGIS 3.8 or newer
+                if fixed_geom.geom.isGeosValid():
+                    valid_gaps.append(fixed_geom)
 
+            else:
+                valid_gaps.append(geom)
+        gaps = valid_gaps 
+
+        fixed_holes = holes.makeValid() if not holes.isGeosValid() else holes
+        all_geometries = [fixed_holes] + valid_gaps
+        merged_geometry = QgsGeometry.unaryUnion(all_geometries)
+
+        if merged_geometry.isMultipart():
+            geom_parts = merged_geometry.asGeometryCollection()
+        else:
+            geom_parts = [merged_geometry]
         dp = gapsLayer.dataProvider()
-        dp.addAttributes([])
+        dp.addAttributes([QgsField("gapFeature", QVariant.Int)])
         gapsLayer.updateFields()
-
+        '''
         for gap_geom in gaps:
             if holes.isMultipart():
                 # If holes is a multipart geometry, combine with each part
@@ -599,13 +602,15 @@ class QTalsim:
             geom_parts = holes.asGeometryCollection()
         else:
             geom_parts = [holes]
-
+        '''
         for hole_geom in geom_parts:
             feat = QgsFeature()
             feat.setGeometry(hole_geom)
+            feat.setAttributes([1])
             dp.addFeature(feat)
         gapsLayer.updateExtents()
-
+        gapsLayer.commitChanges()
+        '''
         # Add a new attribute field to identify features from gapsLayer
         dp.addAttributes([QgsField("gapFeature", QVariant.Int)])
         gapsLayer.updateFields()
@@ -615,7 +620,18 @@ class QTalsim:
             feature['gapFeature'] = 1  # Set identifier
             gapsLayer.updateFeature(feature)
         gapsLayer.commitChanges()
+        '''
 
+        gapsLayer = processing.run("native:multiparttosingleparts", {
+                'INPUT': gapsLayer,
+                'OUTPUT': 'TEMPORARY_OUTPUT'
+        })['OUTPUT']
+
+        layer = processing.run("native:multiparttosingleparts", {
+                'INPUT': layer,
+                'OUTPUT': 'TEMPORARY_OUTPUT'
+        })['OUTPUT']
+            
         result_merge = processing.run("native:mergevectorlayers", {'LAYERS': [layer, gapsLayer],  'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=self.feedback)
         merged_layer = result_merge['OUTPUT']
 
@@ -629,6 +645,11 @@ class QTalsim:
             'OUTPUT': 'TEMPORARY_OUTPUT'
         },feedback=self.feedback)
         layer_without_gaps = result_eliminate['OUTPUT']
+
+        layer_without_gaps = processing.run("native:multiparttosingleparts", {
+                'INPUT': layer_without_gaps,
+                'OUTPUT': 'TEMPORARY_OUTPUT'
+        })['OUTPUT']
 
         return layer_without_gaps
     
@@ -690,10 +711,9 @@ class QTalsim:
             last_selected_item[row] = item
 
     def on_radio_button_toggled(self, checked, layer, feature_id_list, radio_button_to_row, radio_button):
+        feature_ids = feature_id_list[row]
         if checked:  # The radio button column
-            
             row = radio_button_to_row[radio_button]
-            feature_ids = feature_id_list[row]
             layer.removeSelection()
             layer.selectByIds(feature_ids, QgsVectorLayer.AddToSelection)
             self.iface.mapCanvas().zoomToSelected(layer)
@@ -734,6 +754,7 @@ class QTalsim:
         
         self.dlg.comboboxSlopeField.clear()
         self.dlg.comboboxSlopeField.addItems([field.name() for field in self.ezgLayer.fields()])
+
         self.ezgLayer.setName("Sub-basins")
         QgsProject.instance().addMapLayer(self.ezgLayer)
         self.log_to_qtalsim_tab(f"Successfully selected and clipped sub-basin layer: {self.ezgLayer.name()}.", Qgis.Info) 
@@ -880,15 +901,23 @@ class QTalsim:
                     self.soilLayerIntermediate.updateFeature(feature)
                 except Exception as e:
                     self.soilLayerIntermediate.updateFeature(feature)
-                    self.log_to_qtalsim_tab(e, level=Qgis.Warning)
-
+                    self.log_to_qtalsim_tab(f"{e}", level=Qgis.Warning)
         except Exception as e:
             error_message = f"An error occurred: {str(e)}"
             self.log_to_qtalsim_tab(error_message, level=Qgis.Critical)
+
         try:
             self.soilLayerIntermediate.commitChanges()
+            
+            #Only keep relevant fields
+            all_fields = [field.name() for field in self.soilLayerIntermediate.fields()]
+            fields_to_delete_indices = [self.soilLayerIntermediate.fields().indexFromName(field)  for field in all_fields if field not in self.soilFieldNames]
+            self.soilLayerIntermediate.startEditing()
+            self.soilLayerIntermediate.dataProvider().deleteAttributes(fields_to_delete_indices)
+            self.soilLayerIntermediate.commitChanges()
+            self.soilLayerIntermediate.updateFields()
         except Exception as e:
-            self.log_to_qtalsim_tab(e, )
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
         self.soilLayerIntermediate.dataProvider().reloadData()
 
         self.log_to_qtalsim_tab(f"Finished soil parameter mapping. Inspect results in this temporary layer: {self.soilLayerIntermediate.name()}.", Qgis.Info) 
@@ -898,6 +927,7 @@ class QTalsim:
         '''
             Checks for overlapping soilFeatures and fills the table to delete overlapping parts of features.
         '''
+        self.log_to_qtalsim_tab(f"QTalsim is currently loading. Checking for overlapping features.", Qgis.Info)
         self.overlapping_soil_features = self.checkOverlappingFeatures(self.soilLayerIntermediate)
 
         #Create unique combinations of the overlapping features
@@ -910,7 +940,7 @@ class QTalsim:
 
         self.dlg.tableSoilTypeDelete.clear()
         #self.dlg.tableSoilTypeDelete.setSelectionMode(QListWidget.ExtendedSelection)
-
+        
         self.dlg.tableSoilTypeDelete.setRowCount(len(self.overlapping_soil_features))
         self.dlg.tableSoilTypeDelete.setColumnCount(3)
         self.dlg.tableSoilTypeDelete.setHorizontalHeaderLabels(['Overlapping Feature 1', 'Overlapping Feature 2', 'Show Features in Layer'])
@@ -921,7 +951,6 @@ class QTalsim:
         self.dlg.tableSoilTypeDelete.setColumnWidth(2, 200)
 
         self.soilFields = self.soilLayerIntermediate.fields()
-
         field_index = self.soilFields.indexFromName(self.nameSoil)
         self.radio_buttons_soil = []
         self.radio_button_to_row_soil = {}
@@ -946,7 +975,6 @@ class QTalsim:
             self.radio_buttons_soil.append(radio_button)
             self.dlg.tableSoilTypeDelete.setCellWidget(row, 2, radio_button)
             self.radio_button_to_row_soil[radio_button] = row
-
 
         self.dlg.tableSoilTypeDelete.itemSelectionChanged.connect(lambda: self.on_selection_change(self.dlg.tableSoilTypeDelete))
         for radio_button in self.radio_buttons_soil:
@@ -1027,14 +1055,12 @@ class QTalsim:
         resultDissolve = processing.run("native:dissolve", {'INPUT':self.soilLayerIntermediate,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
         self.soilTalsim = resultDissolve['OUTPUT']
         
-        #Only keep relevant fields
         all_fields = [field.name() for field in self.soilTalsim.fields()]
         fields_to_delete_indices = [self.soilTalsim.fields().indexFromName(field)  for field in all_fields if field not in self.soilFieldNames]
         self.soilTalsim.startEditing()
         self.soilTalsim.dataProvider().deleteAttributes(fields_to_delete_indices)
         self.soilTalsim.commitChanges()
         self.soilTalsim.updateFields()
-        
         if self.soilLayer:
             QgsProject.instance().removeMapLayer(self.soilLayer)
 
@@ -1086,7 +1112,7 @@ class QTalsim:
             if self.file_path:
                 self.dlg.csvPath.setText(self.file_path)
         except Exception as e:
-            self.log_to_qtalsim_tab(e,Qgis.Critical)
+            self.log_to_qtalsim_tab(f"{e}",Qgis.Critical)
 
     def updateCsvDelimiter(self):
         '''
@@ -1126,7 +1152,7 @@ class QTalsim:
                     elif column_type == 'string':
                         df[column_name] = df[column_name].astype(str)
                 except Exception as e:
-                    self.log_to_qtalsim_tab(e, Qgis.Info)
+                    self.log_to_qtalsim_tab(f"{e}", Qgis.Info)
 
             #Convert each column to the specified dtype
             for column, column_type in column_types.items():
@@ -1268,12 +1294,20 @@ class QTalsim:
             self.landuseTalsim.deleteFeature(fid)
         self.landuseTalsim.commitChanges()
 
+        resultDissolve = processing.run("native:dissolve", {'INPUT':self.landuseTalsim,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'})
+        self.landuseTalsim = resultDissolve['OUTPUT']
+
+        all_fields = [field.name() for field in self.landuseTalsim.fields()]
+        fields_to_delete_indices = [self.landuseTalsim.fields().indexFromName(field)  for field in all_fields if field not in self.selected_landuse_parameters]
+        self.landuseTalsim.startEditing()
+        self.landuseTalsim.dataProvider().deleteAttributes(fields_to_delete_indices)
+        self.landuseTalsim.commitChanges()
+        self.landuseTalsim.updateFields()
+
         self.landuseTalsim.setName("Talsim Landuse")
         self.log_to_qtalsim_tab(f"Finished landuse mapping. Inspect results in this layer: {self.landuseTalsim.name()}.", Qgis.Info) 
         QgsProject.instance().addMapLayer(self.landuseTalsim)
         self.dlg.onCreateLanduseLayer.setVisible(True)
-    
-
     
     def checkOverlappingLanduse(self):
         '''
@@ -1301,7 +1335,7 @@ class QTalsim:
         self.dlg.tableLanduseDelete.setColumnWidth(2, 200)
         self.landuseFields = self.landuseTalsim.fields()
 
-        field_index = self.landuseFields.indexFromName(self.landuseField)
+        field_index = self.landuseFields.indexFromName('Name')
         self.radio_buttons_landuse = []
         self.radio_button_to_row_landuse = {}
         for row, feature_pair in enumerate(self.overlapping_landuse_features):
@@ -1334,6 +1368,7 @@ class QTalsim:
                     checked, self.landuseTalsim, self.overlapping_landuse_features, self.radio_button_to_row_landuse, rb
                 )
             )
+
     def deleteLanduseFeatures(self):
         for radio_button in self.radio_buttons_landuse:
             radio_button.setChecked(False)
@@ -1395,12 +1430,16 @@ class QTalsim:
         '''
         #Dissolve the layer using the talsim landuse parameters
         resultDissolve = processing.run("native:dissolve", {'INPUT':self.landuseTalsim,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'})
-        dissolvedLayer = resultDissolve['OUTPUT']
-        if self.landuseTalsim:
-            QgsProject.instance().removeMapLayer(self.landuseTalsim)
+        self.landuseTalsim = resultDissolve['OUTPUT']
+        all_fields = [field.name() for field in self.landuseTalsim.fields()]
+        fields_to_delete_indices = [self.landuseTalsim.fields().indexFromName(field)  for field in all_fields if field not in self.selected_landuse_parameters]
+        self.landuseTalsim.startEditing()
+        self.landuseTalsim.dataProvider().deleteAttributes(fields_to_delete_indices)
+        self.landuseTalsim.commitChanges()
+        self.landuseTalsim.updateFields()
+
         if self.landuseLayer:
             QgsProject.instance().removeMapLayer(self.landuseLayer)
-        self.landuseTalsim = dissolvedLayer
         self.landuseTalsim.setName("Talsim Landuse")
         self.log_to_qtalsim_tab(f"Created Landuse Layer with Talsim Parameters: {self.landuseTalsim.name()}.", Qgis.Info) 
         QgsProject.instance().addMapLayer(self.landuseTalsim)
@@ -1411,6 +1450,14 @@ class QTalsim:
         '''
         self.log_to_qtalsim_tab(f"Starting the intersecting process of layers: {self.ezgLayer.name()}, {self.landuseTalsim.name()} and {self.soilTalsim.name()}.", Qgis.Info) 
         self.slopeField = self.dlg.comboboxSlopeField.currentText()
+        self.ezgUniqueIdentifier = self.dlg.comboboxUICatchment.currentText()
+
+        all_fields = [field.name() for field in self.ezgLayer.fields()]
+        fields_to_delete_indices = [self.ezgLayer.fields().indexFromName(field) for field in all_fields if field != self.slopeField and field != self.ezgUniqueIdentifier]
+        self.ezgLayer.startEditing()
+        self.ezgLayer.dataProvider().deleteAttributes(fields_to_delete_indices)
+        self.ezgLayer.commitChanges()
+        self.ezgLayer.updateFields()
         try:
             #Create a copy of the sub-basins layer to not edit the input layer
             ezgLayer1 = QgsVectorLayer(f"Polygon?crs={self.ezgLayer.crs().authid()}", "EZG", "memory")
@@ -1421,10 +1468,8 @@ class QTalsim:
             mem_layer_data.addAttributes(attr)
             ezgLayer1.updateFields()
             mem_layer_data.addFeatures(feats)
-
-            self.ezgUniqueIdentifier = self.dlg.comboboxUICatchment.currentText()
         except Exception as e:
-            self.log_to_qtalsim_tab(e, Qgis.Critical)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
         #ezgFeatureID = str('SubBasinId') 
 
         '''
@@ -1436,7 +1481,6 @@ class QTalsim:
                 'OVERLAY': ezgLayer1,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
             })['OUTPUT']
-
             
             intermediateIntersectSingleparts = processing.run("native:multiparttosingleparts", {
                 'INPUT': intermediateResultIntersect,
@@ -1449,7 +1493,7 @@ class QTalsim:
                 'OUTPUT': 'TEMPORARY_OUTPUT'
             })['OUTPUT']
         except Exception as e:
-            self.log_to_qtalsim_tab(e, Qgis.Critical)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
 
         #Calculate and store area of every catchment area
         ezgAreas = {}
@@ -1464,15 +1508,41 @@ class QTalsim:
         dissolve_list.extend(self.soilFieldNames)
         resultDissolve = processing.run("native:dissolve", {'INPUT': intersectedLayer,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback = None)
         intersectedDissolvedLayer = resultDissolve['OUTPUT']
-
+          
         intersectedDissolvedLayer = self.fillGaps(intersectedDissolvedLayer, self.clippingEZG, 0)
         ezgDissolved = processing.run("native:dissolve", {'INPUT': self.ezgLayer,'FIELD': [],'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+
         intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayer, ezgDissolved)
         intersectedDissolvedLayer, _ = self.editOverlappingFeatures(intersectedDissolvedLayer)
+
         #Split the intersected areas and create own layer for each catchment area
             # --> necessary for eliminating: deleted areas (e.g. area too small) should only take the attributes of features in the same catchment area
-        resultSplit = processing.run("native:splitvectorlayer", {'INPUT': intersectedDissolvedLayer,'FIELD':self.ezgUniqueIdentifier,'PREFIX_FIELD':True,'FILE_TYPE':0,'OUTPUT':'TEMPORARY_OUTPUT'},feedback = None)
-        outputDirSplit = resultSplit['OUTPUT']
+        all_fields = [field.name() for field in intersectedDissolvedLayer.fields()]
+        fields_to_delete_indices = [intersectedDissolvedLayer.fields().indexFromName(field)  for field in all_fields if field not in dissolve_list]
+        intersectedDissolvedLayer.startEditing()
+        intersectedDissolvedLayer.dataProvider().deleteAttributes(fields_to_delete_indices)
+        intersectedDissolvedLayer.commitChanges()
+        intersectedDissolvedLayer.updateFields()
+        
+        try:
+            resultSplit = processing.run("native:splitvectorlayer", {
+                'INPUT': intersectedDissolvedLayer,
+                'FIELD': self.ezgUniqueIdentifier,
+                'PREFIX_FIELD': True,
+                'FILE_TYPE': 0,
+                'OUTPUT': 'TEMPORARY_OUTPUT'
+            }, feedback=None)
+            outputDirSplit = resultSplit['OUTPUT']
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"Error during processing: {e}", Qgis.Critical)
+        
+        #EFL-Dissolve-List
+        eflFieldList = []
+        eflFieldList.append(self.ezgUniqueIdentifier) #ID of catchment area
+        eflFieldList.append(self.IDSoil) #ID Soil
+        eflFieldList.append(self.fieldLanduseID) #ID LNZ
+        eflFieldList.append(self.slopeField) #Slope Field
+
         splitLayers = []
         for filename in os.listdir(outputDirSplit):
             ids_to_eliminate = []
@@ -1488,21 +1558,42 @@ class QTalsim:
             fieldAreaEFL = QgsField(self.fieldNameAreaEFL, QVariant.Double)
             tempLayersplit.dataProvider().addAttributes([fieldAreaEFL]) #create new field
             tempLayersplit.updateFields()
+            
+            area_sums = defaultdict(float)
+            ezg_values = {}
             #Select features to eliminate
             for feature in tempLayersplit.getFeatures():
-                area = feature.geometry().area()
-                ezg = feature[self.ezgUniqueIdentifier]
-                try:
+                attributes_key = tuple(feature[field] for field in eflFieldList)
+                ezg_values[attributes_key] = feature[self.ezgUniqueIdentifier]
+                # Sum the area for this group
+                area_sums[attributes_key] += feature.geometry().area()
+
+            percentage_sums = {}
+            # Get a representative feature to extract the ezg value
+            for attributes_key, summed_area in area_sums.items():
+            # This assumes all features in the same attributes_key group have the same ezg value
+                ezg = ezg_values[attributes_key]
+                ezgArea = ezgAreas[ezg]
+                percentage = (summed_area / ezgArea) * 100
+                percentage_sums[attributes_key] = percentage
+                '''try:
                     ezgArea = ezgAreas[ezg]
                     percentage = (area/ezgArea)*100
                 except Exception as e:
                     self.log_to_qtalsim_tab(e, Qgis.Info)
                 feature[self.fieldNameAreaEFL] = percentage
+                '''
+            for feature in tempLayersplit.getFeatures():
+                attributes_key = tuple(feature[field] for field in eflFieldList)
+                area = area_sums[attributes_key]
+                percentage = percentage_sums[attributes_key]
                 if self.dlg.checkboxIntersectMinSizeArea.isChecked() and area < self.dlg.spinboxIntersectMinSizeArea.value(): # if area of feature < minimum accepted area specified by user
                     ids_to_eliminate.append(feature.id())
                 if self.dlg.checkboxIntersectShareofArea.isChecked() and feature.id() not in ids_to_eliminate: #if the percentage-chechbox is chosen
                     if percentage < self.dlg.spinboxIntersectShareofArea.value():
                         ids_to_eliminate.append(feature.id()) #eliminate
+                if area == 0 and feature.id() not in ids_to_eliminate: #also eliminate features with area = 0
+                    ids_to_eliminate.append(feature.id())
             
 
             #Eliminate with mode specified by user
@@ -1515,11 +1606,14 @@ class QTalsim:
             elif self.dlg.comboboxModeEliminateSoil.currentText() == 'Largest Area':
                 mode = 0
             tempLayerSplitEliminated = processing.run("qgis:eliminateselectedpolygons", {'INPUT':tempLayersplit,'MODE':mode,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+            tempLayerSplitEliminated = processing.run("native:multiparttosingleparts", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
+            tempLayerSplitEliminated = processing.run("native:fixgeometries", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
             splitLayers.append(tempLayerSplitEliminated)
+
 
         #Merge all of the split layers
         resultMerge = processing.run("native:mergevectorlayers", {'LAYERS':splitLayers,'CRS':intersectedDissolvedLayer.crs(),'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-        
+
         #Dissolve Layer 2
         resultDissolve = processing.run("native:dissolve", {'INPUT': resultMerge,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
         self.finalLayer = resultDissolve['OUTPUT']
@@ -1527,6 +1621,7 @@ class QTalsim:
         self.finalLayer = self.clipLayer(self.finalLayer, ezgDissolved)
         self.finalLayer, _ = self.editOverlappingFeatures(self.finalLayer)
         self.finalLayer.setName("Talsim Layer")
+        QgsProject.instance().addMapLayer(self.finalLayer)
         #Delete unwanted fields
         self.finalLayer.startEditing()
         dissolve_fields_indices = [self.finalLayer.fields().indexFromName(field) for field in dissolve_list]
@@ -1550,9 +1645,7 @@ class QTalsim:
             feature[self.soilTextureId1] = new_value
             self.finalLayer.updateFeature(feature)
         self.finalLayer.commitChanges()
-
-        QgsProject.instance().addMapLayer(self.finalLayer)
-             
+        
         #Log catchment areas where size of all Elementarflächen != size of catchment area
         sum_areas = {key: 0 for key in ezgAreas.keys()}
         for feature in self.finalLayer.getFeatures():
@@ -1567,15 +1660,24 @@ class QTalsim:
         '''
             Create .EFL
         '''
-        eflFieldList = []
-        eflFieldList.append(self.ezgUniqueIdentifier) #ID of catchment area
-        eflFieldList.append(self.IDSoil) #ID Soil
-        eflFieldList.append(self.fieldLanduseID) #ID LNZ
-        eflFieldList.append(self.slopeField) #Slope Field
-        
-        #self.eflLayer = QgsVectorLayer(f"Polygon?crs={self.finalLayer.crs().authid()}", 'eflLayer', 'memory') #create layer
-        self.eflLayer = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-        
+        try:
+            self.eflLayer = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+        except:
+            self.finalLayer = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
+            self.finalLayer = processing.run("native:fixgeometries", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
+            self.finalLayer.startEditing()
+            for feature in self.finalLayer.getFeatures():
+                geom = feature.geometry()
+                if not geom.isGeosValid():
+                    fixed_geom = geom.makeValid()
+                    if fixed_geom and fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
+                        feature.setGeometry(fixed_geom)
+                        self.finalLayer.updateFeature(feature)
+            self.finalLayer.commitChanges()
+            self.eflLayer = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+            self.eflLayer = processing.run("native:dissolve", {'INPUT': self.eflLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+
+
         #Add Fields
         eflLayerDP = self.eflLayer.dataProvider()
 
@@ -1593,6 +1695,11 @@ class QTalsim:
             percentage = (area/ezgArea)*100
             feature[self.fieldNameAreaEFL] = percentage
             self.eflLayer.updateFeature(feature)
+            if self.dlg.checkboxIntersectMinSizeArea.isChecked() and area < self.dlg.spinboxIntersectMinSizeArea.value(): # if area of feature < minimum accepted area specified by user
+               self.log_to_qtalsim_tab(f"Feature {feature.id()} is not deleted, eventhough it's area is below {self.dlg.spinboxIntersectMinSizeArea.value()} m².", Qgis.Warning)
+            if self.dlg.checkboxIntersectShareofArea.isChecked() and percentage < self.dlg.spinboxIntersectShareofArea.value(): #if the percentage-chechbox is chosen
+               self.log_to_qtalsim_tab(f"Feature {feature.id()} is not deleted, eventhough it's percentage is below {self.dlg.spinboxIntersectShareofArea.value()} %.", Qgis.Warning)
+            
         self.eflLayer.commitChanges()
 
         eflFieldList.append(self.fieldNameAreaEFL) #Area of Elementarfläche
@@ -1644,7 +1751,7 @@ class QTalsim:
         try:
             self.soilFieldNames.remove(self.soilTypeThickness)
         except Exception as e:
-            self.log_to_qtalsim_tab(e,Qgis.Critical)
+            self.log_to_qtalsim_tab(f"{e}",Qgis.Critical)
 
         resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
         self.soilTextureFinal = resultDissolve['OUTPUT']
@@ -1966,6 +2073,27 @@ class QTalsim:
             outputPathLnz = os.path.join(self.outputFolder, f"{filename}.LNZ")
 
             data = []
+            for feature in self.landuseFinal.getFeatures():
+                # Define the fields you're interested in
+                fields = ["Id", "RootDepth", "PlantCoverage", "PlantCoverageAnnualPatternId",
+                        "LeafAreaIndex", "LeafAreaIndexAnnualPatternId", "KcCoeffAnnualPatternId",
+                        "KyYieldAnnualPatternId", "Imp", "RoughnessCoefficient", "BulkDensityChange", "pTAW", "Name"]
+
+                # Initialize the dictionary for this feature
+                layer_data = {}
+
+                # Attempt to add each field to the dictionary
+                for field in fields:
+                    try:
+                        # Add field value or empty string if None
+                        layer_data[field] = feature[field] if feature[field] is not None else ""
+                    except KeyError:
+                        # Handle the case where the field does not exist
+                        layer_data[field] = ""  # Optionally log this issue or handle differently
+
+                # Append the data
+                data.append(layer_data)
+            '''
             for feature in self.landuseFinal.getFeatures(): 
                 #hier weitermachen - die anderen Features ohne Werte auch noch hinzufügen 
                 layer_data = {"ID" : feature["Id"], "RootDepth" : feature["RootDepth"], "PlantCoverage" : feature["PlantCoverage"],
@@ -1975,7 +2103,7 @@ class QTalsim:
                             "Imp" : 0, "RoughnessCoefficient" : feature["RoughnessCoefficient"], "BulkDensityChange" : feature["BulkDensityChange"],
                             "pTAW": feature["pTAW"], "Name": feature["Name"]}
                 data.append(layer_data)
-            
+            '''
             formatted_data = []
             inter_field_characters = parse_inter_field_charactersv1(definition_line)  
             for row in data:
