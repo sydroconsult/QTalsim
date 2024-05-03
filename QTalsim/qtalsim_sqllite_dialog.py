@@ -201,7 +201,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                         layers.append(layer)
         return layers
     
-    def layersAddedHandler(self, layers):
+    def layersAddedHandler(self):
         '''
             QTimer is needed to ensure that added layers are correctly added to the comboboxes.
         '''
