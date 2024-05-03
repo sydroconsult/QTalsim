@@ -83,7 +83,7 @@ Select & Edit Soil Layer
          Overlapping Features’, ‘Check for Gaps’ and ‘Fill Gaps’.
 
          In addition to the option of deleting all overlapping parts
-         (using button 'Delete Overlapping Features'), you can also
+         (using button 'Delete All Overlapping Features'), you can also
          selectively remove specific overlapping soil features. This can
          be done via the table that populates when you click 'Check for
          Overlapping Features'. This table displays all overlapping soil
@@ -160,7 +160,7 @@ Select and Edit Land use layer
          Steps <#optional-editing-steps>`__.
 
          In addition to the option of deleting all overlapping parts
-         (using button 'Delete Overlapping Features'), you can also
+         (using button 'Delete All Overlapping Features'), you can also
          selectively remove specific overlapping landuse features. This
          can be done via the table that populates when you click 'Check
          for Overlapping Features'. This table displays all overlapping
@@ -247,12 +247,27 @@ Optional Editing Steps
 
       |Check for overlapping Features|
 
-   -  **Delete Overlapping Features**
+   -  **Delete All Overlapping Features**
 
       This function removes all overlapping parts of a layer. If two
       polygons overlap, the overlapping part is assigned to the smaller
       of the two polygons.
-
+  
+   -  **Delete Overlapping Part of selected Features**
+      In addition to the option of deleting all overlapping parts
+      (using button 'Delete All Overlapping Features'), you can also
+      selectively remove specific overlapping soil/land use features. This can
+      be done via the table that populates when you click 'Check for
+      Overlapping Features'. This table displays all overlapping soil/land use
+      features across two columns. For each pair of overlapping
+      features, you can decide, which feature's geometry should stay
+      unchanged, and which should have its overlapping part removed
+      from its geometry. In the third column, you can select features
+      to highlight them in the soil layer, allowing for easy viewing.
+      After you have identified all the unwanted overlapping parts,
+      simply press 'Delete overlapping part of selected Features' to
+      remove the overlapping parts from the selected features.
+	
    -  **Check for Gaps**
 
       This function checks for gaps in the soil/land use layer. It
@@ -270,7 +285,14 @@ Optional Editing Steps
       `here <https://docs.qgis.org/3.28/en/docs/user_manual/processing_algs/qgis/vectorgeometry.html?highlight=eliminate#eliminate-selected-polygons>`__).
       The result of this step is a layer free of gaps and matching the
       extent of the sub-basin layer.
-	  
+   
+   In general, it is recommended to delete the overlaps before and after filling gaps.
+   Particularly complex geometric structures may result in new overlaps or gaps.
+   The plugin in some cases may struggle to automatically fill very small gaps or
+   delete very small overlaps, particularly for complex geometries. 
+   If overlaps & gaps persist after several attempts to delete overlaps and fill gaps, manual deletion is recommended (if necessary).
+
+
 .. |Select Sub-basin| image:: qtalsim_screenshots/SelectSubBasin.png
 .. |Select and Edit Soil Layer| image:: qtalsim_screenshots/SelectandEditSoilLayer.png
 .. |Optional Soil Layer Steps| image:: qtalsim_screenshots/optionalStepsSoilLayer.png
