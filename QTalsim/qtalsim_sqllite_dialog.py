@@ -159,7 +159,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def on_scenario_change(self):
         '''
-            not used at the moment - Whenever the Scenario is changed by the user (in the corresponding combobox)
+            Whenever the Scenario is changed by the user (in the corresponding combobox)
         '''
         try:
             #scenarioCombo = self.comboxDBScenarios.currentText()
@@ -660,8 +660,14 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.reconnectTriggeredByButton()
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
-            
+
+    '''
+        Edit DB by external layers    
+    '''     
     def on_polygon_layer_changed(self):
+        '''
+            If user changes the external sub-basins layer, get the field names.
+        '''
         selected_layer_name = self.comboboxPolygonLayer.currentText()
         if selected_layer_name != self.noLayerSelected and selected_layer_name is not None:
             layers = QgsProject.instance().mapLayersByName(selected_layer_name)
@@ -683,6 +689,9 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.polygonLayer = None
 
     def on_transport_reach_layer_changed(self):
+        '''
+            If user changes the external transport-reach layer, get the field names.
+        '''
         selected_layer_name = self.comboboxTransportReachLayer.currentText()
         if selected_layer_name != self.noLayerSelected and selected_layer_name is not None:
             layers = QgsProject.instance().mapLayersByName(selected_layer_name)
@@ -701,6 +710,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.externalTransportReachLayer = None
 
     def updateFromExternalSubBasinsLayer(self):
+        
         try:
             desiredEPSG = f"EPSG:{self.epsg}"
             
@@ -779,7 +789,8 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def createUpdateLayer(self, layer, checkbox):
         '''
-            Creates a layer that holds all features that will be edited/inserted by a new external layer.
+            Creates a layer that holds all features that will be edited/inserted in DB by a new external layer.
+                (triggered in functions updateFromExternalTransportReachLayer and updateFromExternalSubBasinsLayer)
         '''
         #Create new layer to store updated features
         self.updatedElementsLayer = QgsVectorLayer(f"Point?crs={self.elementsPointLayer.crs().authid()}", "Updated Elements", "memory")

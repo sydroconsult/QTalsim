@@ -195,7 +195,8 @@ Intersection of Layers
       HRUs, the three layers (sub-basins, soil and land use) are
       intersected in a first step. The user can set a minimum size of
       the HRUs [m²] and a minimum percentage of HRUs relative to the
-      sub-basin's area. HRUs that fall below the specified size or
+      sub-basin's area. Please note, that the sum of the areas of all HRUs with the same parameters is
+      compared with the area of the corresponding sub-basin. HRUs that fall below the specified size or
       percentage share are deleted and filled using the
       ‘Eliminate’-tool. You can select the elimination-mode from the
       drop-down menu (find further information
@@ -239,11 +240,11 @@ Optional Editing Steps
 
       This function checks for overlapping features within the layer. It
       identifies features that are either partially or completely
-      overlapping. The feature-IDs of the overlapping features are
-      logged to the QTalsim-Log. Additionally, a layer named ‘Layer with
+      overlapping. The feature IDs of the overlapping features are logged in the
+      QTalsim-Log and are also indicated in a table below this button. Additionally, a layer named ‘Layer with
       overlapping features’ is added to the QGIS project. You can then
       inspect the overlapping features by reviewing this layer’s
-      attribute table by searching for the overlapping feature IDs.
+      attribute table by searching for the overlapping feature IDs or by selecting the features in the table (see "Delete Overlapping Part of selected Features").
 
       |Check for overlapping Features|
 

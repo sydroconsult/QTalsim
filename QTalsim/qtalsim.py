@@ -330,7 +330,6 @@ class QTalsim:
         if index != -1:
             self.dlg.comboboxEZGLayer.setCurrentIndex(index)
 
-
         current_text = self.dlg.comboboxSoilLayer.currentText()
         self.dlg.comboboxSoilLayer.clear() #clear combobox soil from previous runs
         self.dlg.comboboxSoilLayer.addItems([layer.name() for layer in layers])
@@ -502,7 +501,7 @@ class QTalsim:
                 invalid_feature_ids.append(feature.id())
         
         if len(invalid_feature_ids) >= 1:
-            layer = processing.run("native:fixgeometries", {'INPUT':layer,'METHOD':1, 'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
+            layer = processing.run("native:fixgeometries", {'INPUT':layer,'METHOD':1, 'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
         
         return layer, changes_made
 
@@ -512,7 +511,7 @@ class QTalsim:
                 First checks validity of input layer and then clips this layer.
         '''
         #Check Geometry
-        result = processing.run("qgis:checkvalidity", {'INPUT_LAYER':layer,'METHOD':2,'IGNORE_RING_SELF_INTERSECTION':False,'VALID_OUTPUT':'TEMPORARY_OUTPUT','INVALID_OUTPUT':'TEMPORARY_OUTPUT','ERROR_OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
+        result = processing.run("qgis:checkvalidity", {'INPUT_LAYER':layer,'METHOD':2,'IGNORE_RING_SELF_INTERSECTION':False,'VALID_OUTPUT':'TEMPORARY_OUTPUT','INVALID_OUTPUT':'TEMPORARY_OUTPUT','ERROR_OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
         
         outputLayer = result['VALID_OUTPUT']
         #Clip valid geometry
@@ -520,12 +519,12 @@ class QTalsim:
                 'INPUT': outputLayer,
                 'OVERLAY': clipping_layer,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
-        }, feedback=self.feedback)
+        }, feedback=None)
 
         resultClippingLayer = resultClipping['OUTPUT']
         
         #After clipping Problems with multipart polygons can arise
-        result_singlepart = processing.run("native:multiparttosingleparts", {'INPUT': resultClippingLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=self.feedback)
+        result_singlepart = processing.run("native:multiparttosingleparts", {'INPUT': resultClippingLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)
         layer = result_singlepart['OUTPUT']
         return layer
     
@@ -552,7 +551,7 @@ class QTalsim:
             'INPUT': layer,
             'FIELD':[],
             'OUTPUT': 'memory:'
-        },feedback=self.feedback)['OUTPUT']
+        },feedback=None)['OUTPUT']
 
         gaps = []
         for feature in dissolved.getFeatures():
@@ -632,7 +631,7 @@ class QTalsim:
             'INPUT': layer,
             'FIELD':[],
             'OUTPUT': 'memory:'
-        }, feedback=self.feedback)['OUTPUT']
+        }, feedback=None)['OUTPUT']
 
         gaps = []
         for feature in dissolved.getFeatures():
@@ -675,22 +674,7 @@ class QTalsim:
         dp = gapsLayer.dataProvider()
         dp.addAttributes([QgsField("gapFeature", QVariant.Int)])
         gapsLayer.updateFields()
-        '''
-        for gap_geom in gaps:
-            if holes.isMultipart():
-                # If holes is a multipart geometry, combine with each part
-                for part in holes.asGeometryCollection():
-                    combined_geom = part.combine(gap_geom)
-                    holes = QgsGeometry.unaryUnion([holes, combined_geom])
-            else:
-                # If holes is a single geometry
-                holes = holes.combine(gap_geom)
 
-        if holes.isMultipart():
-            geom_parts = holes.asGeometryCollection()
-        else:
-            geom_parts = [holes]
-        '''
         gapsLayer.startEditing()
         for hole_geom in geom_parts:
             feat = QgsFeature()
@@ -710,7 +694,7 @@ class QTalsim:
                 'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
             
-        result_merge = processing.run("native:mergevectorlayers", {'LAYERS': [layer, gapsLayer],  'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=self.feedback)
+        result_merge = processing.run("native:mergevectorlayers", {'LAYERS': [layer, gapsLayer],  'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)
         merged_layer = result_merge['OUTPUT']
 
         for feature in merged_layer.getFeatures():
@@ -773,7 +757,7 @@ class QTalsim:
                 # If not valid, add its ID to the list
                 invalid_feature_ids.append(feature.id())
         if len(invalid_feature_ids) >= 1:
-            layer = processing.run("native:fixgeometries", {'INPUT': layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']        
+            layer = processing.run("native:fixgeometries", {'INPUT': layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']        
         return layer
     
     def on_selection_change(self, table_widget):
@@ -828,7 +812,7 @@ class QTalsim:
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': self.ezgLayer ,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
             self.ezgLayer, _ = self.editOverlappingFeatures(outputLayer)
             #Dissolve of catchment areas for better clipping performance
-            result = processing.run("native:dissolve", {'INPUT': self.ezgLayer, 'FIELD':[],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
+            result = processing.run("native:dissolve", {'INPUT': self.ezgLayer, 'FIELD':[],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             outputLayer = result['OUTPUT']
 
             
@@ -870,7 +854,7 @@ class QTalsim:
 
             #Clip Layer
             outputLayer = self.clipLayer(self.soilLayer, self.clippingEZG)
-            outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': outputLayer ,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+            outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': outputLayer ,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             self.soilLayer = outputLayer
 
             self.fillSoilTable()
@@ -1243,7 +1227,7 @@ class QTalsim:
         try:
             self.start_operation()
             #Dissolve the layer using the talsim soil parameters
-            resultDissolve = processing.run("native:dissolve", {'INPUT':self.soilLayerIntermediate,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
+            resultDissolve = processing.run("native:dissolve", {'INPUT':self.soilLayerIntermediate,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.soilTalsim = resultDissolve['OUTPUT']
             
             all_fields = [field.name() for field in self.soilTalsim.fields()]
@@ -2005,8 +1989,8 @@ class QTalsim:
             try:
                 self.eflLayer = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             except:
-                self.finalLayer = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
-                self.finalLayer = processing.run("native:fixgeometries", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
+                self.finalLayer = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                self.finalLayer = processing.run("native:fixgeometries", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
                 self.finalLayer.startEditing()
                 for feature in self.finalLayer.getFeatures():
                     geom = feature.geometry()
@@ -2070,7 +2054,7 @@ class QTalsim:
             '''
                 Create .LNZ
             '''
-            resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
+            resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.landuseFinal = resultDissolve['OUTPUT']
             self.landuseFinal.startEditing()
             dissolve_fields_indices = [self.landuseFinal.fields().indexFromName(field) for field in self.selected_landuse_parameters]
@@ -2095,7 +2079,7 @@ class QTalsim:
             except Exception as e:
                 self.log_to_qtalsim_tab(f"{e}",Qgis.Critical)
 
-            resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
+            resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.soilTextureFinal = resultDissolve['OUTPUT']
             self.soilTextureFinal.startEditing()
             dissolve_fields_indices = [self.soilTextureFinal.fields().indexFromName(field) for field in self.soilFieldNames]
@@ -2128,7 +2112,7 @@ class QTalsim:
             self.soilTypeList.append(self.soilDescription)
 
             #if there are more SoilTypes --> add names of LayerThickness here
-            resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.soilTypeList,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
+            resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.soilTypeList,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.soilTypeFinal = resultDissolve['OUTPUT']
             
             #Delete unwanted Ids
