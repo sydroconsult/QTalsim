@@ -2,6 +2,18 @@
 
 ## [1.3.0] - 2024-04-17
 - Bug fixes
+  - Fixes issue where intersection did not work (Fixes [Issue #15](https://github.com/sydroconsult/QTalsim/issues/15)).
+  - Fixes issue of handling of land uses without land use type (Fixes [Issue #14](https://github.com/sydroconsult/QTalsim/issues/14)).
+- Change logic of elimination process during intersection
+  - Sum of areas of all features with the same parameters is calculated and compared to minimum size and minimum share (rather than each spatial feature itself).
+- Add user feedback for processes and also add visual indication ([Issue #12](https://github.com/sydroconsult/QTalsim/issues/12)).
+- Change names of edited layers (add name of optional editing step: overlap/gaps removal) ([Issue #11](https://github.com/sydroconsult/QTalsim/issues/11)).
+- Add possibility to choose intermediate results in layers drop-down menus ([Issue #10](https://github.com/sydroconsult/QTalsim/issues/10)).
+
+
+
+## [1.3.0] - 2024-04-17
+- Bug fixes
   - Fixes issue where SVG symbols of SystemElement layer is not working (Fixes [Issue #5](https://github.com/sydroconsult/QTalsim/issues/5)).
   - Fixes issue where raster layers in QGIS project resulted in Python error (Fixes [Issue #3](https://github.com/sydroconsult/QTalsim/issues/3)).
 - Add functionalities to "Connect to Talsim DB"
