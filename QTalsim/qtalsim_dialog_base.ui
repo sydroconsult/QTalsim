@@ -113,19 +113,6 @@
                 </property>
                </widget>
               </item>
-              <item>
-               <widget class="QPushButton" name="onEZG">
-                <property name="minimumSize">
-                 <size>
-                  <width>150</width>
-                  <height>0</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string>Confirm Sub-basins</string>
-                </property>
-               </widget>
-              </item>
              </layout>
             </item>
            </layout>
@@ -164,6 +151,19 @@
              <widget class="QComboBox" name="comboboxSlopeField"/>
             </item>
            </layout>
+          </item>
+          <item>
+           <widget class="QPushButton" name="onEZG">
+            <property name="minimumSize">
+             <size>
+              <width>150</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>Confirm Sub-basins</string>
+            </property>
+           </widget>
           </item>
           <item>
            <widget class="QGroupBox" name="groupBox_2">
@@ -216,14 +216,25 @@
                </item>
               </layout>
              </item>
+             <item>
+              <layout class="QVBoxLayout" name="verticalLayout_8">
+               <item>
+                <widget class="QLabel" name="label">
+                 <property name="text">
+                  <string>Elimination Mode</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="comboboxEliminateModes">
+                 <property name="toolTip">
+                  <string extracomment="Mode to eliminate unwanted areas.">Mode to eliminate unwanted areas.</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
             </layout>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="comboboxEliminateModes">
-            <property name="toolTip">
-             <string extracomment="Mode to eliminate unwanted areas.">Mode to eliminate unwanted areas.</string>
-            </property>
            </widget>
           </item>
           <item>
@@ -479,7 +490,7 @@
              <property name="geometry">
               <rect>
                <x>0</x>
-               <y>0</y>
+               <y>-658</y>
                <width>903</width>
                <height>1231</height>
               </rect>
