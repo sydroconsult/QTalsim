@@ -402,6 +402,8 @@ class QTalsim:
         '''
             Checks for overlapping features in an input layer.
         '''
+        layer, _ = self.make_geometries_valid(layer)
+        layer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
         layerName = layer.name()
         index = QgsSpatialIndex()
         feature_dict = {feature.id(): feature for feature in layer.getFeatures()} #Dict with all features
@@ -440,169 +442,22 @@ class QTalsim:
                 checked_ids.add((cid, fid))
 
         if len(overlapping_features) >= 1:
-            self.log_to_qtalsim_tab(f"The following features overlap: {overlapping_features}", level=Qgis.Info)
+            self.log_to_qtalsim_tab(f"{len(overlapping_features)} overlaps were detected. The following features overlap: {overlapping_features}", level=Qgis.Info)
             
             layer.setName(layerName)
             QgsProject.instance().addMapLayer(layer)
         else:
             self.log_to_qtalsim_tab(f"No overlapping polygons were detected.",level=Qgis.Info)
 
-        return overlapping_features
+        return layer, overlapping_features
     
-    def editOverlappingFeatures(self, layer):
-        '''
-            Deletes overlapping features of input layer.
-        '''
-        layer.startEditing() 
-        for feature in layer.getFeatures():
-            geom = feature.geometry()
-            if not geom.isGeosValid():
-                fixed_geom = geom.makeValid()
-                if fixed_geom.wkbType() == QgsWkbTypes.LineString or fixed_geom.wkbType() == QgsWkbTypes.MultiLineString:
-                    fixed_geom = QgsGeometry.fromPolygonXY([fixed_geom.asPolyline()])
-                if fixed_geom and fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
-                    feature.setGeometry(fixed_geom)
-                    layer.updateFeature(feature)
-        layer.commitChanges()
-        layer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-        layer.startEditing()
-        index = QgsSpatialIndex()
-        snapper = QgsGeometrySnapper(layer)
-        snap_tolerance = 0.001
-        changes_made = False
-
-        # Prepare spatial index for all features
-        feature_dict = {feature.id(): feature for feature in layer.getFeatures()}
-
-        for feature_id, feature in feature_dict.items():
-            index.addFeature(feature)
-        
-        # Store geometry updates to apply in batch
-        def apply_snap_geometry(feature, new_geom):
-            snapped_geom = new_geom
-            if new_geom.isGeosValid():
-                snapped_geom = new_geom
-            else:
-                snapped_geom = new_geom.makeValid()
-            if snapped_geom.isGeosValid():
-                return snapped_geom
-            else:
-                return None
-
-        # Store geometry updates to apply in batch
-        geometry_updates = {}
-
-        total_features = len(feature_dict)
-        last_logged_progress = 0
-        analysed_features = 0
-
-        for feature_id, feature in feature_dict.items():
-            feature_geom = feature.geometry()
-            candidate_ids = index.intersects(feature_geom.boundingBox())
-
-            analysed_features += 1
-            progress = (analysed_features / total_features) * 100
-            if progress - last_logged_progress >= 10:
-                print(f"Progress: {progress:.2f}% done")
-                last_logged_progress = progress
-
-            for fid in candidate_ids:
-                if fid == feature_id or fid not in feature_dict:
-                    continue
-
-                other_feature = feature_dict[fid]
-                other_geom = geometry_updates.get(fid, other_feature.geometry())
-
-                if feature_geom.overlaps(other_geom) or feature_geom.contains(other_geom) or feature_geom.within(other_geom):
-                    if feature_geom.contains(other_geom):
-                        new_geom = feature_geom.difference(other_geom)
-                        snapped_geometry = apply_snap_geometry(feature, new_geom)
-                        
-                        if snapped_geometry and snapped_geometry.contains(other_geom):
-                            buffered_geometry = other_geom.buffer(0.0001, 5)
-                            new_geom = snapped_geometry.difference(buffered_geometry)
-                            snapped_geometry = apply_snap_geometry(feature, new_geom)
-
-                        if snapped_geometry:
-                            geometry_updates[feature_id] = snapped_geometry
-                            feature_dict[feature_id].setGeometry(snapped_geometry)
-                            feature_geom = snapped_geometry
-                            changes_made = True
-
-                    elif feature_geom.within(other_geom):
-                        new_geom = other_geom.difference(feature_geom)
-                        snapped_geometry = apply_snap_geometry(other_feature, new_geom)
-                        
-                        if snapped_geometry:
-                            geometry_updates[other_feature.id()] = snapped_geometry
-                            feature_dict[other_feature.id()].setGeometry(snapped_geometry)
-                            changes_made = True
-
-                    elif feature_geom.area() >= other_geom.area():
-                        new_geom = feature_geom.difference(other_geom)
-                        snapped_geometry = apply_snap_geometry(feature, new_geom)
-
-                        if snapped_geometry and snapped_geometry.overlaps(other_geom):
-                            buffered_geometry = other_geom.buffer(0.0001, 5)
-                            new_geom = feature_geom.difference(buffered_geometry)
-                            snapped_geometry = apply_snap_geometry(feature, new_geom)
-
-                        if snapped_geometry:
-                            geometry_updates[feature_id] = snapped_geometry
-                            feature_dict[feature_id].setGeometry(snapped_geometry)
-                            feature_geom = snapped_geometry
-                            changes_made = True
-
-                    else:
-                        new_geom = other_geom.difference(feature_geom)
-                        snapped_geometry = apply_snap_geometry(other_feature, new_geom)
-                        
-                        if snapped_geometry and new_geom.overlaps(feature_geom):
-                            buffered_geometry = feature_geom.buffer(0.0001, 5)
-                            new_geom = other_geom.difference(buffered_geometry)
-                            snapped_geometry = apply_snap_geometry(other_feature, new_geom)
-
-                        if snapped_geometry:
-                            geometry_updates[other_feature.id()] = snapped_geometry
-                            feature_dict[other_feature.id()].setGeometry(snapped_geometry)
-                            changes_made = True
-
-        # Step 5: Apply geometry updates
-        layer.startEditing()
-        for fid, geom in geometry_updates.items():
-            if geom and geom.isGeosValid():
-                index.deleteFeature(feature_dict[fid])
-                layer.changeGeometry(fid, geom)
-                index.addFeature(layer.getFeature(fid))
-        layer.commitChanges()
-
-        features_to_delete = []
-        for feature in layer.getFeatures():
-            # Check if all attribute values are 'NULL'
-            if feature.geometry().isEmpty() or feature.geometry() is None or feature.geometry().area() == 0:
-                features_to_delete.append(feature.id())
-
-        layer.startEditing()
-        for feature_id in features_to_delete:
-            layer.deleteFeature(feature_id)
-        layer.commitChanges()
-        
-        #Edit invalid features
-        invalid_feature_ids = []
-        for feature in layer.getFeatures():
-            #Check if the feature's geometry is valid
-            if not feature.geometry().isGeosValid():
-                #If not valid, add its ID to the list
-                invalid_feature_ids.append(feature.id())
-        
-        #Problem with fixing geometries: Deletes some polygons
+    def make_geometries_valid(self, layer):
         invalid_features = False
         layer.startEditing() 
         for feature in layer.getFeatures():
             geom = feature.geometry()
             if not geom.isGeosValid():
                 fixed_geom = geom.makeValid()
-                
                 # Check if the fixed geometry is valid and of the correct type
                 if fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
                     feature.setGeometry(fixed_geom)
@@ -619,15 +474,140 @@ class QTalsim:
                         layer.updateFeature(feature)
                     else:
                         invalid_features = True
-
         layer.commitChanges()
+        
+
+        return layer, invalid_features
+    
+    def editOverlappingFeatures(self, layer):
+        '''
+            Deletes overlapping features of input layer.
+        '''
+        layer, _ = self.make_geometries_valid(layer)
+        layer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+        layer.startEditing()
+        index = QgsSpatialIndex()
+
+        changes_made = False
+
+        # Prepare spatial index for all features
+        feature_dict = {feature.id(): feature for feature in layer.getFeatures()}
+
+        for feature_id, feature in feature_dict.items():
+            index.addFeature(feature)
+        
+        snap_tolerance = 0.01
+        snapper = QgsGeometrySnapper(layer)
+        def apply_snap_geometry(new_geom, tolerance):
+            snapped_geom = snapper.snapGeometry(new_geom, tolerance)
+            if not snapped_geom.isGeosValid():
+                snapped_geom = snapped_geom.makeValid()
+            return snapped_geom if snapped_geom.isGeosValid() else None
+
+        geometry_updates = {}
+
+        total_features = len(feature_dict)
+        last_logged_progress = 0
+        analysed_features = 0
+
+        for feature_id, feature in feature_dict.items():
+            feature_geom = feature.geometry()
+            candidate_ids = index.intersects(feature_geom.boundingBox())
+
+            analysed_features += 1
+            progress = (analysed_features / total_features) * 100
+            if progress - last_logged_progress >= 10:
+                self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
+                last_logged_progress = progress
+
+            for fid in candidate_ids:
+                if fid == feature_id or fid not in feature_dict:
+                    continue
+
+                other_feature = feature_dict[fid]
+                other_geom = geometry_updates.get(fid, other_feature.geometry())
+
+                if feature_geom.overlaps(other_geom) or feature_geom.contains(other_geom) or feature_geom.within(other_geom):
+                    if feature_geom.contains(other_geom):
+                        new_geom = feature_geom.difference(other_geom)
+                        snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+                        
+                        if snapped_geometry and snapped_geometry.contains(other_geom):
+                            buffered_geometry = other_geom.buffer(0.0001, 5)
+                            new_geom = snapped_geometry.difference(buffered_geometry)
+                            snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+
+                        if snapped_geometry:
+                            geometry_updates[feature_id] = snapped_geometry
+                            feature_dict[feature_id].setGeometry(snapped_geometry)
+                            feature_geom = snapped_geometry
+                            changes_made = True
+                        else:
+                            self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
+
+                    elif feature_geom.within(other_geom):
+                        new_geom = other_geom.difference(feature_geom)
+                        snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+                        
+                        if snapped_geometry:
+                            geometry_updates[other_feature.id()] = snapped_geometry
+                            feature_dict[other_feature.id()].setGeometry(snapped_geometry)
+                            changes_made = True
+                        else:
+                            self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
+
+                    elif feature_geom.area() >= other_geom.area():
+                        new_geom = feature_geom.difference(other_geom)
+                        snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+
+                        if snapped_geometry and snapped_geometry.overlaps(other_geom):
+                            buffered_geometry = other_geom.buffer(0.0001, 5)
+                            new_geom = feature_geom.difference(buffered_geometry)
+                            snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+
+                        if snapped_geometry:
+                            geometry_updates[feature_id] = snapped_geometry
+                            feature_dict[feature_id].setGeometry(snapped_geometry)
+                            feature_geom = snapped_geometry
+                            changes_made = True
+                        else:
+                            self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
+
+                    else:
+                        new_geom = other_geom.difference(feature_geom)
+                        snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+                        
+                        if snapped_geometry and new_geom.overlaps(feature_geom):
+                            buffered_geometry = feature_geom.buffer(0.0001, 5)
+                            new_geom = other_geom.difference(buffered_geometry)
+                            snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+
+                        if snapped_geometry:
+                            geometry_updates[other_feature.id()] = snapped_geometry
+                            feature_dict[other_feature.id()].setGeometry(snapped_geometry)
+                            changes_made = True
+                        else:
+                            self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
+
+        # Step 5: Apply geometry updates
+        layer.startEditing()
+        for fid, geom in geometry_updates.items():
+            if geom and geom.isGeosValid():
+                index.deleteFeature(feature_dict[fid])
+                layer.changeGeometry(fid, geom)
+                index.addFeature(layer.getFeature(fid))
+        layer.commitChanges()
+
+        invalid_features = False
+        layer, invalid_features = self.make_geometries_valid(layer)
+
         if invalid_features:
             original_features = {feature.id(): feature for feature in layer.getFeatures()}
             layer = processing.run("native:fixgeometries", {'INPUT': layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
             fixed_features = {feature.id(): feature for feature in layer.getFeatures()}
-            QgsProject.instance().addMapLayer(layer)
             deleted_features = set(original_features.keys()) - set(fixed_features.keys())
-            print(deleted_features)
+            if len(deleted_features) > 0:
+                self.log_to_qtalsim_tab(f"The following features were deleted due to invalid geometries: {deleted_features}", Qgis.Warning)
         if last_logged_progress <= 99:
             self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
 
@@ -773,17 +753,8 @@ class QTalsim:
         holes = union_geom_extent.difference(union_geom)
         
         #Necessary step because dissolve cannot handle GeometryCollectiosns & Linestrings:
-        layer.startEditing() 
-        for feature in layer.getFeatures():
-            geom = feature.geometry()
-            if not geom.isGeosValid():
-                fixed_geom = geom.makeValid()
-                if fixed_geom.wkbType() == QgsWkbTypes.LineString or fixed_geom.wkbType() == QgsWkbTypes.MultiLineString:
-                    fixed_geom = QgsGeometry.fromPolygonXY([fixed_geom.asPolyline()])
-                if fixed_geom and fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
-                    feature.setGeometry(fixed_geom)
-                    layer.updateFeature(feature)
-        layer.commitChanges()
+        layer, _ = self.make_geometries_valid(layer)
+
         layer = processing.run("native:multiparttosingleparts", {
             'INPUT': layer,
             'OUTPUT': 'memory:'
@@ -865,17 +836,7 @@ class QTalsim:
             layer.commitChanges()
 
         #Necessary step because dissolve cannot handle GeometryCollectiosns & Linestrings:
-        layer.startEditing() 
-        for feature in layer.getFeatures():
-            geom = feature.geometry()
-            if not geom.isGeosValid():
-                fixed_geom = geom.makeValid()
-                if fixed_geom.wkbType() == QgsWkbTypes.LineString or fixed_geom.wkbType() == QgsWkbTypes.MultiLineString:
-                    fixed_geom = QgsGeometry.fromPolygonXY([fixed_geom.asPolyline()])
-                if fixed_geom and fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
-                    feature.setGeometry(fixed_geom)
-                    layer.updateFeature(feature)
-        layer.commitChanges()
+        layer, _ = self.make_geometries_valid(layer)
 
         layer = processing.run("native:multiparttosingleparts", {
             'INPUT': layer,
@@ -926,7 +887,6 @@ class QTalsim:
                 fixed_geom = geom.makeValid() 
                 if fixed_geom.isGeosValid():
                     valid_gaps.append(fixed_geom)
-
             else:
                 valid_gaps.append(geom)
         gaps = valid_gaps 
@@ -954,34 +914,15 @@ class QTalsim:
         gapsLayer.commitChanges()
 
         self.log_to_qtalsim_tab("Eliminating Gaps...", Qgis.Info)
-        gapsLayer.startEditing() 
-        for feature in gapsLayer.getFeatures():
-            geom = feature.geometry()
-            if not geom.isGeosValid():
-                fixed_geom = geom.makeValid()
-                if fixed_geom.wkbType() == QgsWkbTypes.LineString or fixed_geom.wkbType() == QgsWkbTypes.MultiLineString:
-                    fixed_geom = QgsGeometry.fromPolygonXY([fixed_geom.asPolyline()])
-                if fixed_geom and fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
-                    feature.setGeometry(fixed_geom)
-                    gapsLayer.updateFeature(feature)
-        gapsLayer.commitChanges()
+
+        gapsLayer, invalid_features = self.make_geometries_valid(gapsLayer)
 
         gapsLayer = processing.run("native:multiparttosingleparts", {
                 'INPUT': gapsLayer,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
 
-        layer.startEditing() 
-        for feature in layer.getFeatures():
-            geom = feature.geometry()
-            if not geom.isGeosValid():
-                fixed_geom = geom.makeValid()
-                if fixed_geom.wkbType() == QgsWkbTypes.LineString or fixed_geom.wkbType() == QgsWkbTypes.MultiLineString:
-                    fixed_geom = QgsGeometry.fromPolygonXY([fixed_geom.asPolyline()])
-                if fixed_geom and fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
-                    feature.setGeometry(fixed_geom)
-                    layer.updateFeature(feature)
-        layer.commitChanges()
+        layer, _ = self.make_geometries_valid(layer)
 
         layer = processing.run("native:multiparttosingleparts", {
                 'INPUT': layer,
@@ -1005,17 +946,7 @@ class QTalsim:
         },feedback=self.feedback)
         layer_without_gaps = result_eliminate['OUTPUT']
 
-        layer_without_gaps.startEditing() 
-        for feature in layer_without_gaps.getFeatures():
-            geom = feature.geometry()
-            if not geom.isGeosValid():
-                fixed_geom = geom.makeValid()
-                if fixed_geom.wkbType() == QgsWkbTypes.LineString or fixed_geom.wkbType() == QgsWkbTypes.MultiLineString:
-                    fixed_geom = QgsGeometry.fromPolygonXY([fixed_geom.asPolyline()])
-                if fixed_geom and fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
-                    feature.setGeometry(fixed_geom)
-                    layer_without_gaps.updateFeature(feature)
-        layer_without_gaps.commitChanges()
+        layer_without_gaps, _ = self.make_geometries_valid(layer_without_gaps)
 
         layer_without_gaps = processing.run("native:multiparttosingleparts", {
                 'INPUT': layer_without_gaps,
@@ -1038,7 +969,6 @@ class QTalsim:
         '''
             Deletes overlapping parts of features that are selected by the user in the table. 
         '''
-        snapper = QgsGeometrySnapper(layer)
         geometry_updates = {}
         #index = QgsSpatialIndex()
         selected_indexes = table.selectionModel().selectedIndexes()
@@ -1047,6 +977,15 @@ class QTalsim:
         analysed_features = 0
         number_total_features = max(row for row, _ in selected_cells) + 1
         last_logged_progress = 0
+
+        snapper = QgsGeometrySnapper(layer)
+        snap_tolerance = 0.01
+        def apply_snap_geometry(new_geom, tolerance):
+            snapped_geom = snapper.snapGeometry(new_geom, tolerance)
+            if not snapped_geom.isGeosValid():
+                snapped_geom = snapped_geom.makeValid()
+            return snapped_geom if snapped_geom.isGeosValid() else None
+            
         for row, column in selected_cells:
             feature_id_selected = list_overlapping_features[row][column]
            
@@ -1072,29 +1011,35 @@ class QTalsim:
 
             # Calculate the difference between feature and other_feature and create new geom for the feature (that contains other_feature)
             new_geom = feature_geom.difference(feature_keep_geometry)
-            snapped_geometry = snapper.snapGeometry(new_geom, snapTolerance=0.01)  # snap the new_geom to the nearest points (necessary to delete slight gaps/overlaps)
-            
-            if snapped_geometry.contains(feature_keep_geometry) or snapped_geometry.within(feature_keep_geometry) or snapped_geometry.overlaps(feature_keep_geometry):
+            snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+            if snapped_geometry and (snapped_geometry.contains(feature_keep_geometry) or snapped_geometry.within(feature_keep_geometry) or snapped_geometry.overlaps(feature_keep_geometry)):
                 buffered_geometry = feature_keep_geometry.buffer(0.0001, 5)  # very small buffer
                 new_geom = feature_geom.difference(buffered_geometry)
-                snapped_geometry = snapper.snapGeometry(new_geom, snapTolerance=0.01)  # snapping the feature to the nearest feature
-            geometry_updates[feature_id_selected] = snapped_geometry
+                snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+            
+            if snapped_geometry:
+                geometry_updates[feature_id_selected] = snapped_geometry
+            else:
+                self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id_keep} and {feature_id_selected} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
                  
+        # Step 5: Apply geometry updates
         layer.startEditing()
-        # Apply all geometry updates in batch
         for fid, geom in geometry_updates.items():
-            layer.changeGeometry(fid, geom)
-
+            if geom and geom.isGeosValid():
+                layer.changeGeometry(fid, geom)
         layer.commitChanges()
 
-        invalid_feature_ids = []
-        for feature in layer.getFeatures():
-            # Check if the feature's geometry is valid
-            if not feature.geometry().isGeosValid():
-                # If not valid, add its ID to the list
-                invalid_feature_ids.append(feature.id())
-        if len(invalid_feature_ids) >= 1:
-            layer = processing.run("native:fixgeometries", {'INPUT': layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']        
+        invalid_features = False
+        layer, _ = self.make_geometries_valid(layer)
+        if invalid_features:
+            original_features = {feature.id(): feature for feature in layer.getFeatures()}
+            layer = processing.run("native:fixgeometries", {'INPUT': layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
+            fixed_features = {feature.id(): feature for feature in layer.getFeatures()}
+            deleted_features = set(original_features.keys()) - set(fixed_features.keys())
+            if len(deleted_features) > 0:
+                self.log_to_qtalsim_tab(f"The following features were deleted due to invalid geometries: {deleted_features}", Qgis.Warning)
+        if last_logged_progress <= 99:
+            self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)      
         return layer
     
     def on_selection_change(self, table_widget):
@@ -1407,9 +1352,11 @@ class QTalsim:
             Checks for overlapping soilFeatures and fills the table to delete overlapping parts of features.
         '''
         try:
+            
             self.start_operation()
+            layer_input_name = self.soilLayerIntermediate.name()
             self.log_to_qtalsim_tab(f"QTalsim is currently loading, checking for overlapping features.", Qgis.Info)
-            self.overlapping_soil_features = self.checkOverlappingFeatures(self.soilLayerIntermediate)
+            self.soilLayerIntermediate, self.overlapping_soil_features = self.checkOverlappingFeatures(self.soilLayerIntermediate)
 
             #Create unique combinations of the overlapping features
             unique_combinations_set = set()
@@ -1483,6 +1430,8 @@ class QTalsim:
                     )
                 )
             self.dlg.tableSoilTypeDelete.setUpdatesEnabled(True)
+
+            self.soilLayerIntermediate.setName(layer_input_name)
 
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
@@ -1947,8 +1896,9 @@ class QTalsim:
         '''
         try:
             self.start_operation()
+            layer_input_name = self.landuseTalsim.name()
             self.log_to_qtalsim_tab(f"QTalsim is currently loading, checking for overlapping features.", Qgis.Info)
-            self.overlapping_landuse_features = self.checkOverlappingFeatures(self.landuseTalsim)
+            self.landuseTalsim, self.overlapping_landuse_features = self.checkOverlappingFeatures(self.landuseTalsim)
             #Create unique combinations of the overlapping features
             unique_combinations_set = set()
             for feature_pair in self.overlapping_landuse_features:
@@ -2015,7 +1965,7 @@ class QTalsim:
                         checked, self.landuseTalsim, self.overlapping_landuse_features, self.radio_button_to_row_landuse, rb
                     )
                 )
-
+            self.landuseTalsim.setName(layer_input_name)
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
 
@@ -2484,17 +2434,7 @@ class QTalsim:
                 tempLayersplit = QgsVectorLayer(file_path, filename, 'ogr')
                 
                 #Clean the geometries before performing multipart to singlepart
-                tempLayersplit.startEditing() 
-                for feature in tempLayersplit.getFeatures():
-                    geom = feature.geometry()
-                    if not geom.isGeosValid():
-                        fixed_geom = geom.makeValid()
-                        if fixed_geom.wkbType() == QgsWkbTypes.LineString or fixed_geom.wkbType() == QgsWkbTypes.MultiLineString:
-                            fixed_geom = QgsGeometry.fromPolygonXY([fixed_geom.asPolyline()])
-                        if fixed_geom and fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
-                            feature.setGeometry(fixed_geom)
-                            tempLayersplit.updateFeature(feature)
-                tempLayersplit.commitChanges()
+                tempLayersplit, _ = self.make_geometries_valid(tempLayersplit)
 
                 #'Multipart to singleparts' necessary because 'mergevectorlayer' does not allow Geometry Collections
                 if tempLayersplit.isValid():
@@ -2570,30 +2510,7 @@ class QTalsim:
         
             #Problem with fixing geometries: Deletes some polygons
             invalid_features = False
-            resultMerge.startEditing() 
-            for feature in resultMerge.getFeatures():
-                geom = feature.geometry()
-                if not geom.isGeosValid():
-                    fixed_geom = geom.makeValid()
-                    
-                    # Check if the fixed geometry is valid and of the correct type
-                    if fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
-                        feature.setGeometry(fixed_geom)
-                        resultMerge.updateFeature(feature)
-                    else:
-                        # Attempt to fix the geometry to be a MultiPolygon
-                        if fixed_geom.wkbType() == QgsWkbTypes.Polygon:
-                            fixed_geom = QgsGeometry.fromMultiPolygonXY([fixed_geom.asPolygon()])
-                        elif fixed_geom.wkbType() == QgsWkbTypes.LineString or fixed_geom.wkbType() == QgsWkbTypes.MultiLineString:
-                            fixed_geom = QgsGeometry.fromPolygonXY([fixed_geom.asPolyline()])
-                        # Set the fixed geometry if it's valid
-                        if fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
-                            feature.setGeometry(fixed_geom)
-                            resultMerge.updateFeature(feature)
-                        else:
-                            invalid_features = True
-
-            resultMerge.commitChanges()
+            resultMerge, invalid_features = self.make_geometries_valid(resultMerge)
             QgsProject.instance().addMapLayer(resultMerge)
             if invalid_features:
                 original_features = {feature.id(): feature for feature in resultMerge.getFeatures()}
@@ -2604,7 +2521,7 @@ class QTalsim:
             #Dissolve Layer 2 
             resultDissolve = processing.run("native:dissolve", {'INPUT': resultMerge,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.finalLayer = resultDissolve['OUTPUT']
-            self.log_to_qtalsim_tab("funktioniert", Qgis.Info)
+
             self.finalLayer = self.fillGaps(self.finalLayer, self.clippingEZG, 0)
 
             self.log_to_qtalsim_tab("Deleting overlapping features...", Qgis.Info)
@@ -2619,7 +2536,7 @@ class QTalsim:
                 if feature.geometry().isEmpty() or feature.geometry() is None or feature.geometry().area() == 0 or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' and str(feature[self.IDSoil]).strip().upper() == 'NULL' and str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
                     features_to_delete.append(feature.id())
 
-            self.log_to_qtalsim_tab(f"{features_to_delete}", Qgis.Info)
+            self.log_to_qtalsim_tab(f"{len(features_to_delete)} features are deleted as they are empty polygons. ", Qgis.Info)
             self.finalLayer.startEditing()
             for feature_id in features_to_delete:
                 self.finalLayer.deleteFeature(feature_id)
@@ -2669,20 +2586,8 @@ class QTalsim:
                 self.eflLayer = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             except:
                 self.finalLayer = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                self.finalLayer = processing.run("native:fixgeometries", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                self.finalLayer.startEditing()
-                for feature in self.finalLayer.getFeatures():
-                    geom = feature.geometry()
-                    if not geom.isGeosValid():
-                        fixed_geom = geom.makeValid()
+                self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
 
-                        if fixed_geom.wkbType() == QgsWkbTypes.LineString or fixed_geom.wkbType() == QgsWkbTypes.MultiLineString:
-                            fixed_geom = QgsGeometry.fromPolygonXY([fixed_geom.asPolyline()])
-
-                        if fixed_geom and fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
-                            feature.setGeometry(fixed_geom)
-                            self.finalLayer.updateFeature(feature)
-                self.finalLayer.commitChanges()
                 self.eflLayer = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
                 self.eflLayer = processing.run("native:dissolve", {'INPUT': self.eflLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
 
