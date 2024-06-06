@@ -434,8 +434,12 @@ class QTalsim:
                     continue  #Skip if the same feature or already checked
 
                 candidate_geom = geometry_dict[cid] #If feature and a candidate overlap, add them to the overlapping features list
-                if geom.overlaps(candidate_geom) or geom.contains(candidate_geom) or geom.within(candidate_geom):
-                    overlapping_features.append((fid, cid))
+                overlap_geom = geom.intersection(candidate_geom)
+                overlap_area = overlap_geom.area()
+                    
+                if overlap_area >= 10: #Overlaps with less than 10 m² are ignored and not removed
+                    if geom.overlaps(candidate_geom) or geom.contains(candidate_geom) or geom.within(candidate_geom):
+                        overlapping_features.append((fid, cid))
 
                 #Mark this pair as checked to avoid redundant checks
                 checked_ids.add((fid, cid))
@@ -474,9 +478,9 @@ class QTalsim:
                         layer.updateFeature(feature)
                     else:
                         invalid_features = True
+                if geom.isEmpty() or geom.area() == 0:
+                    layer.deleteFeature(feature.id())
         layer.commitChanges()
-        
-
         return layer, invalid_features
     
     def editOverlappingFeatures(self, layer):
@@ -502,7 +506,7 @@ class QTalsim:
             snapped_geom = snapper.snapGeometry(new_geom, tolerance)
             if not snapped_geom.isGeosValid():
                 snapped_geom = snapped_geom.makeValid()
-            return snapped_geom if snapped_geom.isGeosValid() else None
+            return snapped_geom #if snapped_geom.isGeosValid() else None
 
         geometry_updates = {}
 
@@ -528,74 +532,86 @@ class QTalsim:
                 other_geom = geometry_updates.get(fid, other_feature.geometry())
 
                 if feature_geom.overlaps(other_geom) or feature_geom.contains(other_geom) or feature_geom.within(other_geom):
-                    if feature_geom.contains(other_geom):
-                        new_geom = feature_geom.difference(other_geom)
-                        snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
-                        
-                        if snapped_geometry and snapped_geometry.contains(other_geom):
-                            buffered_geometry = other_geom.buffer(0.0001, 5)
-                            new_geom = snapped_geometry.difference(buffered_geometry)
+                    overlap_geom = feature_geom.intersection(other_geom)
+                    overlap_area = overlap_geom.area()
+                    
+                    if overlap_area >= 10: #Overlaps with less than 10 m² are ignored and not removed
+                        if feature_geom.contains(other_geom):
+                            new_geom = feature_geom.difference(other_geom)
                             snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+                            
+                            if snapped_geometry.contains(other_geom):
+                                buffered_geometry = other_geom.buffer(0.0001, 5)
+                                new_geom = snapped_geometry.difference(buffered_geometry)
+                                snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
 
-                        if snapped_geometry:
+                            #if snapped_geometry:
                             geometry_updates[feature_id] = snapped_geometry
                             feature_dict[feature_id].setGeometry(snapped_geometry)
                             feature_geom = snapped_geometry
                             changes_made = True
-                        else:
-                            self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
+                            #else:
+                            #    self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
 
-                    elif feature_geom.within(other_geom):
-                        new_geom = other_geom.difference(feature_geom)
-                        snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
-                        
-                        if snapped_geometry:
+                        elif feature_geom.within(other_geom):
+                            new_geom = other_geom.difference(feature_geom)
+                            snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+                            
+                            #if snapped_geometry:
                             geometry_updates[other_feature.id()] = snapped_geometry
                             feature_dict[other_feature.id()].setGeometry(snapped_geometry)
                             changes_made = True
-                        else:
-                            self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
+                            #else:
+                            #    self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
 
-                    elif feature_geom.area() >= other_geom.area():
-                        new_geom = feature_geom.difference(other_geom)
-                        snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
-
-                        if snapped_geometry and snapped_geometry.overlaps(other_geom):
-                            buffered_geometry = other_geom.buffer(0.0001, 5)
-                            new_geom = feature_geom.difference(buffered_geometry)
+                        elif feature_geom.area() >= other_geom.area():
+                            new_geom = feature_geom.difference(other_geom)
                             snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
 
-                        if snapped_geometry:
+                            if snapped_geometry.overlaps(other_geom): #snapped_geometry and 
+                                buffered_geometry = other_geom.buffer(0.0001, 5)
+                                new_geom = snapped_geometry.difference(buffered_geometry)
+                                snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+
+                            #if snapped_geometry:
                             geometry_updates[feature_id] = snapped_geometry
                             feature_dict[feature_id].setGeometry(snapped_geometry)
                             feature_geom = snapped_geometry
                             changes_made = True
-                        else:
-                            self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
-
-                    else:
-                        new_geom = other_geom.difference(feature_geom)
-                        snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+                            #else:
+                            #    self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
                         
-                        if snapped_geometry and new_geom.overlaps(feature_geom):
-                            buffered_geometry = feature_geom.buffer(0.0001, 5)
-                            new_geom = other_geom.difference(buffered_geometry)
+                        #elif new_geom == feature_geom:  #Duplicates
+                        #    geometry_updates[other_feature.id()] = "delete_feature"
+                        #    self.log_to_qtalsim_tab(f"Features {feature_id} and {other_feature.id()} are duplicates. {other_feature.id()} is deleted.", Qgis.Warning)
+                    
+                        else:
+                            new_geom = other_geom.difference(feature_geom)
                             snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+                            
+                            if snapped_geometry.overlaps(feature_geom):
+                                buffered_geometry = feature_geom.buffer(0.0001, 5)
+                                new_geom = snapped_geometry.difference(buffered_geometry)
+                                snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
 
-                        if snapped_geometry:
+                                if snapped_geometry.overlaps(feature_geom):
+                                    snapped_geometry = other_geom.difference(feature_geom)
+                            #if snapped_geometry:
                             geometry_updates[other_feature.id()] = snapped_geometry
                             feature_dict[other_feature.id()].setGeometry(snapped_geometry)
                             changes_made = True
-                        else:
-                            self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
+                            #else:
+                            #    self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
 
         # Step 5: Apply geometry updates
         layer.startEditing()
         for fid, geom in geometry_updates.items():
-            if geom and geom.isGeosValid():
+            if geom:
                 index.deleteFeature(feature_dict[fid])
                 layer.changeGeometry(fid, geom)
                 index.addFeature(layer.getFeature(fid))
+            elif geom.isEmpty():
+                layer.deleteFeature(fid)
         layer.commitChanges()
 
         invalid_features = False
@@ -712,10 +728,25 @@ class QTalsim:
                 First checks validity of input layer and then clips this layer.
         '''
         #Check Geometry
-        result = processing.run("qgis:checkvalidity", {'INPUT_LAYER':layer,'METHOD':2,'IGNORE_RING_SELF_INTERSECTION':False,'VALID_OUTPUT':'TEMPORARY_OUTPUT','INVALID_OUTPUT':'TEMPORARY_OUTPUT','ERROR_OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
-        
-        outputLayer = result['VALID_OUTPUT']
+
+        outputLayer, _ = self.make_geometries_valid(layer)
+        outputLayer = processing.run("native:fixgeometries", {'INPUT': outputLayer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
+        QgsProject.instance().addMapLayer(outputLayer)
+        #result = processing.run("qgis:checkvalidity", {'INPUT_LAYER':layer,'METHOD':2,'IGNORE_RING_SELF_INTERSECTION':False,'VALID_OUTPUT':'TEMPORARY_OUTPUT','INVALID_OUTPUT':'TEMPORARY_OUTPUT','ERROR_OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
+        #outputLayer = result['VALID_OUTPUT']
         #Clip valid geometry
+        QgsProject.instance().addMapLayer(clipping_layer)
+
+        def simplify_geometries(layer, tolerance):
+            return processing.run("native:simplifygeometries", {
+                'INPUT': layer,
+                'TOLERANCE': tolerance,
+                'OUTPUT': 'memory:'
+            },feedback=None)['OUTPUT']
+
+        outputLayer = simplify_geometries(outputLayer, tolerance=0.01)
+        clipping_layer = simplify_geometries(clipping_layer, tolerance=0.01)
+    
         resultClipping = processing.run("native:clip", {
                 'INPUT': outputLayer,
                 'OVERLAY': clipping_layer,
@@ -984,7 +1015,7 @@ class QTalsim:
             snapped_geom = snapper.snapGeometry(new_geom, tolerance)
             if not snapped_geom.isGeosValid():
                 snapped_geom = snapped_geom.makeValid()
-            return snapped_geom if snapped_geom.isGeosValid() else None
+            return snapped_geom #if snapped_geom.isGeosValid() else None
             
         for row, column in selected_cells:
             feature_id_selected = list_overlapping_features[row][column]
@@ -1008,25 +1039,32 @@ class QTalsim:
             feature_id_keep = list_overlapping_features[row][column_to_keep]
             feature_keep = layer.getFeature(feature_id_keep)
             feature_keep_geometry = geometry_updates.get(feature_id_keep, feature_keep.geometry())
-
-            # Calculate the difference between feature and other_feature and create new geom for the feature (that contains other_feature)
-            new_geom = feature_geom.difference(feature_keep_geometry)
-            snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
-            if snapped_geometry and (snapped_geometry.contains(feature_keep_geometry) or snapped_geometry.within(feature_keep_geometry) or snapped_geometry.overlaps(feature_keep_geometry)):
-                buffered_geometry = feature_keep_geometry.buffer(0.0001, 5)  # very small buffer
-                new_geom = feature_geom.difference(buffered_geometry)
-                snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
             
-            if snapped_geometry:
+            overlap_geom = feature_geom.intersection(feature_keep_geometry) 
+            overlap_area = overlap_geom.area()
+                    
+            if overlap_area >= 10: #Overlaps with less than 10 m² are ignored and not removed
+                # Calculate the difference between feature and other_feature and create new geom for the feature (that contains other_feature)
+                new_geom = feature_geom.difference(feature_keep_geometry)
+                snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
+                if snapped_geometry.contains(feature_keep_geometry) or snapped_geometry.within(feature_keep_geometry) or snapped_geometry.overlaps(feature_keep_geometry):
+                    buffered_geometry = feature_keep_geometry.buffer(0.0001, 5)  # very small buffer
+                    new_geom = snapped_geometry.difference(buffered_geometry)
+                    snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)       
+                
+                #if snapped_geometry:
                 geometry_updates[feature_id_selected] = snapped_geometry
-            else:
-                self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id_keep} and {feature_id_selected} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
+                #else:
+                #    self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id_keep} and {feature_id_selected} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
                  
         # Step 5: Apply geometry updates
         layer.startEditing()
         for fid, geom in geometry_updates.items():
-            if geom and geom.isGeosValid():
+            if geom:
                 layer.changeGeometry(fid, geom)
+            elif geom.isEmpty():
+                layer.deleteFeature(fid)
+
         layer.commitChanges()
 
         invalid_features = False
@@ -1318,13 +1356,12 @@ class QTalsim:
             except Exception as e:
                 error_message = f"An error occurred: {str(e)}"
                 self.log_to_qtalsim_tab(error_message, level=Qgis.Critical)
-
+            self.soilLayerIntermediate.commitChanges()
+            
             if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
                 self.soilLayerIntermediate = self.deletePolygonsBelowThreshold(self.soilLayerIntermediate, self.soilFieldNames, self.IDSoil)
             
-            try:
-                self.soilLayerIntermediate.commitChanges()
-                
+            try:   
                 #Only keep relevant fields
                 all_fields = [field.name() for field in self.soilLayerIntermediate.fields()]
                 fields_to_delete_indices = [self.soilLayerIntermediate.fields().indexFromName(field)  for field in all_fields if field not in self.soilFieldNames]
@@ -1859,7 +1896,8 @@ class QTalsim:
             for fid in ids_to_delete:
                 self.landuseTalsim.deleteFeature(fid)
             self.landuseTalsim.commitChanges()
-            
+            self.landuseTalsim, _ = self.make_geometries_valid(self.landuseTalsim)
+            QgsProject.instance().addMapLayer(self.landuseTalsim)
             #Delete the polygons below the thresholds
             if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
                 self.landuseTalsim = self.deletePolygonsBelowThreshold(self.landuseTalsim, self.selected_landuse_parameters, self.fieldLanduseID)
@@ -2136,19 +2174,6 @@ class QTalsim:
             self.ezgLayer.dataProvider().deleteAttributes(fields_to_delete_indices)
             self.ezgLayer.commitChanges()
             self.ezgLayer.updateFields()
-
-            try:
-                #Create a copy of the sub-basins layer to not edit the input layer
-                ezgLayer1 = QgsVectorLayer(f"Polygon?crs={self.ezgLayer.crs().authid()}", "EZG", "memory")
-                feats = [feat for feat in self.ezgLayer.getFeatures()]
-
-                mem_layer_data = ezgLayer1.dataProvider()
-                attr = self.ezgLayer.dataProvider().fields().toList()
-                mem_layer_data.addAttributes(attr)
-                ezgLayer1.updateFields()
-                mem_layer_data.addFeatures(feats)
-            except Exception as e:
-                self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
 
             '''
                 Intersection
