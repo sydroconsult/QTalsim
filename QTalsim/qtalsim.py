@@ -478,8 +478,8 @@ class QTalsim:
                         layer.updateFeature(feature)
                     else:
                         invalid_features = True
-                if geom.isEmpty() or geom.area() == 0:
-                    layer.deleteFeature(feature.id())
+            if geom.isEmpty() or geom.area() == 0:
+                layer.deleteFeature(feature.id())
         layer.commitChanges()
         return layer, invalid_features
     
@@ -728,14 +728,14 @@ class QTalsim:
                 First checks validity of input layer and then clips this layer.
         '''
         #Check Geometry
-
-        outputLayer, _ = self.make_geometries_valid(layer)
-        outputLayer = processing.run("native:fixgeometries", {'INPUT': outputLayer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
-        QgsProject.instance().addMapLayer(outputLayer)
+        outputLayer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+        
+        #outputLayer = processing.run("native:fixgeometries", {'INPUT': outputLayer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
+        #QgsProject.instance().addMapLayer(outputLayer)
         #result = processing.run("qgis:checkvalidity", {'INPUT_LAYER':layer,'METHOD':2,'IGNORE_RING_SELF_INTERSECTION':False,'VALID_OUTPUT':'TEMPORARY_OUTPUT','INVALID_OUTPUT':'TEMPORARY_OUTPUT','ERROR_OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
         #outputLayer = result['VALID_OUTPUT']
         #Clip valid geometry
-        QgsProject.instance().addMapLayer(clipping_layer)
+        #QgsProject.instance().addMapLayer(clipping_layer)
 
         def simplify_geometries(layer, tolerance):
             return processing.run("native:simplifygeometries", {
@@ -746,7 +746,9 @@ class QTalsim:
 
         outputLayer = simplify_geometries(outputLayer, tolerance=0.01)
         clipping_layer = simplify_geometries(clipping_layer, tolerance=0.01)
-    
+
+        outputLayer, _ = self.make_geometries_valid(outputLayer)
+        outputLayer = processing.run("native:fixgeometries", {'INPUT': outputLayer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
         resultClipping = processing.run("native:clip", {
                 'INPUT': outputLayer,
                 'OVERLAY': clipping_layer,
@@ -1897,7 +1899,7 @@ class QTalsim:
                 self.landuseTalsim.deleteFeature(fid)
             self.landuseTalsim.commitChanges()
             self.landuseTalsim, _ = self.make_geometries_valid(self.landuseTalsim)
-            QgsProject.instance().addMapLayer(self.landuseTalsim)
+            #QgsProject.instance().addMapLayer(self.landuseTalsim)
             #Delete the polygons below the thresholds
             if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
                 self.landuseTalsim = self.deletePolygonsBelowThreshold(self.landuseTalsim, self.selected_landuse_parameters, self.fieldLanduseID)
@@ -2376,12 +2378,14 @@ class QTalsim:
                 'OUTPUT': 'TEMPORARY_OUTPUT'
             })['OUTPUT']
             #Calculate and store area of every catchment area
-            QgsProject.instance().addMapLayer(intersectedLayer)
+            #QgsProject.instance().addMapLayer(intersectedLayer)
+            intersectedLayer, _ = self.make_geometries_valid(intersectedLayer)
+            #Get the area of each sub-basin
             ezgAreas = {}
             for feature in ezgLayer1.getFeatures():
                 ezgAreas[feature[self.ezgUniqueIdentifier]] = feature.geometry().area()
 
-            #Dissolve Layer 1
+            #Dissolve intersected layer by sub-basin's, soil's and land use's parameters
             dissolve_list = []
             dissolve_list.append(self.ezgUniqueIdentifier)
             dissolve_list.append(self.slopeField)
@@ -2390,18 +2394,17 @@ class QTalsim:
             resultDissolve = processing.run("native:dissolve", {'INPUT': intersectedLayer,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback = None)
             intersectedDissolvedLayer = resultDissolve['OUTPUT']
             
+            #Intersecting layers can result in further overlaps/gaps --> fill gaps, edit overlaps 
             intersectedDissolvedLayer = self.fillGaps(intersectedDissolvedLayer, self.clippingEZG, 0)
             ezgDissolved = processing.run("native:dissolve", {'INPUT': self.ezgLayer,'FIELD': [],'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             
             self.log_to_qtalsim_tab("Deleting overlapping features...", Qgis.Info)
-            intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayer, ezgDissolved)
-            QgsProject.instance().addMapLayer(ezgDissolved)
+            #QgsProject.instance().addMapLayer(ezgDissolved)
+            intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayer, ezgDissolved) #necessary because also wanted gaps (of sub-basins-layer) are filled when performing 'Fill Gaps'
+            
             intersectedDissolvedLayer, _ = self.editOverlappingFeatures(intersectedDissolvedLayer)
-            QgsProject.instance().addMapLayer(intersectedDissolvedLayer)
-            #= self.getUpdatedLayer()
+            #QgsProject.instance().addMapLayer(intersectedDissolvedLayer)
         
-            #Split the intersected areas and create own layer for each catchment area
-                # --> necessary for eliminating: deleted areas (e.g. area too small) should only take the attributes of features in the same catchment area
             all_fields = [field.name() for field in intersectedDissolvedLayer.fields()]
             fields_to_delete_indices = [intersectedDissolvedLayer.fields().indexFromName(field)  for field in all_fields if field not in dissolve_list]
             intersectedDissolvedLayer.startEditing()
@@ -2409,6 +2412,7 @@ class QTalsim:
             intersectedDissolvedLayer.commitChanges()
             intersectedDissolvedLayer.updateFields()
 
+            #Features with no geometry or NULL-values may lead to errors: delete those features
             features_to_delete = []
             for feature in intersectedDissolvedLayer.getFeatures():
                 if feature.geometry().isEmpty() or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' and str(feature[self.IDSoil]).strip().upper() == 'NULL' and str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
@@ -2418,6 +2422,9 @@ class QTalsim:
             for feature_id in features_to_delete:
                 intersectedDissolvedLayer.deleteFeature(feature_id)
             intersectedDissolvedLayer.commitChanges()
+            #evtl umstellen auf make_geometries_valid
+            #Split the intersected areas and create own layer for each catchment area
+                # --> necessary for eliminating: deleted areas (e.g. area too small) should only take the attributes of features in the same catchment area
             #QgsProject.instance().addMapLayer(intersectedDissolvedLayer)
             resultSplit = processing.run("native:splitvectorlayer", {
                     'INPUT': intersectedDissolvedLayer,
@@ -2536,12 +2543,12 @@ class QTalsim:
             #Problem with fixing geometries: Deletes some polygons
             invalid_features = False
             resultMerge, invalid_features = self.make_geometries_valid(resultMerge)
-            QgsProject.instance().addMapLayer(resultMerge)
+            #QgsProject.instance().addMapLayer(resultMerge)
             if invalid_features:
                 original_features = {feature.id(): feature for feature in resultMerge.getFeatures()}
                 resultMerge = processing.run("native:fixgeometries", {'INPUT': resultMerge, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
                 fixed_features = {feature.id(): feature for feature in resultMerge.getFeatures()}
-                QgsProject.instance().addMapLayer(resultMerge)
+                #QgsProject.instance().addMapLayer(resultMerge)
                 deleted_features = set(original_features.keys()) - set(fixed_features.keys())
             #Dissolve Layer 2 
             resultDissolve = processing.run("native:dissolve", {'INPUT': resultMerge,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
@@ -2560,8 +2567,8 @@ class QTalsim:
                 # Check if all attribute values are 'NULL'
                 if feature.geometry().isEmpty() or feature.geometry() is None or feature.geometry().area() == 0 or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' and str(feature[self.IDSoil]).strip().upper() == 'NULL' and str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
                     features_to_delete.append(feature.id())
-
-            self.log_to_qtalsim_tab(f"{len(features_to_delete)} features are deleted as they are empty polygons. ", Qgis.Info)
+            if len(features_to_delete) > 0:
+                self.log_to_qtalsim_tab(f"{len(features_to_delete)} features are deleted as they are empty polygons. ", Qgis.Info)
             self.finalLayer.startEditing()
             for feature_id in features_to_delete:
                 self.finalLayer.deleteFeature(feature_id)
@@ -2593,7 +2600,7 @@ class QTalsim:
                 self.finalLayer.updateFeature(feature)
             self.finalLayer.commitChanges()
             
-            #Log catchment areas where size of all Elementarflächen != size of catchment area
+            #Log catchment areas where size of all HRUs != size of catchment area
             sum_areas = {key: 0 for key in ezgAreas.keys()}
             for feature in self.finalLayer.getFeatures():
                 area = feature.geometry().area()
@@ -2601,7 +2608,7 @@ class QTalsim:
                 sum_areas[ezg] += area
             for key in ezgAreas:
                 if key in sum_areas:
-                    if round(ezgAreas[key],0) != round(sum_areas[key],0):
+                    if round(ezgAreas[key], -2) != round(sum_areas[key], -2):
                         self.log_to_qtalsim_tab(f'Sub-basin with Unique-Identifier {key} has a different area {ezgAreas[key]} than the sum of all features in this sub-basin {sum_areas[key]}.', Qgis.Warning)
             
             '''
