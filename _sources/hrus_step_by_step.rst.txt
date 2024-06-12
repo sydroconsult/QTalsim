@@ -48,7 +48,13 @@ Select & Edit Soil Layer
          type. If ‘Parameter not available’ is selected, that parameter
          will be added with null values.
 
-         To finalize the soil mapping, click ‘Confirm Soil Mapping’.
+         To finalize the soil mapping, click ‘Confirm Soil Mapping’. If the user
+	 defines area/percentage thresholds, soil features below these thresholds are
+	 deleted during this step. The user can set a minimum size of
+         the soil features [m²] and a minimum percentage of the soil features relative to the
+         sub-basin's area. Soil features that fall below the specified size or
+         percentage share are deleted and filled using the
+         ‘Eliminate’-tool.
          This creates a new layer, containing all fields from the soil
          layer and all parameters from the soil mapping table, assigned
          with values from their corresponding fields. If there is a
@@ -147,7 +153,12 @@ Select and Edit Land use layer
          the same name in the layer and the CSV-file. After completing
          the mapping, click ‘Confirm Landuse Mapping’ to create a new
          layer containing the input fields from your layer and the
-         Talsim parameter values, as specified in the CSV-file.
+         Talsim parameter values, as specified in the CSV-file. If the user
+	 defines area/percentage thresholds, land use features below these thresholds are
+	 deleted during this step. The user can set a minimum size of
+         the land use features [m²] and a minimum percentage of the land use features relative to the
+         corresponding sub-basin's area. Land use features that fall below the specified size or
+         percentage share are deleted and filled using the ‘Eliminate’-tool.
 
          |Land use Mapping|
 
@@ -240,7 +251,9 @@ Optional Editing Steps
 
       This function checks for overlapping features within the layer. It
       identifies features that are either partially or completely
-      overlapping. The feature IDs of the overlapping features are logged in the
+      overlapping. The overlapping part must be greater than 10 m²; otherwise, it is ignored. Therefore, overlapping parts 
+      below 10 m² are not indicated in the table and are not removed by the plugin.
+      The feature IDs of the overlapping features are logged in the
       QTalsim-Log and are also indicated in a table below this button. Additionally, a layer named ‘Layer with
       overlapping features’ is added to the QGIS project. You can then
       inspect the overlapping features by reviewing this layer’s
@@ -250,7 +263,8 @@ Optional Editing Steps
 
    -  **Delete All Overlapping Features**
 
-      This function removes all overlapping parts of a layer. If two
+      This function removes all overlapping parts of a layer. The overlapping part must be greater than 10 m²; 
+      otherwise, it is ignored. Therefore, overlapping parts below 10 m² are not removed by the plugin. If two
       polygons overlap, the overlapping part is assigned to the smaller
       of the two polygons.
   
@@ -260,7 +274,7 @@ Optional Editing Steps
       selectively remove specific overlapping soil/land use features. This can
       be done via the table that populates when you click 'Check for
       Overlapping Features'. This table displays all overlapping soil/land use
-      features across two columns. For each pair of overlapping
+      features across two columns. Remember, it only shows overlapping parts that are greater than 10 m². For each pair of overlapping
       features, you can decide, which feature's geometry should stay
       unchanged, and which should have its overlapping part removed
       from its geometry. In the third column, you can select features
