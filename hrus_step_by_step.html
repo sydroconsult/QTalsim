@@ -60,6 +60,23 @@ EFL-layer and serve as input parameters to Talsim.</p>
 <p><img alt="Select Sub-basin" src="_images/SelectSubBasin.png" /></p>
 </div></blockquote>
 </section>
+<section id="elimination-of-hydrologic-response-units-hrus-small-polygons">
+<h2>Elimination of Hydrologic Response Units (HRUs)/small polygons<a class="headerlink" href="#elimination-of-hydrologic-response-units-hrus-small-polygons" title="Permalink to this heading">¶</a></h2>
+<blockquote>
+<div><p>Firstly, soil polygons and/or land use areas that fall below the specified size or percentage are eliminated. Each polygon is evaluated individually.
+The percentage is calculated by comparing the size of the polygon to its sub-basin’s area. These polygons are eliminated when confirming the soil/land
+use mapping, using the chosen elimination mode.</p>
+<p>Secondly, HRUs are eliminated according to the specified parameters (sub-basin, soil and land use) during the intersection process.
+Note that this logic differs from the one above. During the intersection process, the sum of the areas of all HRUs (not each spatial polygon itself)
+with the same parameters is compared with the specified area and percentage share of the corresponding sub-basin.
+HRUs that fall below the specified size or percentage share are deleted and filled using the ‘Eliminate’ tool.
+You can select the elimination mode from the drop-down menu (find further information
+<a class="reference external" href="https://docs.qgis.org/3.28/en/docs/user_manual/processing_algs/qgis/vectorgeometry.html?highlight=eliminate#eliminate-selected-polygons">here</a>).</p>
+<p>Tip: You can apply different minimum sizes for soil/land use features and HRUs by adjusting the values before the desired step.
+For example, change the values before mapping the land use features or before the intersection process.</p>
+<p><img alt="Eliminate Polygons" src="_images/eliminationHRUPolygons.png" /></p>
+</div></blockquote>
+</section>
 <section id="select-edit-soil-layer">
 <h2>Select &amp; Edit Soil Layer<a class="headerlink" href="#select-edit-soil-layer" title="Permalink to this heading">¶</a></h2>
 <blockquote id="select-and-edit-soil-layer">
@@ -359,6 +376,7 @@ If overlaps &amp; gaps persist after several attempts to delete overlaps and fil
     <ul>
 <li><a class="reference internal" href="#">Step by Step</a><ul>
 <li><a class="reference internal" href="#select-sub-basin-layer">Select Sub-basin Layer</a></li>
+<li><a class="reference internal" href="#elimination-of-hydrologic-response-units-hrus-small-polygons">Elimination of Hydrologic Response Units (HRUs)/small polygons</a></li>
 <li><a class="reference internal" href="#select-edit-soil-layer">Select &amp; Edit Soil Layer</a></li>
 <li><a class="reference internal" href="#select-and-edit-land-use-layer">Select and Edit Land use layer</a></li>
 <li><a class="reference internal" href="#intersection-of-layers">Intersection of Layers</a></li>

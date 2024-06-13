@@ -22,6 +22,27 @@ Select Sub-basin Layer
 
       |Select Sub-basin|
 
+Elimination of Hydrologic Response Units (HRUs)/small polygons
+^^^^^^^^^^^^^^^^^^^^^^
+.. _elimination_hrus_polygons:
+      Specifying values in this section has two different effects.
+
+      Firstly, soil polygons and/or land use areas that fall below the specified size or percentage are eliminated. Each polygon is evaluated individually. 
+      The percentage is calculated by comparing the size of the polygon to its sub-basin's area. These polygons are eliminated when confirming the soil/land 
+      use mapping, using the chosen elimination mode.
+
+      Secondly, HRUs are eliminated according to the specified parameters (sub-basin, soil and land use) during the intersection process. 
+      Note that this logic differs from the one above. During the intersection process, the sum of the areas of all HRUs (not each spatial polygon itself) 
+      with the same parameters is compared with the specified area and percentage share of the corresponding sub-basin. 
+      HRUs that fall below the specified size or percentage share are deleted and filled using the 'Eliminate' tool. 
+      You can select the elimination mode from the drop-down menu (find further information
+      `here <https://docs.qgis.org/3.28/en/docs/user_manual/processing_algs/qgis/vectorgeometry.html?highlight=eliminate#eliminate-selected-polygons>`__).
+      
+      Tip: You can apply different minimum sizes for soil/land use features and HRUs by adjusting the values before the desired step. 
+      For example, change the values before mapping the land use features or before the intersection process. 
+
+      |Eliminate Polygons|
+
 Select & Edit Soil Layer
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -320,3 +341,4 @@ Optional Editing Steps
 .. |Intersect Layers| image:: qtalsim_screenshots/Intersection.png
 .. |Final Steps| image:: qtalsim_screenshots/FinalSteps.png
 .. |Check for overlapping Features| image:: qtalsim_screenshots/CheckOverlappingFeatures.png
+.. |Eliminate Polygons| image:: qtalsim_screenshots/eliminationHRUPolygons.png
