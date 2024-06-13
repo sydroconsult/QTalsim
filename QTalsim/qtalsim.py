@@ -2030,8 +2030,8 @@ class QTalsim:
                 layer_input_name = "LanduseLayerEdited"
 
             layer_name = self.update_layer_name(layer_input_name, function='overlap')
+            
             self.landuseTalsim.setName(layer_name)
-
             QgsProject.instance().addMapLayer(self.landuseTalsim)
 
             self.log_to_qtalsim_tab(f"Deleting overlapping parts finished.", Qgis.Info)
@@ -2591,15 +2591,19 @@ class QTalsim:
             original_field_type = original_field.type()
             original_field_type_name = original_field.typeName()
             new_field = QgsField(self.soilTextureId1, original_field_type, original_field_type_name)
-            
+
             self.finalLayer.dataProvider().addAttributes([new_field])
             self.finalLayer.updateFields()
+
+            features_to_update = []
             for feature in self.finalLayer.getFeatures():
                 new_value = feature[self.IDSoil]
                 feature[self.soilTextureId1] = new_value
-                self.finalLayer.updateFeature(feature)
-            self.finalLayer.commitChanges()
+                features_to_update.append(feature)
             
+            self.finalLayer.dataProvider().changeAttributeValues({f.id(): {self.soilTextureId1: f[self.soilTextureId1]} for f in features_to_update})
+            self.finalLayer.commitChanges()
+
             #Log catchment areas where size of all HRUs != size of catchment area
             sum_areas = {key: 0 for key in ezgAreas.keys()}
             for feature in self.finalLayer.getFeatures():
