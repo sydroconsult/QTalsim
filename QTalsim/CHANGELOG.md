@@ -1,6 +1,17 @@
 # Changelog
 
-## [1.3.0] - 2024-04-17
+## [1.4.0] - 2024-06-19
+- Bug fixes
+  - Fixes issues for invalid geometries in intersection process
+  - Fixes issues for invalid geometries in editing overlapping features process
+  - Fixes issues when deleting feature with multiple overlaps
+- Overlaps with an area smaller than 10 m² are ignored and are not deleted by the plugin
+- Add more user feedback for processes
+- Add possibility to eliminate small polygons before intersection process
+  - Soil/land use polygons below thresholds are removed when confirming the soil/land use feature mapping
+- Enhance speed of editing overlapping features
+
+## [1.3.1] - 2024-05-15
 - Bug fixes
   - Fixes issue where intersection did not work (Fixes [Issue #15](https://github.com/sydroconsult/QTalsim/issues/15)).
   - Fixes issue of handling of land uses without land use type (Fixes [Issue #14](https://github.com/sydroconsult/QTalsim/issues/14)).
