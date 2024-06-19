@@ -1290,7 +1290,7 @@ class QTalsim:
             except Exception as e:
                 self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
             self.soilLayerIntermediate.dataProvider().reloadData()
-            self.soilLayerIntermediate.setName("Talsim Soil")
+            self.soilLayerIntermediate.setName("SoilLayerEdited")
             QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
 
             self.log_to_qtalsim_tab(f"Finished soil parameter mapping. Inspect results in this temporary layer: {self.soilLayerIntermediate.name()}.", Qgis.Info) 
