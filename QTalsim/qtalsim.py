@@ -31,7 +31,7 @@ from .resources import *
 from .qtalsim_dialog import QTalsimDialog
 from .qtalsim_sqllite_dialog import SQLConnectDialog
 import os.path
-from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest, QgsMapLayer, QgsFields, QgsTask, QgsTaskManager, QgsApplication
+from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest, QgsMapLayer, QgsFields, QgsTask, QgsTaskManager, QgsApplication, QgsExpression
 from qgis.analysis import QgsGeometrySnapper
 import processing
 import pandas as pd
@@ -1125,6 +1125,20 @@ class QTalsim:
             selected_layer_soil = self.dlg.comboboxSoilLayer.currentText()
             self.soilLayer = QgsProject.instance().mapLayersByName(selected_layer_soil)[0]
 
+            #Save the Feature-ID
+            expression = QgsExpression('$id') 
+
+            # Create the virtual field
+            virtual_field = QgsField('feature_id_qtalsim', QVariant.Int, 'integer', 10)
+
+            # Add the virtual field to the layer
+            self.soilLayer.addExpressionField(expression.expression(), virtual_field)
+
+            # Save the project to persist the virtual field within the project
+            #QgsProject.instance().write() #notwendig?
+
+
+
             #Clip Layer
             outputLayer = self.clipLayer(self.soilLayer, self.clippingEZG)
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': outputLayer ,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
@@ -1250,7 +1264,7 @@ class QTalsim:
                         if old_field == 'Parameter not available':
                             feature[new_field] = None 
                         elif old_field == 'Feature IDs of Soil Layer':
-                            feature[new_field] = int(feature.id())
+                            feature[new_field] = int(feature['feature_id_qtalsim'])
                         else:
                             new_field_type = self.soilLayerIntermediate.fields().field(new_field).type()
                             if isinstance(feature[old_field], str) and new_field_type == QVariant.Int:
@@ -2085,11 +2099,20 @@ class QTalsim:
             '''
                 Intersection
             '''
-            intermediateResultIntersect = processing.run("native:intersection", {
-                'INPUT': inputLayer,
-                'OVERLAY': self.ezgLayer,
-                'OUTPUT': 'TEMPORARY_OUTPUT'
-            })['OUTPUT']
+            try:
+                intermediateResultIntersect = processing.run("native:intersection", {
+                    'INPUT': inputLayer,
+                    'OVERLAY': self.ezgLayer,
+                    'OUTPUT': 'TEMPORARY_OUTPUT'
+                })['OUTPUT']
+            except:
+                #QgsProject.instance().addMapLayer(inputLayer)
+                inputLayer = processing.run("native:fixgeometries", {'INPUT': inputLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                intermediateResultIntersect = processing.run("native:intersection", {
+                    'INPUT': inputLayer,
+                    'OVERLAY': self.ezgLayer,
+                    'OUTPUT': 'TEMPORARY_OUTPUT'
+                })['OUTPUT']
 
             intermediateIntersectSingleparts = processing.run("native:multiparttosingleparts", {
                 'INPUT': intermediateResultIntersect,
@@ -2588,6 +2611,13 @@ class QTalsim:
             '''
                 Create .LNZ
             '''
+            print(self.selected_landuse_parameters)
+            fields_to_remove = [self.ezgUniqueIdentifier, self.slopeField]
+            for field in fields_to_remove:
+                if field in self.selected_landuse_parameters:
+                    self.selected_landuse_parameters.remove(field)
+            print(self.selected_landuse_parameters)
+
             resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.landuseFinal = resultDissolve['OUTPUT']
             self.landuseFinal.startEditing()
@@ -2613,6 +2643,12 @@ class QTalsim:
             except Exception as e:
                 self.log_to_qtalsim_tab(f"{e}",Qgis.Critical)
 
+            print(self.soilFieldNames)
+            fields_to_remove = [self.ezgUniqueIdentifier, self.slopeField]
+            for field in fields_to_remove:
+                if field in self.soilFieldNames:
+                    self.soilFieldNames.remove(field)
+            print(self.soilFieldNames)
             resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.soilTextureFinal = resultDissolve['OUTPUT']
             self.soilTextureFinal.startEditing()
@@ -2631,7 +2667,6 @@ class QTalsim:
             field_index = self.soilTextureFinal.fields().indexFromName(self.nameSoil) 
             self.soilTextureFinal.renameAttribute(field_index, self.boaName)
             self.soilTextureFinal.commitChanges()
-
 
             QgsProject.instance().addMapLayer(self.soilTextureFinal) 
 

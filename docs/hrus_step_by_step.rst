@@ -27,7 +27,7 @@ Elimination of Hydrologic Response Units (HRUs)/small polygons
 .. _elimination_hrus_polygons:
       Specifying values in this section has two different effects.
 
-      Firstly, soil polygons and/or land use areas that fall below the specified size or percentage are eliminated. Each polygon is evaluated individually. 
+      Firstly, soil polygons and/or land use areas that fall below the specified size or percentage are eliminated. All features with the same parameters are evaluated. 
       The percentage is calculated by comparing the size of the polygon to its sub-basin's area. These polygons are eliminated when confirming the soil/land 
       use mapping, using the chosen elimination mode.
 
