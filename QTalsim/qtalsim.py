@@ -1126,7 +1126,7 @@ class QTalsim:
             self.soilLayer = QgsProject.instance().mapLayersByName(selected_layer_soil)[0]
 
             #Save the Feature-ID
-            expression = QgsExpression('$id') 
+            expression = QgsExpression('$id + 1')
 
             # Create the virtual field
             virtual_field = QgsField('feature_id_qtalsim', QVariant.Int, 'integer', 10)
@@ -1647,9 +1647,9 @@ class QTalsim:
             def convert_column(df, column_name, column_type):
                 try:
                     if column_type == 'float':
-                        df[column_name] = pd.to_numeric(df[column_name].str.replace(',', '.').str.replace(' ', ''), errors='coerce')
+                        df[column_name] = pd.to_numeric(df[column_name].astype(str).str.replace(',', '.').str.replace(' ', ''), errors='coerce')
                     elif column_type == 'int':
-                        df[column_name] = pd.to_numeric(df[column_name].str.replace(',', '.').str.replace(' ', ''), errors='coerce').astype('Int64')
+                        df[column_name] = pd.to_numeric(df[column_name].astype(str).str.replace(',', '.').str.replace(' ', ''), errors='coerce').astype('Int64')
                     elif column_type == 'string':
                         df[column_name] = df[column_name].astype(str)
                 except Exception as e:
@@ -2519,23 +2519,36 @@ class QTalsim:
             self.finalLayer.commitChanges()
 
             #SoilId is needed two times
+            # Start editing the layer
             self.finalLayer.startEditing()
-            
+
+            # Get the original field details
             original_field = self.finalLayer.fields().field(self.IDSoil)
             original_field_type = original_field.type()
             original_field_type_name = original_field.typeName()
-            new_field = QgsField(self.soilTextureId1, original_field_type, original_field_type_name)
 
+            # Create a new field with the same type as the original field
+            new_field = QgsField(self.soilTextureId1, original_field_type)
+
+            # Add the new field to the layer
             self.finalLayer.dataProvider().addAttributes([new_field])
             self.finalLayer.updateFields()
 
-            features_to_update = []
+            # Prepare a dictionary to hold the attribute changes
+            attributes = {}
+
+            # Iterate over the features to copy values
             for feature in self.finalLayer.getFeatures():
+                # Get the value from the original field
                 new_value = feature[self.IDSoil]
-                feature[self.soilTextureId1] = new_value
-                features_to_update.append(feature)
-            
-            self.finalLayer.dataProvider().changeAttributeValues({f.id(): {self.soilTextureId1: f[self.soilTextureId1]} for f in features_to_update})
+                
+                # Add the new value to the dictionary with the feature ID
+                attributes[feature.id()] = {self.finalLayer.fields().indexFromName(self.soilTextureId1): new_value}
+
+            # Apply the attribute changes to the layer
+            self.finalLayer.dataProvider().changeAttributeValues(attributes)
+
+            # Commit the changes
             self.finalLayer.commitChanges()
 
             #Log catchment areas where size of all HRUs != size of catchment area
@@ -2611,12 +2624,10 @@ class QTalsim:
             '''
                 Create .LNZ
             '''
-            print(self.selected_landuse_parameters)
             fields_to_remove = [self.ezgUniqueIdentifier, self.slopeField]
             for field in fields_to_remove:
                 if field in self.selected_landuse_parameters:
                     self.selected_landuse_parameters.remove(field)
-            print(self.selected_landuse_parameters)
 
             resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.landuseFinal = resultDissolve['OUTPUT']
@@ -2643,12 +2654,11 @@ class QTalsim:
             except Exception as e:
                 self.log_to_qtalsim_tab(f"{e}",Qgis.Critical)
 
-            print(self.soilFieldNames)
             fields_to_remove = [self.ezgUniqueIdentifier, self.slopeField]
             for field in fields_to_remove:
                 if field in self.soilFieldNames:
                     self.soilFieldNames.remove(field)
-            print(self.soilFieldNames)
+
             resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.soilTextureFinal = resultDissolve['OUTPUT']
             self.soilTextureFinal.startEditing()
@@ -2700,7 +2710,6 @@ class QTalsim:
             soilTypeDP.addAttributes([QgsField("Id", QVariant.Int)])
             self.soilTypeFinal.commitChanges()
             self.soilTypeFinal.updateFields()
-
             
             self.soilTypeFinal.startEditing()
             for feature in self.soilTypeFinal.getFeatures():
@@ -2710,7 +2719,6 @@ class QTalsim:
             '''
 
             self.soilTypeFinal.setName("BOD")
-
 
             self.soilTypeFinal.startEditing()
             
