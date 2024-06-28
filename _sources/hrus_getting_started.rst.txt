@@ -40,7 +40,7 @@ Requirements for Input Layers
          The following fields should be included in the CSV-file, the
          bold fields must be included:
 
-         **Id**, **Name**, RootDepth, RootDepthMonthlyPatternId,
+         **ID_LNZ**, **Name**, RootDepth, RootDepthMonthlyPatternId,
          PlantCoverage, PlantCoverageAnnualPatternId, LeafAreaIndex,
          LeafAreaIndexAnnualPatternId, RoughnessCoefficient,
          KcCoeffAnnualPatternId, KyYieldAnnualPatternId,
