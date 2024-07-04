@@ -1124,25 +1124,42 @@ class QTalsim:
             #Select Layer
             selected_layer_soil = self.dlg.comboboxSoilLayer.currentText()
             self.soilLayer = QgsProject.instance().mapLayersByName(selected_layer_soil)[0]
+            
+            # Create field with the feature-id
+            self.soilFieldInputID = 'fid_qta'
+            existing_field_names = [field.name() for field in self.soilLayer.fields()]
+            if self.soilFieldInputID in existing_field_names:
+                self.log_to_qtalsim_tab(f"Please rename field {self.soilFieldInputID} of layer {selected_layer_soil} or delete the field.", Qgis.Critical)
+                return
+            # Start editing the layer
+            self.soilLayer.startEditing()
 
-            #Save the Feature-ID
-            expression = QgsExpression('$id + 1')
+            # Add a new integer field called 'ID'
+            field = QgsField(self.soilFieldInputID, QVariant.Int)
+            self.soilLayer.dataProvider().addAttributes([field])
+            self.soilLayer.updateFields()
 
-            # Create the virtual field
-            virtual_field = QgsField('feature_id_qtalsim', QVariant.Int, 'integer', 10)
+            # Assign ID values to each feature
+            for i, feature in enumerate(self.soilLayer.getFeatures()):
+                self.soilLayer.changeAttributeValue(feature.id(), self.soilLayer.fields().indexFromName(self.soilFieldInputID), i + 1)
 
-            # Add the virtual field to the layer
-            self.soilLayer.addExpressionField(expression.expression(), virtual_field)
-
-            # Save the project to persist the virtual field within the project
-            #QgsProject.instance().write() #notwendig?
-
-
+            # Commit changes
+            self.soilLayer.commitChanges()
 
             #Clip Layer
             outputLayer = self.clipLayer(self.soilLayer, self.clippingEZG)
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': outputLayer ,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             self.soilLayer = outputLayer
+
+            # Remove the created soil-ID-field from input layer
+            layer = QgsProject.instance().mapLayersByName(selected_layer_soil)[0]
+            layer.startEditing()
+            field_index = layer.fields().indexFromName(self.soilFieldInputID)
+
+            # Delete the field
+            layer.dataProvider().deleteAttributes([field_index])
+            layer.updateFields()
+            layer.commitChanges()
 
             self.fillSoilTable()
             self.soilLayer.setName("SoilLayer")
@@ -1264,7 +1281,7 @@ class QTalsim:
                         if old_field == 'Parameter not available':
                             feature[new_field] = None 
                         elif old_field == 'Feature IDs of Soil Layer':
-                            feature[new_field] = int(feature['feature_id_qtalsim'])
+                            feature[new_field] = int(feature[self.soilFieldInputID])
                         else:
                             new_field_type = self.soilLayerIntermediate.fields().field(new_field).type()
                             if isinstance(feature[old_field], str) and new_field_type == QVariant.Int:
