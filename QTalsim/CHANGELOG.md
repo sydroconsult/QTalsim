@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.1] - 2024-07-12
+- Bug fixes
+  - Fixes issue for dissolve of final BOA and LNZ layer by only dissolving by land use/soil Features
+  - Fixes issue of selecting wrong feature-ids for soil layer
+    - Feature-ID of input soil layer is now used if user selects "Feature IDs of Soil Layer"
+  - Fixes issue of docs as it was stated that ID is needed as input column name for land use ID rather than ID_LNZ
+  - Fixes issue that soil texture id was not in BOD-output
+- Enhancement
+  - Update Minimum QGIS-Version to 3.34
+
 ## [1.4.0] - 2024-06-19
 - Bug fixes
   - Fixes issues for invalid geometries in intersection process
