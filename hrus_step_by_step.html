@@ -5,11 +5,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Step by Step &#8212; QTalsim 1.4.0 documentation</title>
+    <title>Step by Step &#8212; QTalsim 1.4.1 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
     <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
     
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=b308ce55"></script>
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=17704a4c"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
     
@@ -30,7 +30,7 @@
         <li class="right" >
           <a href="hrus_getting_started.html" title="Getting Started with HRUs"
              accesskey="P">previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.4.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.4.1 documentation</a> &#187;</li>
           <li class="nav-item nav-item-1"><a href="doc_qtalsim.html" accesskey="U">HRU calculation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Step by Step</a></li> 
       </ul>
@@ -66,14 +66,10 @@ EFL-layer and serve as input parameters to Talsim.</p>
 <div><p>Firstly, soil polygons and/or land use areas that fall below the specified size or percentage are eliminated. All features with the same parameters are evaluated.
 The percentage is calculated by comparing the size of the polygon to its sub-basin’s area. These polygons are eliminated when confirming the soil/land
 use mapping, using the chosen elimination mode.</p>
-<p>Secondly, HRUs are eliminated according to the specified parameters (sub-basin, soil and land use) during the intersection process.
-Note that this logic differs from the one above. During the intersection process, the sum of the areas of all HRUs (not each spatial polygon itself)
-with the same parameters is compared with the specified area and percentage share of the corresponding sub-basin.
-HRUs that fall below the specified size or percentage share are deleted and filled using the ‘Eliminate’ tool.
+<p>Secondly, HRUs are eliminated according to the specified parameters (sub-basin, soil and land use) during the intersection process. HRUs that fall below the specified size or percentage share are deleted and filled using the ‘Eliminate’ tool.
 You can select the elimination mode from the drop-down menu (find further information
 <a class="reference external" href="https://docs.qgis.org/3.28/en/docs/user_manual/processing_algs/qgis/vectorgeometry.html?highlight=eliminate#eliminate-selected-polygons">here</a>).</p>
-<p>Tip: You can apply different minimum sizes for soil/land use features and HRUs by adjusting the values before the desired step.
-For example, change the values before mapping the land use features or before the intersection process.</p>
+<p>Tip: You can apply different minimum sizes for soil/land use features and HRUs by adjusting the values before the desired step. For example, you can change the values before mapping the land use features or before the intersection process.</p>
 <p><img alt="Eliminate Polygons" src="_images/eliminationHRUPolygons.png" /></p>
 </div></blockquote>
 </section>
@@ -94,6 +90,9 @@ table is populated with the fields of the soil layer.</p>
 and all the field names of the soil layer in drop-down menus in
 the second column. In this step, users are required to map each
 Talsim parameter to its corresponding field in the soil layer.
+If the user selects “Feature IDs of Soil Layer” for the ID-column,
+it is recommended that the soil input layer is a dissolved layer.
+QTalsim takes the feature ids of the input layer.
 The table below shows the necessary type for these parameters.
 If the user-mapped field has a different datatype, the plugin,
 where possible, converts the field’s values to the parameter’s
@@ -430,7 +429,7 @@ If overlaps &amp; gaps persist after several attempts to delete overlaps and fil
         <li class="right" >
           <a href="hrus_getting_started.html" title="Getting Started with HRUs"
              >previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.4.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.4.1 documentation</a> &#187;</li>
           <li class="nav-item nav-item-1"><a href="doc_qtalsim.html" >HRU calculation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Step by Step</a></li> 
       </ul>

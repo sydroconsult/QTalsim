@@ -31,15 +31,11 @@ Elimination of Hydrologic Response Units (HRUs)/small polygons
       The percentage is calculated by comparing the size of the polygon to its sub-basin's area. These polygons are eliminated when confirming the soil/land 
       use mapping, using the chosen elimination mode.
 
-      Secondly, HRUs are eliminated according to the specified parameters (sub-basin, soil and land use) during the intersection process. 
-      Note that this logic differs from the one above. During the intersection process, the sum of the areas of all HRUs (not each spatial polygon itself) 
-      with the same parameters is compared with the specified area and percentage share of the corresponding sub-basin. 
-      HRUs that fall below the specified size or percentage share are deleted and filled using the 'Eliminate' tool. 
+      Secondly, HRUs are eliminated according to the specified parameters (sub-basin, soil and land use) during the intersection process. HRUs that fall below the specified size or percentage share are deleted and filled using the 'Eliminate' tool. 
       You can select the elimination mode from the drop-down menu (find further information
       `here <https://docs.qgis.org/3.28/en/docs/user_manual/processing_algs/qgis/vectorgeometry.html?highlight=eliminate#eliminate-selected-polygons>`__).
       
-      Tip: You can apply different minimum sizes for soil/land use features and HRUs by adjusting the values before the desired step. 
-      For example, change the values before mapping the land use features or before the intersection process. 
+      Tip: You can apply different minimum sizes for soil/land use features and HRUs by adjusting the values before the desired step. For example, you can change the values before mapping the land use features or before the intersection process. 
 
       |Eliminate Polygons|
 
@@ -63,6 +59,9 @@ Select & Edit Soil Layer
          and all the field names of the soil layer in drop-down menus in
          the second column. In this step, users are required to map each
          Talsim parameter to its corresponding field in the soil layer.
+	 If the user selects "Feature IDs of Soil Layer" for the ID-column,
+	 it is recommended that the soil input layer is a dissolved layer.
+	 QTalsim takes the feature ids of the input layer.
          The table below shows the necessary type for these parameters.
          If the user-mapped field has a different datatype, the plugin,
          where possible, converts the field’s values to the parameter’s
