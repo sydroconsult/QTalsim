@@ -9,7 +9,7 @@
 project = 'QTalsim'
 copyright = '2024, Sydro Consult GmbH'
 author = 'Sydro Consult GmbH'
-release = '1.4.1'
+release = '1.4.2'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

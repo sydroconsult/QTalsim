@@ -2888,7 +2888,7 @@ class QTalsim:
                 features = self.eflLayer.getFeatures(request)
 
                 for feature in features:
-                    #hier weitermachen - die anderen Features ohne Werte auch noch hinzufügen 
+                    
                     layer_data = {self.subBasinUI : feature[self.subBasinUI], self.slopeFieldName : feature[self.slopeFieldName],
                                 self.fieldNameAreaEFL : feature[self.fieldNameAreaEFL], self.hruSoilTypeId : feature[self.hruSoilTypeId], 
                                 self.hruLandUseId : feature[self.hruLandUseId], 'Irr' : None, 'CN' : None, 'Sim-Type' : 2,
@@ -2924,8 +2924,16 @@ class QTalsim:
 
                 outputPathBod = os.path.join(self.outputFolder, f"{filename}.BOD")
 
+                clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
+                orderby = QgsFeatureRequest.OrderBy([clause])
+
+                request = QgsFeatureRequest()
+                request.setOrderBy(orderby)
+
+                features = self.soilTypeFinal.getFeatures(request)
+
                 data = []
-                for feature in self.soilTypeFinal.getFeatures():
+                for feature in features:
                     #hier weitermachen - die anderen Features ohne Werte auch noch hinzufügen 
                     layer_data = {"ID" : feature["Id"], "anzsch" : 1, "d1" : feature[self.soilTypeThickness], "boa1": feature[self.soilTextureId1],
                                 "d2" : None, "boa2" : None, "d3" : None, "boa3" : None, "d4" : None, "boa4" : None, "d5" : None, "boa5" : None,
@@ -2962,8 +2970,16 @@ class QTalsim:
 
                 outputPathBoa = os.path.join(self.outputFolder, f"{filename}.BOA")
 
+                clause = QgsFeatureRequest.OrderByClause(self.boaId, ascending=True)
+                orderby = QgsFeatureRequest.OrderBy([clause])
+
+                request = QgsFeatureRequest()
+                request.setOrderBy(orderby)
+
+                features = self.soilTextureFinal.getFeatures(request)
+
                 data = []
-                for feature in self.soilTextureFinal.getFeatures():
+                for feature in features:
                     #hier weitermachen - die anderen Features ohne Werte auch noch hinzufügen 
                     layer_data = {"ID" : feature[self.boaId], "Soil" : feature[self.boaName], "BD": feature["BulkDensityClass"],
                                 "Typ" : feature["Category"], "WP" : feature["WiltingPoint"], "FK" : feature["FieldCapacity"],
@@ -3001,8 +3017,16 @@ class QTalsim:
 
                 outputPathLnz = os.path.join(self.outputFolder, f"{filename}.LNZ")
 
+                clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
+                orderby = QgsFeatureRequest.OrderBy([clause])
+
+                request = QgsFeatureRequest()
+                request.setOrderBy(orderby)
+
+                features = self.landuseFinal.getFeatures(request)
+
                 data = []
-                for feature in self.landuseFinal.getFeatures():
+                for feature in features:
                     # Define the fields you're interested in
                     fields = ["Id", "RootDepth", "PlantCoverage", "PlantCoverageAnnualPatternId",
                             "LeafAreaIndex", "LeafAreaIndexAnnualPatternId", "KcCoeffAnnualPatternId",

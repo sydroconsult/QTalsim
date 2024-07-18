@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.2] - 2024-07-18
+- Minor Bug fix
+  - Fixes ordering issue for ASCII outputs to ensure they are ordered by ID columns.
+
 ## [1.4.1] - 2024-07-12
 - Bug fixes
   - Fixes issue for dissolve of final BOA and LNZ layer by only dissolving by land use/soil Features
