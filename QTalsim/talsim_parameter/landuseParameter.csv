@@ -1,5 +1,5 @@
 ﻿LandUse;Type;Unit;Restrictions
-Id;int;-;
+ID_LNZ;int;-;
 Name;string;-;
 RootDepth;float;m;0 >= x
 RootDepthMonthlyPatternId;int;-;
@@ -10,5 +10,5 @@ LeafAreaIndexAnnualPatternId;int;-;
 RoughnessCoefficient;float;m⅓/s;0 >= x
 KcCoeffAnnualPatternId;int;-;
 KyYieldAnnualPatternId;int;-;
-BulkDensityChange;int;-;-4 >= x >= 4
+BulkDensityChange;int;-;
 pTAW;float;-;0 >= x >= 1

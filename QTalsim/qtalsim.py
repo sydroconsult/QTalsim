@@ -106,7 +106,7 @@ class QTalsim:
         self.landuseField = None
         self.landuseTalsim = None
         self.dfLanduseTalsim = None
-        self.selected_landuse_parameters = None
+        self.selected_landuse_parameters = []
         self.delimiter = ','
         self.finalLayer = None
         self.parameterFieldsLanduse = None
@@ -118,7 +118,8 @@ class QTalsim:
         self.IDSoil = 'ID_Soil'
         self.nameSoil = 'NameSoil'
         self.fieldNameAreaEFL = "PercentageShare"
-        self.fieldLanduseID = 'ID_LNZ'
+        self.fieldLanduseID = 'ID_LNZ' #changed from ID_LNZ
+        self.nameLanduse = 'Name'
         self.soilTypeThickness = 'LayerThickness1'
         self.soilTextureId1 = 'SoilTextureId1'
         self.soilDescription = 'Description'
@@ -1150,7 +1151,7 @@ class QTalsim:
             outputLayer = self.clipLayer(self.soilLayer, self.clippingEZG)
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': outputLayer ,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             self.soilLayer = outputLayer
-
+            
             # Remove the created soil-ID-field from input layer
             layer = QgsProject.instance().mapLayersByName(selected_layer_soil)[0]
             layer.startEditing()
@@ -1312,7 +1313,7 @@ class QTalsim:
             try:   
                 #Only keep relevant fields
                 all_fields = [field.name() for field in self.soilLayerIntermediate.fields()]
-                fields_to_delete_indices = [self.soilLayerIntermediate.fields().indexFromName(field)  for field in all_fields if field not in self.soilFieldNames]
+                fields_to_delete_indices = [self.soilLayerIntermediate.fields().indexFromName(field) for field in all_fields if field not in self.soilFieldNames]
                 self.soilLayerIntermediate.startEditing()
                 self.soilLayerIntermediate.dataProvider().deleteAttributes(fields_to_delete_indices)
                 self.soilLayerIntermediate.commitChanges()
@@ -1585,11 +1586,34 @@ class QTalsim:
         try:
             self.start_operation()
             self.log_to_qtalsim_tab(f"QTalsim is currently loading, starting the clipping process of the Landuse Layer.", Qgis.Info)
+
             if self.landuseLayer:
                 QgsProject.instance().removeMapLayer(self.landuseLayer)
             selected_layer_name = self.dlg.comboboxLanduseLayer.currentText()
             self.landuseLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
-            self.dlg.comboboxLanduseFields.setVisible(True)
+            #self.dlg.comboboxLanduseFields.setVisible(True)
+            
+            # Create field with the feature-id
+            self.landuseFieldInputID = 'fid_qta' 
+            existing_field_names = [field.name() for field in self.landuseLayer.fields()]
+            if self.landuseFieldInputID in existing_field_names:
+                self.log_to_qtalsim_tab(f"Please rename field {self.landuseFieldInputID} of layer {selected_layer_name} or delete the field.", Qgis.Critical)
+                return
+
+            # Start editing the layer
+            self.landuseLayer.startEditing()
+
+            # Add a new integer field called 'ID'
+            field = QgsField(self.landuseFieldInputID, QVariant.Int)
+            self.landuseLayer.dataProvider().addAttributes([field])
+            self.landuseLayer.updateFields()
+
+            # Assign ID values to each feature
+            for i, feature in enumerate(self.landuseLayer.getFeatures()):
+                self.landuseLayer.changeAttributeValue(feature.id(), self.landuseLayer.fields().indexFromName(self.landuseFieldInputID), i + 1)
+
+            # Commit changes
+            self.landuseLayer.commitChanges()
 
             number_of_features = self.landuseLayer.featureCount()
             #Clip Layer
@@ -1601,13 +1625,183 @@ class QTalsim:
             self.landuseFields = self.landuseLayer.fields()
 
             # Populate comboboxLanduseFields with field names
-            self.dlg.comboboxLanduseFields.clear()
-            self.dlg.comboboxLanduseFields.addItems([field.name() for field in self.landuseFields])
+            #self.dlg.comboboxLanduseFields.clear()
+            #self.dlg.comboboxLanduseFields.addItems([field.name() for field in self.landuseFields])
+            
+            # Remove the created landuse-ID-field from input layer
+            layer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+            layer.startEditing()
+            field_index = layer.fields().indexFromName(self.landuseFieldInputID)
+
+            # Delete the field
+            layer.dataProvider().deleteAttributes([field_index])
+            layer.updateFields()
+            layer.commitChanges()
+
+            self.fillLanduseTable()
 
             self.landuseLayer.setName("LanduseLayer")
             QgsProject.instance().addMapLayer(self.landuseLayer)
 
             self.log_to_qtalsim_tab(f"Successfully selected and clipped Landuse Layer: {self.landuseLayer.name()}.", Qgis.Info) 
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+
+        finally:
+            self.end_operation()
+
+    def fillLanduseTable(self):
+        '''
+            Fills the landuse mapping table with the field names of the land use layer and the Talsim parameter names.
+                Is executed in function selectLanduse.
+        '''
+        try:
+            self.start_operation()
+            fieldsLanduse = [field.name() for field in self.landuseLayer.fields()]
+            current_path = os.path.dirname(os.path.abspath(__file__))
+            landuseTalsimPath = os.path.join(current_path, "talsim_parameter", "landuseParameter.csv")
+            self.dfLanduseParametersTalsim = pd.read_csv(landuseTalsimPath,delimiter = ';')
+
+            #Create Table
+            self.dlg.tableLanduseMapping.setRowCount(self.dfLanduseParametersTalsim.shape[0])
+            self.dlg.tableLanduseMapping.setColumnCount(2)
+            self.dlg.tableLanduseMapping.setHorizontalHeaderLabels(['Talsim Land use Parameters', 'Land use Layer Fields'])
+            
+            # Set the size of the table columns
+            self.dlg.tableLanduseMapping.setColumnWidth(0, 300)
+            self.dlg.tableLanduseMapping.setColumnWidth(1, 300)
+
+            #Get Landuse Data from csv-file
+            landuseTypes = self.dfLanduseParametersTalsim.loc[:,'LandUse']
+            #Fill data
+            for row, data in enumerate(landuseTypes):
+
+                item = QTableWidgetItem(str(data)) #add landuse
+                self.dlg.tableLanduseMapping.setItem(row, 0, item)
+                
+                combo_box = QComboBox()
+                # Add parameters as items to the combo box
+                if data != self.nameLanduse and data != self.fieldLanduseID:
+                    combo_box.addItem('Parameter not available')
+
+                if data == self.fieldLanduseID:
+                    combo_box.addItem('Feature IDs of Land use Layer')
+
+                combo_box.addItems([str(field) for field in fieldsLanduse])
+                self.dlg.tableLanduseMapping.setCellWidget(row, 1, combo_box)
+
+            self.dlg.onCreateLanduseLayer.setVisible(True)
+        
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+
+        finally:
+            self.end_operation()
+
+    def confirmLanduseMapping(self):
+        '''
+            Creates a new Land use Talsim layer, which holds all the parameters of Table landusemapping. 
+                Also eliminates land use polygons defined as too small (by user input). 
+        '''
+        try:
+            self.start_operation()
+            self.log_to_qtalsim_tab(f"Starting Land use Mapping.", Qgis.Info) 
+            self.landuseTalsim = None
+
+            #Create Layer
+            self.landuseTalsim = QgsVectorLayer(f"Polygon?crs={self.landuseLayer.crs().authid()}", "LanduseLayerEdited", "memory")
+
+            #Get features of input landuse layer
+            feats = [feat for feat in self.landuseLayer.getFeatures()] 
+
+            #Populate new Land use Talsim Layers with features of input land use layer
+            mem_layer_data = self.landuseTalsim.dataProvider()
+            attr = self.landuseLayer.dataProvider().fields().toList()
+            mem_layer_data.addAttributes(attr)
+            self.landuseTalsim.updateFields()
+            mem_layer_data.addFeatures(feats)
+
+            #Get the mapping of the talsim land use parameter and the corresponding parameters defined by the user
+            fieldType = self.dfLanduseParametersTalsim.loc[:,'Type'] #Get the texture types
+            value_mapping = {}
+            new_fields = []
+            fields_wrong_datatype = [] #store those fields that have a wrong datatype 
+            for row in range(self.dlg.tableLanduseMapping.rowCount()): #Loop over all entries of the Land use Mapping Table
+                old_field = self.dlg.tableLanduseMapping.cellWidget(row, 1).currentText() #Current Text of Combo-Box specified by user
+                new_field = self.dlg.tableLanduseMapping.item(row, 0).text() #Get Talsim parameter
+                value_mapping[old_field] = new_field
+                if fieldType[row].strip() == 'string':
+                    type = QVariant.String
+                elif fieldType[row].strip() == 'float':
+                    type = QVariant.Double
+                elif fieldType[row].strip() == 'int':
+                    type = QVariant.Type.Int
+                else:
+                    type = QVariant.String
+                new_fields.append(QgsField(str(new_field), type)) #Store talsim parameters in a variable
+                self.selected_landuse_parameters.append(new_field)
+                if self.landuseTalsim.fields().indexOf(old_field) != -1:
+                    type_old = self.landuseTalsim.fields().field(old_field).type()
+                    if type_old != type:
+                        self.log_to_qtalsim_tab(f'You entered {old_field} for Talsim parameter {new_field}. Your field has type {QVariant.typeToName(type_old)}, when it should have type {QVariant.typeToName(type)}.', Qgis.Warning)
+                        fields_wrong_datatype.append(old_field)
+                    
+            self.landuseTalsim.dataProvider().addAttributes(new_fields) #create new fields with the talsim parameters
+            self.landuseTalsim.updateFields()
+
+            #Populate landuse parameter fields in land use layer
+            self.landuseTalsim.startEditing()
+            try:
+                for feature in self.landuseTalsim.getFeatures():
+                    for old_field, new_field in value_mapping.items():
+                        if old_field == 'Parameter not available':
+                            feature[new_field] = None 
+                        elif old_field == 'Feature IDs of Land use Layer':
+                            feature[new_field] = int(feature[self.landuseFieldInputID])
+                        else:
+                            new_field_type = self.landuseTalsim.fields().field(new_field).type()
+                            if isinstance(feature[old_field], str) and new_field_type == QVariant.Int:
+                                try:
+                                    feature[new_field] = int(feature[old_field])
+                                except:
+                                    feature[new_field] = None
+                            elif isinstance(feature[old_field], str) and new_field_type == QVariant.Double:
+                                try:
+                                    feature[new_field] = float(feature[old_field])
+                                except:
+                                    feature[new_field] = None
+                            else:
+                                feature[new_field] = feature[old_field]                              
+                    try:
+                        self.landuseTalsim.updateFeature(feature)
+                    except Exception as e:
+                        self.landuseTalsim.updateFeature(feature)
+                        self.log_to_qtalsim_tab(f"{e}", level=Qgis.Warning)
+            except Exception as e:
+                error_message = f"An error occurred: {str(e)}"
+                self.log_to_qtalsim_tab(error_message, level=Qgis.Critical)
+            self.landuseTalsim.commitChanges()
+            
+            if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
+                self.landuseTalsim = self.deletePolygonsBelowThreshold(self.landuseTalsim, self.selected_landuse_parameters, self.fieldLanduseID)
+
+            try:   
+                #Only keep relevant fields
+                all_fields = [field.name() for field in self.landuseTalsim.fields()]
+                fields_to_delete_indices = [self.landuseTalsim.fields().indexFromName(field) for field in all_fields if field not in self.selected_landuse_parameters]
+                self.landuseTalsim.startEditing()
+                self.landuseTalsim.dataProvider().deleteAttributes(fields_to_delete_indices)
+                self.landuseTalsim.commitChanges()
+                self.landuseTalsim.updateFields()
+
+            except Exception as e:
+                self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.landuseTalsim.dataProvider().reloadData()
+            self.landuseTalsim.setName("LanduseLayerEdited")
+            QgsProject.instance().addMapLayer(self.landuseTalsim)
+
+            self.log_to_qtalsim_tab(f"Finished land use parameter mapping. Inspect results in this temporary layer: {self.landuseTalsim.name()}.", Qgis.Info) 
+        
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
 
@@ -1704,7 +1898,7 @@ class QTalsim:
         finally:
             self.end_operation()
 
-    def fillLanduseTable(self):
+    def fillLanduseTable2(self):
         '''
             Fills the Land use Table with data of the csv-File and Land use Input Layer.
                 The User can then assign the Landuses to Talsim Land uses.
@@ -1750,7 +1944,7 @@ class QTalsim:
                 self.dlg.tableLanduseMapping.setCellWidget(row, 1, combo_box)
                 #item = QTableWidgetItem(name_value)
                 #self.dlg.tableLanduseMapping.setItem(row, 1, item)
-            self.dlg.onLanduseConfirm.setVisible(True)
+            #self.dlg.onLanduseConfirm2.setVisible(True)
         
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
@@ -1762,7 +1956,7 @@ class QTalsim:
         '''
             Creates the Talsim Landuse Layer according to the Landuse Mapping.
                 The resulting layer can still have gaps and overlaps, these are removed in another step.
-                Eliminates soil polygons defined as too small (by user input). 
+                Eliminates land use polygons defined as too small (by user input). 
         '''
         try:
             self.start_operation()
@@ -1781,8 +1975,7 @@ class QTalsim:
             dtype_to_qvariant = {
                 'float64': QVariant.Double,
                 'int64': QVariant.Int,
-                'object': QVariant.String,  
-                
+                'object': QVariant.String,   
             }
             #Add new fields
             for parameter in self.selected_landuse_parameters: #Field names Talsim parameters
@@ -2271,7 +2464,8 @@ class QTalsim:
 
             #Merge all of the split layers
             resultMerge = processing.run("native:mergevectorlayers", {'LAYERS':splitLayers,'CRS':intersectedDissolvedLayer.crs(),'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-
+            dissolve_list.remove(self.ezgUniqueIdentifier)
+            dissolve_list.remove(self.slopeField)
             return resultMerge
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
@@ -3160,7 +3354,7 @@ class QTalsim:
         if self.first_start == True:
             self.first_start = False
             self.dlg.onCreateSoilLayer.setVisible(False)
-            self.dlg.onLanduseConfirm.setVisible(False)
+            #self.dlg.onLanduseConfirm2.setVisible(False)
             self.dlg.onCreateLanduseLayer.setVisible(False)
 
         #Translating the buttons to English for constistency
@@ -3186,8 +3380,8 @@ class QTalsim:
         self.dlg.tableSoilMapping.clear()        
         self.dlg.tableSoilTypeDelete.clear()
         self.dlg.tableLanduseMapping.clear()
-        self.dlg.tableLanduseDelete.clear()
-        self.dlg.comboboxLanduseFields.clear()
+        #self.dlg.tableLanduseDelete.clear()
+        #self.dlg.comboboxLanduseFields.clear()
         self.dlg.comboboxSlopeField.clear()
 
         self.dlg.checkboxIntersectMinSizeArea.setChecked(False)
@@ -3215,12 +3409,13 @@ class QTalsim:
 
         #Landuse
         self.connectButtontoFunction(self.dlg.onLanduseLayer, self.selectLanduse)
-        self.connectButtontoFunction(self.dlg.onLanduseField, self.landuseAssigning)
-        self.connectButtontoFunction(self.dlg.onLanduseTalsimCSV, self.openLanduseTalsimCSV)
-        self.connectButtontoFunction(self.dlg.onLanduseStart, self.fillLanduseTable)
-        self.connectButtontoFunction(self.dlg.onLanduseConfirm, self.confirmLanduseClassification)
-        self.dlg.tableLanduseDelete.setSelectionBehavior(QAbstractItemView.SelectItems)
-        self.dlg.tableLanduseDelete.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.connectButtontoFunction(self.dlg.onConfirmLanduseMapping, self.confirmLanduseMapping)
+        #self.connectButtontoFunction(self.dlg.onLanduseField, self.landuseAssigning)
+        #self.connectButtontoFunction(self.dlg.onLanduseTalsimCSV, self.openLanduseTalsimCSV)
+        #self.connectButtontoFunction(self.dlg.onLanduseStart, self.fillLanduseTable2)
+        #self.connectButtontoFunction(self.dlg.onLanduseConfirm2, self.confirmLanduseClassification)
+        #self.dlg.tableLanduseDelete.setSelectionBehavior(QAbstractItemView.SelectItems)
+        #self.dlg.tableLanduseDelete.setSelectionMode(QAbstractItemView.MultiSelection)
         self.connectButtontoFunction(self.dlg.onLanduseTypeDelete, self.deleteLanduseFeatures)
         self.connectButtontoFunction(self.dlg.onCheckOverlappingLanduse, self.checkOverlappingLanduse)
         self.connectButtontoFunction(self.dlg.onDeleteOverlapsLanduse, self.deleteOverlappingLanduseFeatures)
@@ -3228,18 +3423,18 @@ class QTalsim:
 
       
         self.dlg.comboboxModeEliminateLanduse.clear()
-        self.dlg.csvPath.clear()
+        #self.dlg.csvPath.clear()
         self.dlg.comboboxModeEliminateLanduse.addItems(['Largest Area', 'Smallest Area','Largest Common Boundary'])  
         
         self.connectButtontoFunction(self.dlg.onFillGapsLanduse, self.fillGapsLanduse)
         self.connectButtontoFunction(self.dlg.onCreateLanduseLayer, self.createLanduseLayer) 
 
         #Radio Buttons csv file
-        self.dlg.radioButtonComma.toggled.connect(self.updateCsvDelimiter)
-        self.dlg.radioButtonSemicolon.toggled.connect(self.updateCsvDelimiter)
-        self.dlg.radioButtonTabulator.toggled.connect(self.updateCsvDelimiter)
-        self.dlg.radioButtonSpace.toggled.connect(self.updateCsvDelimiter)
-        self.dlg.radioButtonOtherDel.toggled.connect(self.updateCsvDelimiter)
+        #self.dlg.radioButtonComma.toggled.connect(self.updateCsvDelimiter)
+        #self.dlg.radioButtonSemicolon.toggled.connect(self.updateCsvDelimiter)
+        #self.dlg.radioButtonTabulator.toggled.connect(self.updateCsvDelimiter)
+        #self.dlg.radioButtonSpace.toggled.connect(self.updateCsvDelimiter)
+        #self.dlg.radioButtonOtherDel.toggled.connect(self.updateCsvDelimiter)
        
         #Intersect
         self.connectButtontoFunction(self.dlg.onPerformIntersect, self.performIntersect) 

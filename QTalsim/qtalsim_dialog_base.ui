@@ -53,7 +53,7 @@
          <property name="geometry">
           <rect>
            <x>0</x>
-           <y>0</y>
+           <y>-718</y>
            <width>948</width>
            <height>1497</height>
           </rect>
@@ -490,9 +490,9 @@
              <property name="geometry">
               <rect>
                <x>0</x>
-               <y>0</y>
+               <y>-224</y>
                <width>903</width>
-               <height>1231</height>
+               <height>722</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -570,221 +570,50 @@
                    <property name="saveCheckedState">
                     <bool>false</bool>
                    </property>
-                   <layout class="QVBoxLayout" name="verticalLayout_7" stretch="0,5,0,5,0">
+                   <layout class="QVBoxLayout" name="verticalLayout_7" stretch="0,0,0,5,0">
                     <item>
-                     <widget class="QGroupBox" name="Landuse">
-                      <property name="title">
-                       <string>Select and Check Land Use Layer</string>
-                      </property>
-                      <layout class="QGridLayout" name="gridLayout_2">
-                       <item row="2" column="1">
-                        <widget class="QComboBox" name="comboboxLanduseFields">
-                         <property name="sizePolicy">
-                          <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
-                           <horstretch>0</horstretch>
-                           <verstretch>0</verstretch>
-                          </sizepolicy>
-                         </property>
-                        </widget>
-                       </item>
-                       <item row="2" column="2">
-                        <widget class="QPushButton" name="onLanduseField">
-                         <property name="toolTip">
-                          <string>Select the field with the land use types in order to be able to make an assignment to the Talsim land use types.</string>
-                         </property>
-                         <property name="text">
-                          <string>Confirm Land Use Type</string>
-                         </property>
-                        </widget>
-                       </item>
-                       <item row="0" column="0">
-                        <widget class="QLabel" name="labelLanduse">
-                         <property name="text">
-                          <string>Select Land Use Layer</string>
-                         </property>
-                        </widget>
-                       </item>
-                       <item row="0" column="1">
-                        <widget class="QComboBox" name="comboboxLanduseLayer">
-                         <property name="sizePolicy">
-                          <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
-                           <horstretch>0</horstretch>
-                           <verstretch>0</verstretch>
-                          </sizepolicy>
-                         </property>
-                        </widget>
-                       </item>
-                       <item row="2" column="0">
-                        <widget class="QLabel" name="labelField">
-                         <property name="text">
-                          <string>Select Land Use Type</string>
-                         </property>
-                        </widget>
-                       </item>
-                       <item row="0" column="2">
-                        <widget class="QPushButton" name="onLanduseLayer">
-                         <property name="toolTip">
-                          <string/>
-                         </property>
-                         <property name="text">
-                          <string>Confirm Land Use Layer</string>
-                         </property>
-                        </widget>
-                       </item>
-                      </layout>
-                     </widget>
-                    </item>
-                    <item>
-                     <layout class="QHBoxLayout" name="horizontalLayout_4">
+                     <layout class="QHBoxLayout" name="horizontalLayout_19">
                       <item>
-                       <widget class="QGroupBox" name="groupBox_3">
+                       <widget class="QLabel" name="labelLanduse">
+                        <property name="text">
+                         <string>Select Land Use Layer</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QComboBox" name="comboboxLanduseLayer">
+                        <property name="sizePolicy">
+                         <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+                          <horstretch>0</horstretch>
+                          <verstretch>0</verstretch>
+                         </sizepolicy>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QPushButton" name="onLanduseLayer">
                         <property name="toolTip">
-                         <string>Upload CSV file with the Talsim land use types. Field &quot;Name&quot; should contain the land use types.</string>
+                         <string/>
                         </property>
-                        <property name="title">
-                         <string>Upload Talsim Land Use Names and Parameters</string>
+                        <property name="text">
+                         <string>Confirm Land Use Layer</string>
                         </property>
-                        <layout class="QHBoxLayout" name="horizontalLayout_6">
-                         <item>
-                          <layout class="QVBoxLayout" name="verticalLayout_9" stretch="5,15">
-                           <property name="spacing">
-                            <number>7</number>
-                           </property>
-                           <property name="sizeConstraint">
-                            <enum>QLayout::SetMinimumSize</enum>
-                           </property>
-                           <item>
-                            <layout class="QHBoxLayout" name="horizontalLayout_5">
-                             <item>
-                              <widget class="QTextEdit" name="csvPath">
-                               <property name="maximumSize">
-                                <size>
-                                 <width>16777215</width>
-                                 <height>60</height>
-                                </size>
-                               </property>
-                              </widget>
-                             </item>
-                             <item>
-                              <widget class="QPushButton" name="onLanduseTalsimCSV">
-                               <property name="text">
-                                <string>Select CSV-File</string>
-                               </property>
-                              </widget>
-                             </item>
-                            </layout>
-                           </item>
-                           <item>
-                            <widget class="QGroupBox" name="groupBox">
-                             <property name="maximumSize">
-                              <size>
-                               <width>16777215</width>
-                               <height>100</height>
-                              </size>
-                             </property>
-                             <property name="title">
-                              <string>Delimiter</string>
-                             </property>
-                             <layout class="QGridLayout" name="gridLayout_5">
-                              <item row="1" column="0">
-                               <widget class="QRadioButton" name="radioButtonSemicolon">
-                                <property name="text">
-                                 <string>Semicolon</string>
-                                </property>
-                               </widget>
-                              </item>
-                              <item row="0" column="0">
-                               <widget class="QRadioButton" name="radioButtonComma">
-                                <property name="text">
-                                 <string>Comma</string>
-                                </property>
-                                <property name="checked">
-                                 <bool>true</bool>
-                                </property>
-                               </widget>
-                              </item>
-                              <item row="0" column="1">
-                               <widget class="QRadioButton" name="radioButtonTabulator">
-                                <property name="text">
-                                 <string>Tabulator</string>
-                                </property>
-                               </widget>
-                              </item>
-                              <item row="1" column="1">
-                               <widget class="QRadioButton" name="radioButtonSpace">
-                                <property name="text">
-                                 <string>Space</string>
-                                </property>
-                               </widget>
-                              </item>
-                              <item row="0" column="2">
-                               <widget class="QRadioButton" name="radioButtonOtherDel">
-                                <property name="text">
-                                 <string>Other</string>
-                                </property>
-                               </widget>
-                              </item>
-                              <item row="0" column="3">
-                               <widget class="QTextEdit" name="textOther">
-                                <property name="minimumSize">
-                                 <size>
-                                  <width>0</width>
-                                  <height>30</height>
-                                 </size>
-                                </property>
-                               </widget>
-                              </item>
-                             </layout>
-                            </widget>
-                           </item>
-                          </layout>
-                         </item>
-                        </layout>
                        </widget>
                       </item>
                      </layout>
                     </item>
                     <item>
-                     <layout class="QHBoxLayout" name="horizontalLayout_9"/>
+                     <widget class="QTableWidget" name="tableLanduseMapping"/>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="onConfirmLanduseMapping">
+                      <property name="text">
+                       <string>Confirm Land Use Mapping</string>
+                      </property>
+                     </widget>
                     </item>
                     <item>
                      <layout class="QVBoxLayout" name="verticalLayout_5">
-                      <item>
-                       <widget class="QPushButton" name="onLanduseStart">
-                        <property name="text">
-                         <string>Start Land Use Mapping</string>
-                        </property>
-                       </widget>
-                      </item>
-                      <item>
-                       <widget class="QTableWidget" name="tableLanduseMapping">
-                        <property name="sizePolicy">
-                         <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
-                          <horstretch>0</horstretch>
-                          <verstretch>0</verstretch>
-                         </sizepolicy>
-                        </property>
-                        <property name="minimumSize">
-                         <size>
-                          <width>0</width>
-                          <height>400</height>
-                         </size>
-                        </property>
-                        <property name="toolTip">
-                         <string>Map the input land use types to the Talsim land use types.</string>
-                        </property>
-                       </widget>
-                      </item>
-                      <item>
-                       <widget class="QPushButton" name="onLanduseConfirm">
-                        <property name="toolTip">
-                         <string>Talsim land use is added to each feature, unwanted land use types are deleted.</string>
-                        </property>
-                        <property name="text">
-                         <string>Confirm Land Use Mapping</string>
-                        </property>
-                       </widget>
-                      </item>
                       <item>
                        <widget class="QgsCollapsibleGroupBox" name="mGroupBox_2">
                         <property name="title">
