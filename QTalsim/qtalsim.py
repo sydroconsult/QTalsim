@@ -31,7 +31,7 @@ from .resources import *
 from .qtalsim_dialog import QTalsimDialog
 from .qtalsim_sqllite_dialog import SQLConnectDialog
 import os.path
-from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest, QgsMapLayer, QgsFields, QgsTask, QgsTaskManager, QgsApplication, QgsExpression
+from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsRasterLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest, QgsMapLayer, QgsFields, QgsTask, QgsTaskManager, QgsApplication, QgsExpression
 from qgis.analysis import QgsGeometrySnapper
 import processing
 import pandas as pd
@@ -112,13 +112,16 @@ class QTalsim:
         self.parameterFieldsLanduse = None
         self.landuseGaps = None
 
+        #DEM/Slope
+        self.demLayer = None
+        self.slopeLayer = None
+
         #Field Names (soil names must be the same name as in soilParameter.csv)
-        self.slopeField = None #Changed by user
         self.slopeFieldName = 'Slope'
         self.IDSoil = 'ID_Soil'
         self.nameSoil = 'NameSoil'
         self.fieldNameAreaEFL = "PercentageShare"
-        self.fieldLanduseID = 'ID_LNZ' #changed from ID_LNZ
+        self.fieldLanduseID = 'ID_LNZ'
         self.nameLanduse = 'Name'
         self.soilTypeThickness = 'LayerThickness1'
         self.soilTextureId1 = 'SoilTextureId1'
@@ -139,13 +142,8 @@ class QTalsim:
 
         self.geopackage_path = None
 
-        #Tasks and overlapping:
-        self.geometry_updates = {}
-        self.tasks = []
-        self.tasks_completed = 0
-        self.layer = None
-        self.changes_made = False
         self.last_logged_progress = 0
+
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
         """Get the translation for a string using Qt translation API.
@@ -343,7 +341,7 @@ class QTalsim:
             Fills the combobox of sub-basins/land uses/soils layers with all polygon layers in the project.        
         '''
         #Get Layers
-        layers = self.getAllLayers(QgsProject.instance().layerTreeRoot())
+        layers, rasterLayers = self.getAllLayers(QgsProject.instance().layerTreeRoot())
         current_text = self.dlg.comboboxEZGLayer.currentText()
         self.dlg.comboboxEZGLayer.clear() #clear combobox EZG from previous runs
         self.dlg.comboboxEZGLayer.addItem(self.noLayerSelected)
@@ -352,6 +350,9 @@ class QTalsim:
         if index != -1:
             self.dlg.comboboxEZGLayer.setCurrentIndex(index)
 
+        self.safeConnect(self.dlg.comboboxEZGLayer.currentIndexChanged, self.on_ezg_changed)
+
+        #Soil Layer
         current_text = self.dlg.comboboxSoilLayer.currentText()
         self.dlg.comboboxSoilLayer.clear() #clear combobox soil from previous runs
         self.dlg.comboboxSoilLayer.addItems([layer.name() for layer in layers])
@@ -359,6 +360,7 @@ class QTalsim:
         if index != -1:
             self.dlg.comboboxSoilLayer.setCurrentIndex(index)
 
+        #Land use layer
         current_text = self.dlg.comboboxLanduseLayer.currentText()
         self.dlg.comboboxLanduseLayer.clear() #clear combobox Landuse from previous runs
         self.dlg.comboboxLanduseLayer.addItems([layer.name() for layer in layers])
@@ -366,7 +368,14 @@ class QTalsim:
         if index != -1:
             self.dlg.comboboxLanduseLayer.setCurrentIndex(index)
 
-        self.safeConnect(self.dlg.comboboxEZGLayer.currentIndexChanged, self.on_ezg_changed)
+        #DEM Layer
+        current_text = self.dlg.comboboxDEMLayer.currentText()
+        self.dlg.comboboxDEMLayer.clear() #clear combobox Landuse from previous runs
+        self.dlg.comboboxDEMLayer.addItem("Optional: Upload DEM Layer") 
+        self.dlg.comboboxDEMLayer.addItems([layer.name() for layer in rasterLayers])
+        index = self.dlg.comboboxDEMLayer.findText(current_text)
+        if index != -1:
+            self.dlg.comboboxDEMLayer.setCurrentIndex(index)
 
     def update_layer_name(self, layer_name, function):
         '''
@@ -1038,8 +1047,6 @@ class QTalsim:
             current_text_comboboxui = self.dlg.comboboxUICatchment.currentText() #if the current field name exists in new layer - leave this field
             index_ui = -1
             
-            index_slope = -1
-            current_text_comboboxSlopeField = self.dlg.comboboxSlopeField.currentText() #if the current field name exists in new layer - leave this field
             layers = QgsProject.instance().mapLayersByName(current_text)
             
             if not layers: #if the layer does not exist
@@ -1059,12 +1066,6 @@ class QTalsim:
                     if index_ui != -1:
                         self.dlg.comboboxUICatchment.setCurrentIndex(index_ui) 
 
-                self.dlg.comboboxSlopeField.clear()
-                self.dlg.comboboxSlopeField.addItems([field.name() for field in self.ezgLayerCombobox.fields()])        
-                if current_text_comboboxSlopeField is not None:
-                    index_slope = self.dlg.comboboxSlopeField.findText(current_text_comboboxSlopeField)
-                    if index_slope != -1:
-                        self.dlg.comboboxSlopeField.setCurrentIndex(index_slope) 
         except:
             return
 
@@ -1094,9 +1095,8 @@ class QTalsim:
             self.clippingEZG = result_deleteholes['OUTPUT'] #delete holes within the dissolved catchment area layer for clipping
             #QgsProject.instance().addMapLayer(self.clippingEZG)
             
-            self.slopeField = self.dlg.comboboxSlopeField.currentText()
             self.ezgUniqueIdentifier = self.dlg.comboboxUICatchment.currentText()
-            result = processing.run("native:dissolve", {'INPUT': self.ezgLayer, 'FIELD':[self.ezgUniqueIdentifier, self.slopeField],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
+            result = processing.run("native:dissolve", {'INPUT': self.ezgLayer, 'FIELD':[self.ezgUniqueIdentifier],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.ezgLayer = result['OUTPUT']
             
             #self.safeDisconnect(self.dlg.comboboxEZGLayer.currentIndexChanged, self.on_ezg_changed)
@@ -1204,7 +1204,7 @@ class QTalsim:
                 
                 combo_box = QComboBox()
                 # Add parameters as items to the combo box
-                if data != self.nameSoil and data != self.IDSoil:
+                if data != self.IDSoil:
                     combo_box.addItem('Parameter not available')
 
                 if data == self.IDSoil:
@@ -1681,7 +1681,7 @@ class QTalsim:
                 
                 combo_box = QComboBox()
                 # Add parameters as items to the combo box
-                if data != self.nameLanduse and data != self.fieldLanduseID:
+                if data != self.fieldLanduseID:
                     combo_box.addItem('Parameter not available')
 
                 if data == self.fieldLanduseID:
@@ -2300,7 +2300,7 @@ class QTalsim:
         try:
             self.log_to_qtalsim_tab("Eliminating polygons below elimination thresholds...", Qgis.Info)
             all_fields = [field.name() for field in self.ezgLayer.fields()]
-            fields_to_delete_indices = [self.ezgLayer.fields().indexFromName(field) for field in all_fields if field != self.slopeField and field != self.ezgUniqueIdentifier]
+            fields_to_delete_indices = [self.ezgLayer.fields().indexFromName(field) for field in all_fields if field != self.ezgUniqueIdentifier]
             self.ezgLayer.startEditing()
             self.ezgLayer.dataProvider().deleteAttributes(fields_to_delete_indices)
             self.ezgLayer.commitChanges()
@@ -2336,7 +2336,6 @@ class QTalsim:
 
             #Dissolve Layer 1
             dissolve_list.append(self.ezgUniqueIdentifier)
-            dissolve_list.append(self.slopeField)
             resultDissolve = processing.run("native:dissolve", {'INPUT': intermediateIntersectSingleparts,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback = None)
             intersectedDissolvedLayer = resultDissolve['OUTPUT']
             
@@ -2382,7 +2381,6 @@ class QTalsim:
             eflFieldList = []
             eflFieldList.append(self.ezgUniqueIdentifier) #ID of catchment area
             eflFieldList.append(id_field) #ID Soil/Landuse
-            eflFieldList.append(self.slopeField) #Slope Field
             splitLayers = []
 
             total_features = len([name for name in os.listdir(outputDirSplit) if os.path.isfile(os.path.join(outputDirSplit, name))])
@@ -2465,14 +2463,52 @@ class QTalsim:
             #Merge all of the split layers
             resultMerge = processing.run("native:mergevectorlayers", {'LAYERS':splitLayers,'CRS':intersectedDissolvedLayer.crs(),'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             dissolve_list.remove(self.ezgUniqueIdentifier)
-            dissolve_list.remove(self.slopeField)
             return resultMerge
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+    
+    def calculateSlopeHRUs(self, hruLayer):
+        '''
+            Calculates the slope for each polygon in hruLayer. 
+                Triggered in performIntersect
+        '''
+
+        #Get DEM Layer
+        selected_layer_name = self.dlg.comboboxDEMLayer.currentText()
+        self.demLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+
+        #Calculate Slope Layer
+        slope_layer_path = processing.run("native:slope", {'INPUT':self.demLayer, 'Z_FACTOR':1,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+        self.slopeLayer = QgsRasterLayer(slope_layer_path, 'Slope Layer')
+
+        #Calculate the mean slope for each HRU
+        statsLayer = processing.run("native:zonalstatisticsfb", {'INPUT':hruLayer,'INPUT_RASTER':self.slopeLayer,'RASTER_BAND':1,'COLUMN_PREFIX':'_','STATISTICS':[2],'OUTPUT':'TEMPORARY_OUTPUT'}).get('OUTPUT')
+        
+
+        # Add field 'Slope'
+        statsLayer.startEditing()
+        statsLayer.addAttribute(QgsField(self.slopeFieldName, QVariant.Double))
+        statsLayer.commitChanges()
+
+        statsLayer.startEditing()
+
+        #Get the index of the '_mean' field and 'Slope' field
+        mean_field_index = statsLayer.fields().indexOf('_mean') #field _mean created by zonalstatistics
+        slope_field_index = statsLayer.fields().indexOf(self.slopeFieldName)
+
+        #Copy the data from the '_mean' field to the 'slope' field
+        for feature in statsLayer.getFeatures():
+            statsLayer.changeAttributeValue(feature.id(), slope_field_index, feature[mean_field_index])
+
+        #Remove the old '_mean' field that was created by "zonalstatisticsfb"
+        statsLayer.deleteAttribute(mean_field_index)
+        statsLayer.commitChanges()
+
+        return statsLayer
 
     def performIntersect(self):
         '''
-            Performs intersect of the three input layers after processing them in the previous steps.
+            Performs intersection of the three input layers after processing them in the previous steps.
         '''
         try:
             self.start_operation()
@@ -2489,7 +2525,7 @@ class QTalsim:
                 self.log_to_qtalsim_tab(f"Starting the intersecting process of layers: {self.ezgLayer.name()}, {self.landuseTalsim.name()} and {self.soilTalsim.name()}.", Qgis.Info)
 
             all_fields = [field.name() for field in self.ezgLayer.fields()]
-            fields_to_delete_indices = [self.ezgLayer.fields().indexFromName(field) for field in all_fields if field != self.slopeField and field != self.ezgUniqueIdentifier]
+            fields_to_delete_indices = [self.ezgLayer.fields().indexFromName(field) for field in all_fields if field != self.ezgUniqueIdentifier]
             self.ezgLayer.startEditing()
             self.ezgLayer.dataProvider().deleteAttributes(fields_to_delete_indices)
             self.ezgLayer.commitChanges()
@@ -2538,7 +2574,6 @@ class QTalsim:
             #Dissolve intersected layer by sub-basin's, soil's and land use's parameters
             dissolve_list = []
             dissolve_list.append(self.ezgUniqueIdentifier)
-            dissolve_list.append(self.slopeField)
             dissolve_list.extend(self.selected_landuse_parameters)
             dissolve_list.extend(self.soilFieldNames)
             resultDissolve = processing.run("native:dissolve", {'INPUT': intersectedLayer,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback = None)
@@ -2598,12 +2633,13 @@ class QTalsim:
             eflFieldList.append(self.ezgUniqueIdentifier) #ID of catchment area
             eflFieldList.append(self.IDSoil) #ID Soil
             eflFieldList.append(self.fieldLanduseID) #ID LNZ
-            eflFieldList.append(self.slopeField) #Slope Field
             splitLayers = []
 
             self.log_to_qtalsim_tab("Eliminating polygons below elimination thresholds...", Qgis.Info)
-            for filename in os.listdir(outputDirSplit):
 
+            #Loop over all sub-basins to eliminate polygons
+            for filename in os.listdir(outputDirSplit):
+                
                 #Logging the process
                 analysed_features += 1
                 progress = (analysed_features/count_all_layers)*100
@@ -2647,7 +2683,7 @@ class QTalsim:
                     percentage = (summed_area / ezgArea) * 100
                     percentage_sums[attributes_key] = percentage
 
-                features_to_delete = []
+                features_to_delete = [] #features without/empty geometries are deleted
                 for feature in tempLayersplit.getFeatures():
                     attributes_key = tuple(feature[field] for field in eflFieldList)
                     area = area_sums[attributes_key]
@@ -2667,6 +2703,7 @@ class QTalsim:
                 for feature_id in features_to_delete:
                     tempLayersplit.deleteFeature(feature_id)
                 tempLayersplit.commitChanges()
+
                 #Eliminate with mode specified by user
                 tempLayersplit.selectByIds(ids_to_eliminate)
                 mode = 0 
@@ -2786,8 +2823,16 @@ class QTalsim:
                 self.eflLayer = processing.run("native:dissolve", {'INPUT': self.eflLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
 
             #Add Fields
-            eflLayerDP = self.eflLayer.dataProvider()
+            if self.dlg.comboboxDEMLayer.currentText() != "Optional: Upload DEM Layer":
+                self.eflLayer = self.calculateSlopeHRUs(self.eflLayer)    
+            else:
+                self.eflLayer.startEditing()
+                # Add the new field 'slope'
+                self.eflLayer.addAttribute(QgsField(self.slopeFieldName, QVariant.Double))
+                self.eflLayer.commitChanges()
 
+            eflFieldList.append(self.slopeFieldName)
+            eflLayerDP = self.eflLayer.dataProvider()
             self.eflLayer.startEditing()
             eflLayerDP.addAttributes([QgsField(self.fieldNameAreaEFL, QVariant.Double)])
             self.eflLayer.commitChanges()
@@ -2825,8 +2870,6 @@ class QTalsim:
             self.eflLayer.renameAttribute(field_index, self.hruLandUseId)
             field_index = self.eflLayer.fields().indexFromName(self.ezgUniqueIdentifier)
             self.eflLayer.renameAttribute(field_index, self.subBasinUI)
-            field_index = self.eflLayer.fields().indexFromName(self.slopeField)
-            self.eflLayer.renameAttribute(field_index, self.slopeFieldName)
             self.eflLayer.commitChanges()
             self.eflLayer.setName("EFL")
 
@@ -2835,7 +2878,7 @@ class QTalsim:
             '''
                 Create .LNZ
             '''
-            fields_to_remove = [self.ezgUniqueIdentifier, self.slopeField]
+            fields_to_remove = [self.ezgUniqueIdentifier]
             for field in fields_to_remove:
                 if field in self.selected_landuse_parameters:
                     self.selected_landuse_parameters.remove(field)
@@ -2865,7 +2908,7 @@ class QTalsim:
             except Exception as e:
                 self.log_to_qtalsim_tab(f"{e}",Qgis.Critical)
 
-            fields_to_remove = [self.ezgUniqueIdentifier, self.slopeField]
+            fields_to_remove = [self.ezgUniqueIdentifier]
             for field in fields_to_remove:
                 if field in self.soilFieldNames:
                     self.soilFieldNames.remove(field)
@@ -3174,7 +3217,7 @@ class QTalsim:
 
                 data = []
                 for feature in features:
-                    #hier weitermachen - die anderen Features ohne Werte auch noch hinzufügen 
+                   
                     layer_data = {"ID" : feature[self.boaId], "Soil" : feature[self.boaName], "BD": feature["BulkDensityClass"],
                                 "Typ" : feature["Category"], "WP" : feature["WiltingPoint"], "FK" : feature["FieldCapacity"],
                                 "GPV" : feature["TotalPoreVolume"], "Kf" : feature["KfValue"], "maxInf" : feature["MaxInfiltration"],
@@ -3332,17 +3375,22 @@ class QTalsim:
             Load all Layers
         '''
         layers = []
+        rasterLayers = []
         for child in root.children():
             if isinstance(child, QgsLayerTreeGroup):
                 # If the child is a group, recursively get layers from this group
-                layers.extend(self.getAllLayers(child))
+                sub_layers, sub_raster_layers = self.getAllLayers(child)
+                layers.extend(sub_layers)
+                rasterLayers.extend(sub_raster_layers)
             elif isinstance(child, QgsLayerTreeLayer):
                 layer = child.layer()
                 if layer and layer.type() == QgsMapLayer.VectorLayer:
                     # If the child is a layer, add it to the list
                     if layer.geometryType() == QgsWkbTypes.PolygonGeometry:
                         layers.append(layer)
-        return layers
+                elif layer and layer.type() == QgsMapLayer.RasterLayer:
+                    rasterLayers.append(layer)
+        return layers, rasterLayers
     
     def run(self):
         '''
@@ -3380,9 +3428,6 @@ class QTalsim:
         self.dlg.tableSoilMapping.clear()        
         self.dlg.tableSoilTypeDelete.clear()
         self.dlg.tableLanduseMapping.clear()
-        #self.dlg.tableLanduseDelete.clear()
-        #self.dlg.comboboxLanduseFields.clear()
-        self.dlg.comboboxSlopeField.clear()
 
         self.dlg.checkboxIntersectMinSizeArea.setChecked(False)
         self.dlg.spinboxIntersectMinSizeArea.setValue(self.dlg.spinboxIntersectMinSizeArea.minimum())
@@ -3410,12 +3455,6 @@ class QTalsim:
         #Landuse
         self.connectButtontoFunction(self.dlg.onLanduseLayer, self.selectLanduse)
         self.connectButtontoFunction(self.dlg.onConfirmLanduseMapping, self.confirmLanduseMapping)
-        #self.connectButtontoFunction(self.dlg.onLanduseField, self.landuseAssigning)
-        #self.connectButtontoFunction(self.dlg.onLanduseTalsimCSV, self.openLanduseTalsimCSV)
-        #self.connectButtontoFunction(self.dlg.onLanduseStart, self.fillLanduseTable2)
-        #self.connectButtontoFunction(self.dlg.onLanduseConfirm2, self.confirmLanduseClassification)
-        #self.dlg.tableLanduseDelete.setSelectionBehavior(QAbstractItemView.SelectItems)
-        #self.dlg.tableLanduseDelete.setSelectionMode(QAbstractItemView.MultiSelection)
         self.connectButtontoFunction(self.dlg.onLanduseTypeDelete, self.deleteLanduseFeatures)
         self.connectButtontoFunction(self.dlg.onCheckOverlappingLanduse, self.checkOverlappingLanduse)
         self.connectButtontoFunction(self.dlg.onDeleteOverlapsLanduse, self.deleteOverlappingLanduseFeatures)
@@ -3423,18 +3462,10 @@ class QTalsim:
 
       
         self.dlg.comboboxModeEliminateLanduse.clear()
-        #self.dlg.csvPath.clear()
         self.dlg.comboboxModeEliminateLanduse.addItems(['Largest Area', 'Smallest Area','Largest Common Boundary'])  
         
         self.connectButtontoFunction(self.dlg.onFillGapsLanduse, self.fillGapsLanduse)
         self.connectButtontoFunction(self.dlg.onCreateLanduseLayer, self.createLanduseLayer) 
-
-        #Radio Buttons csv file
-        #self.dlg.radioButtonComma.toggled.connect(self.updateCsvDelimiter)
-        #self.dlg.radioButtonSemicolon.toggled.connect(self.updateCsvDelimiter)
-        #self.dlg.radioButtonTabulator.toggled.connect(self.updateCsvDelimiter)
-        #self.dlg.radioButtonSpace.toggled.connect(self.updateCsvDelimiter)
-        #self.dlg.radioButtonOtherDel.toggled.connect(self.updateCsvDelimiter)
        
         #Intersect
         self.connectButtontoFunction(self.dlg.onPerformIntersect, self.performIntersect) 

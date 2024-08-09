@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.3] - 2024-08-09
+- Enhancements
+  - Land use mapping has been improved to match the process of soil mapping (CSV upload is no longer required)
+  - Slope calculation is now available for each HRU by uploading a DEM
+  - HRU creation now allows for the omission of parameters, requiring only a unique identifier
+
 ## [1.4.2] - 2024-07-18
 - Minor Bug fix
   - Fixes ordering issue for ASCII outputs to ensure they are ordered by ID columns.

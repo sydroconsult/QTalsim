@@ -9,16 +9,13 @@ Select Sub-basin Layer
 
       First, select the layer containing the sub-basins from the
       drop-down-menu that lists all polygon layers in your current QGIS
-      project. Confirm your selection by clicking on the ‘Confirm
+      project. After selecting the layer, the sub-basin layer's fields containing the
+      unique identifier must be selected from
+      the drop-down menu. Confirm your selection by clicking on the ‘Confirm
       Sub-basins’-Button. Upon clicking this button the Sub-basin layer
       is selected, and overlapping features and duplicates are removed.
       You can inspect the result in your QGIS project (layer
       'Sub-basins').
-
-      After selecting the sub-basin layer's fields containing 1) the
-      unique identifier and 2) the slope values must be selected from
-      the drop-down menu. These fields are utilized in the final
-      EFL-layer and serve as input parameters to Talsim.
 
       |Select Sub-basin|
 
@@ -222,11 +219,12 @@ Intersection of Layers
 .. _intersection-layers:
 
       This step results in the creation of the files: BOD, BOA, LNZ and
-      EFL, which can be used as input files for Talsim. To generate the
-      HRUs, the three layers (sub-basins, soil and land use) are
+      EFL, which can be used as input files for Talsim. To calculate the slope of each HRU, the user
+      must input a digital elevation model. This is used to calculated the mean slope for each of created HRUS. 
+      To generate the HRUs, the three layers (sub-basins, soil and land use) are
       intersected in a first step. The user can set a minimum size of
       the HRUs [m²] and a minimum percentage of HRUs relative to the
-      sub-basin's area. Please note, that the sum of the areas of all HRUs with the same parameters is
+      sub-basin's area (see above). Please note, that the sum of the areas of all HRUs with the same parameters is
       compared with the area of the corresponding sub-basin. HRUs that fall below the specified size or
       percentage share are deleted and filled using the
       ‘Eliminate’-tool. You can select the elimination-mode from the
