@@ -9,7 +9,7 @@ Select Sub-basin Layer
 
       First, select the layer containing the sub-basins from the
       drop-down-menu that lists all polygon layers in your current QGIS
-      project. After selecting the layer, the sub-basin layer's fields containing the
+      project. After selecting the layer, the sub-basin layer's field containing the
       unique identifier must be selected from
       the drop-down menu. Confirm your selection by clicking on the ‘Confirm
       Sub-basins’-Button. Upon clicking this button the Sub-basin layer
@@ -219,8 +219,8 @@ Intersection of Layers
 .. _intersection-layers:
 
       This step results in the creation of the files: BOD, BOA, LNZ and
-      EFL, which can be used as input files for Talsim. To calculate the slope of each HRU, the user
-      must input a digital elevation model. This is used to calculated the mean slope for each of created HRUS. 
+      EFL, which can be used as input files for Talsim. To calculate the slope for each HRU, the user must input a Digital Elevation Model (DEM).
+      This model is used to calculate the mean slope for each of the created HRUs. 
       To generate the HRUs, the three layers (sub-basins, soil and land use) are
       intersected in a first step. The user can set a minimum size of
       the HRUs [m²] and a minimum percentage of HRUs relative to the
