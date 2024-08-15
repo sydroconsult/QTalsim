@@ -23,13 +23,14 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon, QCursor, QMovie
-from qgis.PyQt.QtWidgets import QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton, QDockWidget, QMessageBox, QApplication, QDialog
+from qgis.PyQt.QtWidgets import QMainWindow, QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton, QDockWidget, QMessageBox, QApplication, QDialog
 from qgis.PyQt.QtCore import QVariant, QTimer, pyqtSignal
 # Initialize Qt resources from file resources.py
 from .resources import *
 # Import the code for the dialog
 from .qtalsim_dialog import QTalsimDialog
 from .qtalsim_sqllite_dialog import SQLConnectDialog
+from .qtalsim_subbasin_dialog import SubBasinPreprocessingDialog
 import os.path
 from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsRasterLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest, QgsMapLayer, QgsFields, QgsTask, QgsTaskManager, QgsApplication, QgsExpression
 from qgis.analysis import QgsGeometrySnapper
@@ -269,6 +270,8 @@ class QTalsim:
         self.add_action(icon_path, text=self.tr(u'HRU calculation'), callback=self.run, parent=self.iface.mainWindow(), add_to_toolbar=True)
         #self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_secondary_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
         self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_sql_connect_dock, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        self.add_action(icon_path, text=self.tr(u'Sub-basin preprocessing'), callback=self.open_sub_basin_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
+
         self.first_start = True
         self.initialize_parameters()
 
@@ -3552,7 +3555,25 @@ class QTalsim:
 
     def onDockDestroyed(self, obj=None):
         self.sqlConnectDock = None
+    
+    def open_sub_basin_window(self):
+        if self.first_start:
+            self.first_start = False
+        if not hasattr(self, 'subBasinWindow'):
+            self.subBasinWindow = QMainWindow(self.iface.mainWindow())
+
+            self.subBasinDialog = SubBasinPreprocessingDialog(self.iface.mainWindow(), self)
+            self.subBasinWindow.setCentralWidget(self.subBasinDialog)
+            #self.iface.mainWindow().addDockWidget(Qt.RightDockWidgetArea, self.subBasinWindow)
+        else:
+            self.subBasinDialog.initialize_parameters()
         
+        self.subBasinWindow.raise_()
+        self.subBasinWindow.show()
+        self.subBasinWindow.destroyed.connect(self.onWindowDestroyed)
+
+    def onWindowDestroyed(self, obj=None):
+        self.subBasinWindow = None
 '''
     Custom Dock Widget for 'Connect to Talsim DB' to overwrite the closeEvent-Action with a custom function. 
 '''

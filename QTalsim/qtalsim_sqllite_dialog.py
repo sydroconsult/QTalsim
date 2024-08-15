@@ -213,7 +213,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             Fills the combobox of external sub-basins with all polygon layers in the project.        
         '''
         #Get Layers
-        polygonLayers = self.getAllLayers(QgsProject.instance().layerTreeRoot())
+        polygonLayers, _ = self.getAllLayers(QgsProject.instance().layerTreeRoot())
 
         self.comboboxPolygonLayer.clear() #clear combobox EZG from previous runs
         
