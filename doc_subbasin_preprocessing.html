@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Sub-basins preprocessing &#8212; QTalsim 1.4.3 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
+    
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=84f0443f"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.4.3 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Sub-basins preprocessing</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="sub-basins-preprocessing">
+<h1>Sub-basins preprocessing<a class="headerlink" href="#sub-basins-preprocessing" title="Permalink to this heading">¶</a></h1>
+<blockquote>
+<div><p>The third core functionality allows you to calculate the longest flowpath for each sub-basin in the input layer. Please note that to use this functionality, SAGA GIS and WhiteboxTools must be installed.</p>
+<p><strong>Input:</strong>
+- Sub-basin layer
+- Digital Elevation Model (DEM) layer
+- Water network layer</p>
+<p>To use this plugin’s functionality, SAGA GIS and WhiteboxTools must be installed.
+- SAGA GIS: Ensure that the “Processing Saga NextGen Provider” plugin is installed via the Plugin Manager in QGIS.
+- WhiteboxTools: Install the “WhiteboxTools for QGIS” plugin, and make sure the environment path is set correctly. For further guidance, you can watch this instructional <a class="reference external" href="https://www.youtube.com/watch?v=xJXDBsNbcTg">video</a> produced by Whitebox</p>
+<p>After installing SAGA GIS and WhiteboxTools, you can run the plugin. Follow these steps:</p>
+<ul class="simple">
+<li><p>Choose the correct polygon layer for the sub-basin layer.</p></li>
+<li><p>Select the field that contains the unique identifier for the sub-basins.</p></li>
+<li><p>Select the DEM layer (raster layer) and the water network layer (line layer).</p></li>
+</ul>
+<ul class="simple">
+<li><p>When choosing the output folder, it is recommended to use a folder that does not contain any spatial files.</p></li>
+</ul>
+<p>The plugin first burns the water network into the DEM using the QGIS “Raster calculator”.
+It then applies SAGA’s “Fill sinks (Wang &amp; Liu)” tool to fill any sinks in the DEM. After this The plugin uses WhiteboxTools’ “LongestFlowPath” (LFP) to generate the longest flowpath for each sub-basin. To address an issue with LFP creating disconnected flowpaths across different sub-basins (see details <a class="reference external" href="https://github.com/jblindsay/whitebox-tools/issues/289">here</a>), the plugin processes each sub-basin individually, generating the LFP for each one separately. Finally, the plugin saves the correct LFP for each sub-basin and merges them into a single layer.</p>
+<p>The final LFP layer is added to the current QGIS project and saved to the specified output folder. Additionally, the burned and filled DEM layer is also saved and added to the current project.</p>
+<p><img alt="Screenshot Sub-basin preprocessing" src="_images/SubBasinPreprocessing.png" /></p>
+</div></blockquote>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/doc_subbasin_preprocessing.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.4.3 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Sub-basins preprocessing</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2024, Sydro Consult GmbH.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
+    </div>
+  </body>
+</html>
