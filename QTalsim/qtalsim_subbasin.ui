@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>539</width>
-    <height>301</height>
+    <width>420</width>
+    <height>285</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -182,7 +182,7 @@
      <item>
       <widget class="QTextEdit" name="outputPath">
        <property name="sizePolicy">
-        <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
+        <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum">
          <horstretch>0</horstretch>
          <verstretch>0</verstretch>
         </sizepolicy>

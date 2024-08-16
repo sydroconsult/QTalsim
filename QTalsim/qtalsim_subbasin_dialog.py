@@ -1,10 +1,13 @@
 import os
 from qgis.PyQt import uic, QtWidgets
 from qgis.PyQt.QtWidgets import  QFileDialog, QDialogButtonBox
-from qgis.core import QgsProject, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsMapLayer, QgsWkbTypes, QgsRasterLayer, QgsVectorLayer, QgsRasterBandStats, QgsField, QgsVectorFileWriter, edit, Qgis
+from qgis.core import QgsProject, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsMapLayer, QgsWkbTypes, QgsRasterLayer, QgsVectorLayer, QgsRasterBandStats, QgsField, QgsVectorFileWriter, edit, Qgis, QgsProcessingFeedback, QgsProcessingException
 from qgis.PyQt.QtCore import pyqtSignal, QVariant
 import processing
 import webbrowser
+import gc #Garbage collection
+import time
+import sys
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'qtalsim_subbasin.ui'))
@@ -32,6 +35,8 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.rasterLayers = None
         self.noLayerSelected = "No Layer selected"
 
+        self.no_feedback = NoFeedback()
+
         #Main Functions
         self.connectButtontoFunction = self.mainPlugin.connectButtontoFunction
         self.getAllLayers = self.mainPlugin.getAllLayers #Function to get PolygonLayers
@@ -42,9 +47,18 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Connect Buttons to Functions
         self.connectButtontoFunction(self.onRun, self.performLFP)
         self.connectButtontoFunction(self.onOutputFolder, self.selectOutputFolder) 
+        self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
 
+        self.log_to_qtalsim_tab(
+            "Calculating the longest flowpath for each sub-basin in the input layer. "
+            "Please ensure that both SAGA GIS and WhiteboxTools are installed and properly configured. "
+            "For detailed instructions, click the Help button.", 
+            Qgis.Info
+        )        
         #Fill Comboboxes
         self.fillLayerComboboxes()
+
+
 
     def safeConnect(self, signal: pyqtSignal, slot):
         '''
@@ -112,7 +126,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.comboboxWaterNetwork.clear() #clear combobox from previous runs
         self.comboboxWaterNetwork.addItem(self.noLayerSelected)
         self.comboboxWaterNetwork.addItems([layer.name() for layer in self.lineLayers])
-    
+
     def on_subbasin_layer_changed(self):
         '''
             Fill the sub-basin-UI-combobox
@@ -141,7 +155,19 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             #Water Network Layer
             selected_layer_name = self.comboboxWaterNetwork.currentText()
             self.waterNetworkLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+            
+            #Check if the layers are in same CRS
+            dem_crs = self.DEMLayer.crs()
+            water_network_crs = self.waterNetworkLayer.crs()
+            sub_basin_crs = self.subBasinLayer.crs()
 
+            # Check if all CRS are the same
+            if dem_crs == water_network_crs == sub_basin_crs:
+                self.log_to_qtalsim_tab("All layers are in the same CRS.", Qgis.Info)
+            else:
+                self.log_to_qtalsim_tab("Layers have different CRS.", Qgis.Error)
+                return
+                
             #UI Sub-basin
             self.subbasinUIField = self.comboboxUISubBasin.currentText()
 
@@ -153,10 +179,51 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
             #Create final LFPs
             self.create_final_lfp(lfpOutputs)
+
+            #Delete temporary raw files of lfps
+            #Does not work yet:
+
+            gc.collect()  # Collect garbage before attempting to remove files
+
+            try:
+                for path in self.path_lfp_outputs_raw:
+                    # Find layers that correspond to the current path
+                    layers_to_remove = [layer for layer in lfpOutputs if layer.dataProvider().dataSourceUri().split('|')[0] == path]
+
+                    # Explicitly delete these layers from memory
+                    for layer in layers_to_remove:
+                        lfpOutputs.remove(layer)  # Remove from the list first
+                        del layer  # Delete the layer reference
+                    
+                    # Force another garbage collection to ensure the layers are released
+                    gc.collect()
+
+                    # Attempt to remove the file
+                    if os.path.exists(path):
+                        os.remove(path)
+
+            except Exception as first_exception:
+                time.sleep(1)  # Wait a bit before trying again
+
+                try:
+                    for path in self.path_lfp_outputs_raw:
+                        if os.path.exists(path):
+                            os.remove(path)
+                except Exception as e:
+                    self.log_to_qtalsim_tab(f"Error removing {path}: {e}", Qgis.Info)
+
+            # Delete the file
+            if os.path.exists(self.dem_burn_output):
+                try:
+                    os.remove(self.dem_burn_output)
+                except:
+                    pass
+
+
             self.log_to_qtalsim_tab(f"Finished the calculation of the longest flowpaths. The output-files were saved here {self.outputFolder}.", Qgis.Info)
         
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Error)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
         
         finally:
             self.end_operation()
@@ -174,7 +241,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.extent = f"{self.dem_extent.xMinimum()},{self.dem_extent.xMaximum()},{self.dem_extent.yMinimum()},{self.dem_extent.yMaximum()}"
 
         #Rasterize Water Network
-        result = processing.run("gdal:rasterize", {'INPUT':water_network_layer,'FIELD':'','BURN':1,'USE_Z':False,'UNITS':1,'WIDTH':self.dem_pixel_size_x,'HEIGHT':self.dem_pixel_size_y,'EXTENT': f"{self.extent}[{crs_water_network}]",'NODATA':None,'OPTIONS':'','DATA_TYPE':0,'INIT':None,'INVERT':False,'EXTRA':'','OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)
+        result = processing.run("gdal:rasterize", {'INPUT':water_network_layer,'FIELD':'','BURN':1,'USE_Z':False,'UNITS':1,'WIDTH':self.dem_pixel_size_x,'HEIGHT':self.dem_pixel_size_y,'EXTENT': f"{self.extent}[{crs_water_network}]",'NODATA':None,'OPTIONS':'','DATA_TYPE':0,'INIT':None,'INVERT':False,'EXTRA':'','OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=self.no_feedback)
         water_network_rasterized = QgsRasterLayer(result['OUTPUT'],'WaterNetworkRasterized')
         QgsProject.instance().addMapLayer(water_network_rasterized)
 
@@ -186,7 +253,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         dem_std_output = os.path.join(output_path, f'DEMStd1.tif')
         os.makedirs(os.path.dirname(dem_std_output), exist_ok=True)
-        processing.run("native:rastercalc", {'LAYERS':[dem_layer],'EXPRESSION':f'("{dem_layer.name()}@1" - {min_value_dem}) / ({max_value_dem} - {min_value_dem})','EXTENT':None,'CELL_SIZE':None,'CRS':None,'OUTPUT':dem_std_output}, feedback=None)
+        processing.run("native:rastercalc", {'LAYERS':[dem_layer],'EXPRESSION':f'("{dem_layer.name()}@1" - {min_value_dem}) / ({max_value_dem} - {min_value_dem})','EXTENT':None,'CELL_SIZE':None,'CRS':None,'OUTPUT':dem_std_output}, feedback=self.no_feedback)
 
         dem_std_layer = QgsRasterLayer(dem_std_output,'DEMStd')
         QgsProject.instance().addMapLayer(dem_std_layer)
@@ -194,7 +261,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Burn Gewässernetz into standardized DEM
         dem_std_burn_output = os.path.join(output_path, f'DEMStdBurn1.tif')
         os.makedirs(os.path.dirname(dem_std_burn_output), exist_ok=True)
-        processing.run("native:rastercalc", {'LAYERS':[dem_std_layer, water_network_rasterized],'EXPRESSION':f'"{dem_std_layer.name()}@1" - "{water_network_rasterized.name()}@1"','EXTENT':self.extent,'CELL_SIZE':None,'CRS':None,'OUTPUT':dem_std_burn_output}, feedback=None)
+        processing.run("native:rastercalc", {'LAYERS':[dem_std_layer, water_network_rasterized],'EXPRESSION':f'"{dem_std_layer.name()}@1" - "{water_network_rasterized.name()}@1"','EXTENT':self.extent,'CELL_SIZE':None,'CRS':None,'OUTPUT':dem_std_burn_output}, feedback=self.no_feedback)
 
         dem_std_burn_layer = QgsRasterLayer(dem_std_burn_output,'DEMStdBurn')
         QgsProject.instance().addMapLayer(dem_std_burn_layer)
@@ -204,14 +271,17 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         # Delete the file
         if os.path.exists(dem_std_output):
-            os.remove(dem_std_output)
+            try:
+                os.remove(dem_std_output)
+            except:
+                pass
 
         #Recalculate DEM (from standardized, burned DEM)
-        dem_burn_output = os.path.join(output_path, 'DEMBurn.tif')
-        os.makedirs(os.path.dirname(dem_burn_output), exist_ok=True)
-        processing.run("native:rastercalc", {'LAYERS':[dem_std_burn_layer,dem_layer],'EXPRESSION':f'"{dem_std_burn_layer.name()}@1"  * "{dem_layer.name()}@1"','EXTENT':None,'CELL_SIZE':None,'CRS':None,'OUTPUT': dem_burn_output}, feedback=None)
+        self.dem_burn_output = os.path.join(output_path, 'DEMBurn.tif')
+        os.makedirs(os.path.dirname(self.dem_burn_output), exist_ok=True)
+        processing.run("native:rastercalc", {'LAYERS':[dem_std_burn_layer,dem_layer],'EXPRESSION':f'"{dem_std_burn_layer.name()}@1"  * "{dem_layer.name()}@1"','EXTENT':None,'CELL_SIZE':None,'CRS':None,'OUTPUT': self.dem_burn_output}, feedback=self.no_feedback)
 
-        dem_burn_layer = QgsRasterLayer(dem_burn_output,'DEMBurn')
+        dem_burn_layer = QgsRasterLayer(self.dem_burn_output,'DEMBurn')
         QgsProject.instance().addMapLayer(dem_burn_layer)
 
         #Remove layer not needed 
@@ -219,23 +289,33 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         # Delete the file
         if os.path.exists(dem_std_burn_output):
-            os.remove(dem_std_burn_output)
+            try:
+                os.remove(dem_std_burn_output)
+            except:
+                pass
 
         #Fill Sinks
         dem_burn_fill_output = os.path.join(output_path, 'DEMBurnFill.tif')
         os.makedirs(os.path.dirname(dem_burn_fill_output), exist_ok=True)
         
         #fillsinkswangliu or fillsinksxxlwangliu
-        processing.run("sagang:fillsinkswangliu", {'ELEV':dem_burn_layer,'FILLED': dem_burn_fill_output,'FDIR':'TEMPORARY_OUTPUT','WSHED':'TEMPORARY_OUTPUT','MINSLOPE':0.1}, feedback=None)
+        try:
+            processing.run("sagang:fillsinkswangliu", {'ELEV':dem_burn_layer,'FILLED': dem_burn_fill_output,'FDIR':'TEMPORARY_OUTPUT','WSHED':'TEMPORARY_OUTPUT','MINSLOPE':0.1}, feedback=self.no_feedback)
+        except QgsProcessingException as e:
+            # Catch the specific exception for processing errors
+            self.log_to_qtalsim_tab(
+                "Error: SAGA GIS might not be installed or configured properly. "
+                "Please ensure SAGA is available and try again.", 
+                Qgis.Critical
+            )
+            return
+        
         dem_burn_fill_layer = QgsRasterLayer(dem_burn_fill_output,'DEMBurnFill')
         QgsProject.instance().addMapLayer(dem_burn_fill_layer)
         #QgsProject.instance().removeMapLayer(dem_burn_layer.id())
-        # Delete the file
-        if os.path.exists(dem_burn_output):
-            try:
-                os.remove(dem_burn_output)
-            except:
-                pass
+        
+        #Remove DEM-burn-layer
+        QgsProject.instance().removeMapLayer(dem_burn_layer.id()) #Remove layer
 
         return dem_burn_fill_layer
 
@@ -247,6 +327,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Start calculation of LongestFlowPath
         lfpOutputs = []
         self.path_lfp_outputs_raw = []
+
         #Loop over all sub-basins
         for feature in sub_basins_layer.getFeatures():
             subbasin_id = feature[self.subbasinUIField] #get the sub-basin id (= unique identifer) as specified by user
@@ -263,12 +344,12 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             result = processing.run("qgis:deleteholes", {
                 'INPUT': subbasin_layer,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
-            }, feedback=None)
+            }, feedback=self.no_feedback)
 
             subbasin_layer = result['OUTPUT']
 
             # Clip to the extent of the sub-basin 
-            result = processing.run("gdal:cliprasterbymasklayer", {'INPUT':dem_burn_fill_layer,'MASK':subbasin_layer,'SOURCE_CRS':None,'TARGET_CRS':None,'TARGET_EXTENT':None,'NODATA':None,'ALPHA_BAND':False,'CROP_TO_CUTLINE':True,'KEEP_RESOLUTION':False,'SET_RESOLUTION':False,'X_RESOLUTION':None,'Y_RESOLUTION':None,'MULTITHREADING':False,'OPTIONS':'','DATA_TYPE':0,'EXTRA':'','OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
+            result = processing.run("gdal:cliprasterbymasklayer", {'INPUT':dem_burn_fill_layer,'MASK':subbasin_layer,'SOURCE_CRS':None,'TARGET_CRS':None,'TARGET_EXTENT':None,'NODATA':None,'ALPHA_BAND':False,'CROP_TO_CUTLINE':True,'KEEP_RESOLUTION':False,'SET_RESOLUTION':False,'X_RESOLUTION':None,'Y_RESOLUTION':None,'MULTITHREADING':False,'OPTIONS':'','DATA_TYPE':0,'EXTRA':'','OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.no_feedback)
             dem_burnfill_clip_layer_path = result['OUTPUT']
 
             # Load the clipped raster layer into QGIS
@@ -295,15 +376,28 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 'OPTIONS': 'COMPRESS=LZW',
                 'DATA_TYPE': 5, # Data type (5 corresponds to GDT_Int32)
                 'OUTPUT': 'TEMPORARY_OUTPUT'
-            }, feedback=None)
+            }, feedback=self.no_feedback)
 
             sub_basin_raster_layer = QgsRasterLayer(result['OUTPUT'],'SubBasinRaster')        
             lfp_output = os.path.join(self.outputFolder, f'TEMPORARY_{subbasin_id}.shp')
-            self.path_lfp_outputs_raw.append(lfp_output)
+
             # Ensure the output directory exists
             os.makedirs(os.path.dirname(lfp_output), exist_ok=True)
-            processing.run("wbt:LongestFlowpath", {'dem':dem_burnfill_clip_layer,'basins': sub_basin_raster_layer,'output':lfp_output}, feedback=None)
-            new_layer = QgsVectorLayer(lfp_output,'LFP')
+            try:
+                processing.run("wbt:LongestFlowpath", {'dem':dem_burnfill_clip_layer,'basins': sub_basin_raster_layer,'output':lfp_output}, feedback=self.no_feedback)
+            except QgsProcessingException as e:
+                # Catch the specific exception for processing errors
+                self.log_to_qtalsim_tab(
+                    "Error: Whitebox might not be installed or configured properly. "
+                    "Please ensure Whitebox is available and try again.", 
+                    Qgis.Critical
+                )
+                return
+            #new_layer = QgsVectorLayer(lfp_output,'LFP')
+
+            #Store files to delete them later
+            self.path_lfp_outputs_raw.append(lfp_output)
+            new_layer = QgsVectorLayer(lfp_output, 'Temporary Layer', 'ogr')
 
             # Check if the 'BASIN' field exists, if not, create it
             if not new_layer.fields().indexOf('BASINID') >= 0:
@@ -342,7 +436,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             lfpLayerTotal = processing.run("native:mergevectorlayers", {
                 'LAYERS': filtered_lfpOutputs,
                 'OUTPUT': 'memory:'
-            }, feedback=None)['OUTPUT']
+            }, feedback=self.no_feedback)['OUTPUT']
 
         #Remove the FID field
         fid_field_index = lfpLayerTotal.fields().indexOf('FID')
@@ -382,7 +476,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         # Add fields from the original layer to the new layer
         provider.addAttributes(lfpLayerTotal.fields())
         lfpFinalLayer.updateFields()
-
+        
         # Add the longest lines to the new layer
         with edit(lfpFinalLayer):
             for feature in longest_lines.values():
@@ -394,19 +488,30 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         lfp_output_final = os.path.join(self.outputFolder, f'LongestFlowPath.gpkg')
         os.makedirs(os.path.dirname(lfp_output_final), exist_ok=True)
         QgsVectorFileWriter.writeAsVectorFormat(lfpFinalLayer, lfp_output_final, "UTF-8", lfpFinalLayer.crs(), "GPKG")
-        
-        #Delete temporary raw files of lfps
-        #Does not work yet:
-        try:
-            for path in self.path_lfp_outputs_raw:
-                if os.path.exists(path):
-                    os.remove(path)
-        except:
-            pass
 
-        # Add the new layer to the QGIS project
+        # Add the layer to the QGIS project
         permanent_layer = QgsVectorLayer(lfp_output_final, 'LFP Final', 'ogr')
         QgsProject.instance().addMapLayer(permanent_layer)
+
+#To be improved:
+class NoFeedback(QgsProcessingFeedback):
+    def reportError(self, error, fatalError=False):
+        pass  # Override to do nothing
+
+    def pushFormattedMessage(self, info, level=Qgis.Info):
+        pass  # Override to do nothing
+
+    def pushInfo(self, info):
+        pass  # Override to do nothing
+
+    def pushCommandInfo(self, command):
+        pass  # Override to do nothing
+
+    def setProgressText(self, text):
+        pass  # Override to do nothing
+
+    def setProgress(self, progress):
+        pass  # Override to do nothing
         
 
 
