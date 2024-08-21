@@ -14,7 +14,8 @@
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
     
     <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" /> 
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Connect to Talsim DB" href="doc_connect_to_db.html" /> 
   </head><body>
     <div class="related" role="navigation" aria-label="related navigation">
       <h3>Navigation</h3>
@@ -22,6 +23,9 @@
         <li class="right" style="margin-right: 10px">
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="doc_connect_to_db.html" title="Connect to Talsim DB"
+             accesskey="P">previous</a> |</li>
         <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.4.3 documentation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Sub-basins preprocessing</a></li> 
       </ul>
@@ -36,20 +40,45 @@
 <h1>Sub-basins preprocessing<a class="headerlink" href="#sub-basins-preprocessing" title="Permalink to this heading">¶</a></h1>
 <blockquote>
 <div><p>The third core functionality allows you to calculate the longest flowpath for each sub-basin in the input layer. Please note that to use this functionality, SAGA GIS and WhiteboxTools must be installed.</p>
-<p><strong>Input:</strong>
-- Sub-basin layer
-- Digital Elevation Model (DEM) layer
-- Water network layer</p>
-<p>To use this plugin’s functionality, SAGA GIS and WhiteboxTools must be installed.
+</div></blockquote>
+<section id="input">
+<h2>Input:<a class="headerlink" href="#input" title="Permalink to this heading">¶</a></h2>
+<blockquote>
+<div><ul class="simple">
+<li><p>Sub-basin layer</p></li>
+<li><p>Digital Elevation Model (DEM) layer</p></li>
+<li><p>Water network layer</p></li>
+</ul>
+</div></blockquote>
+<section id="prerequisites">
+<h3>Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this heading">¶</a></h3>
+<blockquote>
+<div><p>To use this plugin’s functionality, SAGA GIS and WhiteboxTools must be installed.
 - SAGA GIS: Ensure that the “Processing Saga NextGen Provider” plugin is installed via the Plugin Manager in QGIS.
-- WhiteboxTools: Install the “WhiteboxTools for QGIS” plugin, and make sure the environment path is set correctly. For further guidance, you can watch this instructional <a class="reference external" href="https://www.youtube.com/watch?v=xJXDBsNbcTg">video</a> produced by Whitebox</p>
-<p>After installing SAGA GIS and WhiteboxTools, you can run the plugin. Follow these steps:</p>
-<ul class="simple">
+- WhiteboxTools: Install the “WhiteboxTools for QGIS” plugin, and make sure the environment path is set correctly. For further guidance, you can watch this instructional <a class="reference external" href="https://www.youtube.com/watch?v=xJXDBsNbcTg">video</a> produced by Whitebox.</p>
+</div></blockquote>
+</section>
+<section id="executing-the-plugin">
+<h3>Executing the plugin<a class="headerlink" href="#executing-the-plugin" title="Permalink to this heading">¶</a></h3>
+<blockquote>
+<div><p>After installing SAGA GIS and WhiteboxTools, you can run the plugin. Follow these steps:</p>
+</div></blockquote>
+</section>
+</section>
+<section id="select-layers">
+<h2>Select Layers:<a class="headerlink" href="#select-layers" title="Permalink to this heading">¶</a></h2>
+<blockquote>
+<div><ul class="simple">
 <li><p>Choose the correct polygon layer for the sub-basin layer.</p></li>
 <li><p>Select the field that contains the unique identifier for the sub-basins.</p></li>
 <li><p>Select the DEM layer (raster layer) and the water network layer (line layer).</p></li>
 </ul>
-<ul class="simple">
+</div></blockquote>
+</section>
+<section id="output-folder">
+<h2>Output Folder:<a class="headerlink" href="#output-folder" title="Permalink to this heading">¶</a></h2>
+<blockquote>
+<div><ul class="simple">
 <li><p>When choosing the output folder, it is recommended to use a folder that does not contain any spatial files.</p></li>
 </ul>
 <p>The plugin first burns the water network into the DEM using the QGIS “Raster calculator”.
@@ -57,6 +86,7 @@ It then applies SAGA’s “Fill sinks (Wang &amp; Liu)” tool to fill any sink
 <p>The final LFP layer is added to the current QGIS project and saved to the specified output folder. Additionally, the burned and filled DEM layer is also saved and added to the current project.</p>
 <p><img alt="Screenshot Sub-basin preprocessing" src="_images/SubBasinPreprocessing.png" /></p>
 </div></blockquote>
+</section>
 </section>
 
 
@@ -66,6 +96,27 @@ It then applies SAGA’s “Fill sinks (Wang &amp; Liu)” tool to fill any sink
       </div>
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
         <div class="sphinxsidebarwrapper">
+  <div>
+    <h3><a href="index.html">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">Sub-basins preprocessing</a><ul>
+<li><a class="reference internal" href="#input">Input:</a><ul>
+<li><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li><a class="reference internal" href="#executing-the-plugin">Executing the plugin</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#select-layers">Select Layers:</a></li>
+<li><a class="reference internal" href="#output-folder">Output Folder:</a></li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="doc_connect_to_db.html"
+                          title="previous chapter">Connect to Talsim DB</a></p>
+  </div>
   <div role="note" aria-label="source link">
     <h3>This Page</h3>
     <ul class="this-page-menu">
@@ -93,6 +144,9 @@ It then applies SAGA’s “Fill sinks (Wang &amp; Liu)” tool to fill any sink
         <li class="right" style="margin-right: 10px">
           <a href="genindex.html" title="General Index"
              >index</a></li>
+        <li class="right" >
+          <a href="doc_connect_to_db.html" title="Connect to Talsim DB"
+             >previous</a> |</li>
         <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.4.3 documentation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Sub-basins preprocessing</a></li> 
       </ul>
