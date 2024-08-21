@@ -1,5 +1,10 @@
 # Changelog
 
+##PLANNED:
+## [1.5.0]
+- Add third functionality: Sub-basin preprocessing
+  - Enable calculation of the longest flowpath for every sub-basin in input layer
+
 ## [1.4.3] - 2024-08-09
 - Enhancements
   - Land use mapping has been improved to match the process of soil mapping (CSV upload is no longer required)
@@ -8,7 +13,7 @@
 
 ## [1.4.2] - 2024-07-18
 - Minor Bug fix
-  - Fixes ordering issue for ASCII outputs to ensure they are ordered by ID columns.
+  - Fixes ordering issue for ASCII outputs to ensure they are ordered by ID columns
 
 ## [1.4.1] - 2024-07-12
 - Bug fixes

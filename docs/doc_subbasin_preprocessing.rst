@@ -3,32 +3,33 @@ Sub-basins preprocessing
 ========================
    The third core functionality allows you to calculate the longest flowpath for each sub-basin in the input layer. Please note that to use this functionality, SAGA GIS and WhiteboxTools must be installed.
    
-   **Input:**
+Input:
+^^^^^^
    - Sub-basin layer
    - Digital Elevation Model (DEM) layer
    - Water network layer
 
-   Prerequisites
-   -------------
+Prerequisites
+-------------
    .. prerequisites:
    
    To use this plugin's functionality, SAGA GIS and WhiteboxTools must be installed.
    - SAGA GIS: Ensure that the "Processing Saga NextGen Provider" plugin is installed via the Plugin Manager in QGIS.
-   - WhiteboxTools: Install the "WhiteboxTools for QGIS" plugin, and make sure the environment path is set correctly. For further guidance, you can watch this instructional `video <https://www.youtube.com/watch?v=xJXDBsNbcTg>`__ produced by Whitebox
+   - WhiteboxTools: Install the "WhiteboxTools for QGIS" plugin, and make sure the environment path is set correctly. For further guidance, you can watch this instructional `video <https://www.youtube.com/watch?v=xJXDBsNbcTg>`__ produced by Whitebox.
 
-   Executing the plugin
-   --------------------
+Executing the plugin
+--------------------
    
    After installing SAGA GIS and WhiteboxTools, you can run the plugin. Follow these steps:
 
-   Select Layers:
-   ^^^^^^^^^^^^^^
+Select Layers:
+^^^^^^^^^^^^^^
    - Choose the correct polygon layer for the sub-basin layer.
    - Select the field that contains the unique identifier for the sub-basins.
    - Select the DEM layer (raster layer) and the water network layer (line layer).
    
-   Output Folder:
-   ^^^^^^^^^^^^^^
+Output Folder:
+^^^^^^^^^^^^^^
    - When choosing the output folder, it is recommended to use a folder that does not contain any spatial files.
 
    The plugin first burns the water network into the DEM using the QGIS "Raster calculator".

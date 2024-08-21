@@ -34,7 +34,8 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.polygonLayers = None
         self.rasterLayers = None
         self.noLayerSelected = "No Layer selected"
-
+        self.outputFolder = None
+        self.outputPath.clear()
         self.no_feedback = NoFeedback()
 
         #Main Functions
@@ -50,15 +51,14 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
 
         self.log_to_qtalsim_tab(
-            "Calculating the longest flowpath for each sub-basin in the input layer. "
+            "This feature calculates the longest flowpath for each sub-basin in the input layer. "
             "Please ensure that both SAGA GIS and WhiteboxTools are installed and properly configured. "
             "For detailed instructions, click the Help button.", 
             Qgis.Info
         )        
         #Fill Comboboxes
+        self.comboboxUISubBasin.clear()
         self.fillLayerComboboxes()
-
-
 
     def safeConnect(self, signal: pyqtSignal, slot):
         '''
@@ -92,7 +92,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         return layers
     
     def openDocumentation(self):
-        webbrowser.open('https://sydroconsult.github.io/QTalsim/doc_connect_to_db.html')
+        webbrowser.open('https://sydroconsult.github.io/QTalsim/doc_subbasin_preprocessing')
 
     def selectOutputFolder(self):
         '''
@@ -172,7 +172,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.subbasinUIField = self.comboboxUISubBasin.currentText()
 
             #Burn and Fill DEM-Layer
-            self.DEMLayerBurnFill = self.createFilledDEM(self.DEMLayer, self.waterNetworkLayer, self.outputFolder)
+            self.DEMLayerBurnFill = self.createFilledDEM(self.subBasinLayer, self.DEMLayer, self.waterNetworkLayer, self.outputFolder)
             
             #Get the raw output of LFP
             lfpOutputs = self.create_longestflowpath_raw(self.subBasinLayer, self.DEMLayerBurnFill)   
@@ -220,7 +220,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     pass
 
 
-            self.log_to_qtalsim_tab(f"Finished the calculation of the longest flowpaths. The output-files were saved here {self.outputFolder}.", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Finished the calculation of the longest flowpaths. The output-files were saved to {self.outputFolder}.", Qgis.Info)
         
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
@@ -228,10 +228,20 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         finally:
             self.end_operation()
 
-    def createFilledDEM(self, dem_layer, water_network_layer, output_path):
+    def createFilledDEM(self, sub_basins_layer, dem_layer, water_network_layer, output_path):
         '''
             Burns and fills the DEM
         '''
+
+        result = processing.run("qgis:deleteholes", {
+                'INPUT': sub_basins_layer,
+                'OUTPUT': 'TEMPORARY_OUTPUT'
+        }, feedback=self.no_feedback)
+
+        sub_basins_layer = result['OUTPUT']
+        result = processing.run("gdal:cliprasterbymasklayer", {'INPUT':dem_layer,'MASK':sub_basins_layer,'SOURCE_CRS':None,'TARGET_CRS':None,'TARGET_EXTENT':None,'NODATA':None,'ALPHA_BAND':False,'CROP_TO_CUTLINE':True,'KEEP_RESOLUTION':False,'SET_RESOLUTION':False,'X_RESOLUTION':None,'Y_RESOLUTION':None,'MULTITHREADING':False,'OPTIONS':'','DATA_TYPE':0,'EXTRA':'','OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.no_feedback)
+        dem_layer = QgsRasterLayer(result['OUTPUT'], 'Clipped DEM')
+        
         #Get extent and resolution of DEM
         self.dem_extent = dem_layer.extent()
         self.dem_pixel_size_x = dem_layer.rasterUnitsPerPixelX()
@@ -339,8 +349,6 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             subbasin_provider.addFeatures([feature])
             
             #Delete holes of layer
-            no_holes_mask_layer_path = os.path.join(self.outputFolder, f'no_holes_subbasin_layer{subbasin_id}.shp')
-            os.makedirs(os.path.dirname(no_holes_mask_layer_path), exist_ok=True)
             result = processing.run("qgis:deleteholes", {
                 'INPUT': subbasin_layer,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
@@ -456,7 +464,13 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 length = geom.length()
                 feature['length2'] = length
                 lfpLayerTotal.updateFeature(feature)
-                
+                #Remove the FID field
+        
+        fid_field_index = lfpLayerTotal.fields().indexOf('LENGTH')
+        if fid_field_index != -1:
+            lfpLayerTotal.dataProvider().deleteAttributes([fid_field_index])
+            lfpLayerTotal.updateFields()
+
         # Create a dictionary to store the longest line for each sub-basin
         longest_lines = {}
 
@@ -467,6 +481,11 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             
             if basin_id not in longest_lines or longest_lines[basin_id]['length2'] < length:
                 longest_lines[basin_id] = feature
+
+        #Rename the field 'length2' to 'LENGTH'
+        if 'length2' in [field.name() for field in lfpLayerTotal.fields()]:
+            with edit(lfpLayerTotal):
+                lfpLayerTotal.renameAttribute(lfpLayerTotal.fields().indexFromName('length2'), 'LENGTH')
 
         # Create a new layer to store the longest lines
         crs = lfpLayerTotal.crs().toWkt()
