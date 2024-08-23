@@ -37,6 +37,7 @@ Output
 - When choosing the output folder, it is recommended to use a folder that does not contain any spatial files, as using the same file names can lead to issues.
 - Optional: Choose ASCII-Output to input a filename for the .EZG-ASCII-file.
 - Output Parameters:
+
   - Area of sub-basin in hectares [ha].
   - Optional: Average impervious area in the sub-basin [%] (=field 'Imp_mean').
   - Maximum height in sub-basin [MASL].
