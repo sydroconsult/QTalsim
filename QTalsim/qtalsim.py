@@ -2613,7 +2613,6 @@ class QTalsim:
             #evtl umstellen auf make_geometries_valid
             #Split the intersected areas and create own layer for each catchment area
                 # --> necessary for eliminating: deleted areas (e.g. area too small) should only take the attributes of features in the same catchment area
-            #QgsProject.instance().addMapLayer(intersectedDissolvedLayer)
             resultSplit = processing.run("native:splitvectorlayer", {
                     'INPUT': intersectedDissolvedLayer,
                     'FIELD': self.ezgUniqueIdentifier,

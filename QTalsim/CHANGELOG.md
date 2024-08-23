@@ -1,9 +1,10 @@
 # Changelog
 
-##PLANNED:
-## [1.5.0]
+## [1.5.0] - 2024-08-23
 - Add third functionality: Sub-basin preprocessing
   - Enable calculation of the longest flowpath for every sub-basin in input layer
+  - Enable calculation of area, max/min height and average impervious areas for each sub-basin
+  - ASCII-Export for .EZG-file
 
 ## [1.4.3] - 2024-08-09
 - Enhancements

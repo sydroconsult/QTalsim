@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>420</width>
-    <height>285</height>
+    <width>514</width>
+    <height>329</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -178,6 +178,20 @@
     </layout>
    </item>
    <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_7">
+     <item>
+      <widget class="QLabel" name="labelImpervious">
+       <property name="text">
+        <string>Optional: Select Imperviousness Layer</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="comboboxImperviousness"/>
+     </item>
+    </layout>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout_5">
      <item>
       <widget class="QTextEdit" name="outputPath">
@@ -199,6 +213,13 @@
       <widget class="QPushButton" name="onOutputFolder">
        <property name="text">
         <string>Select Output-Folder</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="onAsciiOutput">
+       <property name="text">
+        <string>ASCII-Output</string>
        </property>
       </widget>
      </item>

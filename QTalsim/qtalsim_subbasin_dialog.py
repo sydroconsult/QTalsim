@@ -1,6 +1,6 @@
 import os
 from qgis.PyQt import uic, QtWidgets
-from qgis.PyQt.QtWidgets import  QFileDialog, QDialogButtonBox
+from qgis.PyQt.QtWidgets import  QFileDialog, QDialogButtonBox, QInputDialog
 from qgis.core import QgsProject, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsMapLayer, QgsWkbTypes, QgsRasterLayer, QgsVectorLayer, QgsRasterBandStats, QgsField, QgsVectorFileWriter, edit, Qgis, QgsProcessingFeedback, QgsProcessingException
 from qgis.PyQt.QtCore import pyqtSignal, QVariant
 import processing
@@ -31,11 +31,18 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
     def initialize_parameters(self):
         
         #Initialize variables
+        self.subBasinLayer = None
         self.polygonLayers = None
         self.rasterLayers = None
         self.noLayerSelected = "No Layer selected"
         self.outputFolder = None
         self.outputPath.clear()
+        self.filename = None #ASCII-Filename
+        self.basinIDField = 'BASINID'
+        self.lengthFieldName = 'Length'
+        self.imperviousFieldName = 'Imp_mean'
+        self.areaFieldName = 'Area'
+        self.filename = None
         self.no_feedback = NoFeedback()
 
         #Main Functions
@@ -45,13 +52,13 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.end_operation = self.mainPlugin.end_operation
         self.log_to_qtalsim_tab = self.mainPlugin.log_to_qtalsim_tab
 
-        #Connect Buttons to Functions
-        self.connectButtontoFunction(self.onRun, self.performLFP)
+        #Connect Buttons to Functions 
+        self.connectButtontoFunction(self.onRun, self.runSubBasinPreprocessing) 
         self.connectButtontoFunction(self.onOutputFolder, self.selectOutputFolder) 
         self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
-
+        self.connectButtontoFunction(self.onAsciiOutput, self.selectAsciiFilename)
         self.log_to_qtalsim_tab(
-            "This feature calculates the longest flowpath for each sub-basin in the input layer. "
+            "This feature processes a sub-basins layer. It calculates the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin, and the longest flow path for each sub-basin. "
             "Please ensure that both SAGA GIS and WhiteboxTools are installed and properly configured. "
             "For detailed instructions, click the Help button.", 
             Qgis.Info
@@ -76,7 +83,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def getAllLineLayers(self, root):
         '''
-            Load all Layers
+            Load all line-layers
         '''
         layers = []
         for child in root.children():
@@ -92,6 +99,9 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         return layers
     
     def openDocumentation(self):
+        '''
+            Connected with help-button.
+        '''
         webbrowser.open('https://sydroconsult.github.io/QTalsim/doc_subbasin_preprocessing')
 
     def selectOutputFolder(self):
@@ -111,25 +121,30 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.polygonLayers, self.rasterLayers = self.getAllLayers(QgsProject.instance().layerTreeRoot())
         self.lineLayers = self.getAllLineLayers(QgsProject.instance().layerTreeRoot())
 
-        #Sub-basins
+        #Sub-basins layer
         self.comboboxSubBasinLayer.clear() #clear combobox EZG from previous runs
         self.comboboxSubBasinLayer.addItem(self.noLayerSelected)
         self.comboboxSubBasinLayer.addItems([layer.name() for layer in self.polygonLayers])
         self.safeConnect(self.comboboxSubBasinLayer.currentIndexChanged, self.on_subbasin_layer_changed) #Refill the sub-basin combobox whenever user selects different layer
 
-        #DEM Layer
+        #DEM layer
         self.comboboxDEMLayer.clear() #clear combobox from previous runs
         self.comboboxDEMLayer.addItem(self.noLayerSelected)
         self.comboboxDEMLayer.addItems([layer.name() for layer in self.rasterLayers])
 
-        #Water network
+        #Water network layer
         self.comboboxWaterNetwork.clear() #clear combobox from previous runs
         self.comboboxWaterNetwork.addItem(self.noLayerSelected)
         self.comboboxWaterNetwork.addItems([layer.name() for layer in self.lineLayers])
 
+        #Imperviousness layer
+        self.comboboxImperviousness.clear()
+        self.comboboxImperviousness.addItem(self.noLayerSelected)
+        self.comboboxImperviousness.addItems([layer.name() for layer in self.rasterLayers])
+
     def on_subbasin_layer_changed(self):
         '''
-            Fill the sub-basin-UI-combobox
+            Fill the sub-basin-UI-combobox.
         '''
         selected_layer_name = self.comboboxSubBasinLayer.currentText()
         if selected_layer_name != self.noLayerSelected and selected_layer_name is not None:
@@ -141,96 +156,183 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.fieldsSubbasinLayer = [field.name() for field in self.subBasinLayer.fields()]
                 self.comboboxUISubBasin.addItems([str(field) for field in self.fieldsSubbasinLayer])
 
+    def runSubBasinPreprocessing(self):
+        '''
+            Core function to run all processing-steps of the sub-basins layer.
+                - max/min height in sub-basin
+                - area of sub-basin in hectares
+                - mean impervious area per sub-basin (optional)
+                - longest flow path per sub-basin
+        '''
+        try:
+            self.start_operation()
+
+            #Select DEM Layer
+            selected_layer_name = self.comboboxDEMLayer.currentText()
+            if selected_layer_name != self.noLayerSelected:
+                self.DEMLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+            else:
+                self.log_to_qtalsim_tab("Please select a DEM layer to process the sub-basins.", Qgis.Critical)
+
+            self.calculateHeightandAreaSubBasins()
+
+            #Calculate mean imperviousness for each sub-basin
+            selected_layer_name = self.comboboxImperviousness.currentText() #Get the selected layer name
+            
+            if selected_layer_name is not None and selected_layer_name != self.noLayerSelected: #imperviousness is optional
+                self.imperviousnessLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+                self.subBasinLayerProcessed = self.calculateImperviousness(self.subBasinLayerProcessed, self.imperviousnessLayer)
+            else: #add the field with null-values
+                if self.imperviousFieldName not in [field.name() for field in self.subBasinLayerProcessed.fields()]:
+                    imp_field = QgsField(self.imperviousFieldName, QVariant.Double)
+                    self.subBasinLayerProcessed.dataProvider().addAttributes([imp_field])
+                    self.subBasinLayerProcessed.updateFields()
+            
+            self.geopackage_path = os.path.join(self.outputFolder, f"Sub_basins_processed.gpkg") #Output-path
+
+            self.performLFP() #Calculate LongestFlowPath
+
+            #Join the LFP length to sub-basin layer
+            self.subBasinLayerProcessed = processing.run("native:joinattributestable", {'INPUT': self.subBasinLayerProcessed,'FIELD':'Talsim_ID','INPUT_2': self.lfpFinalLayer,'FIELD_2':'BASINID','FIELDS_TO_COPY':[self.lengthFieldName],'METHOD':1,'DISCARD_NONMATCHING':False,'PREFIX':'','OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+            
+            if self.filename is not None:
+                self.asciiExport()
+
+            #Export sub-basins-layer to geopackage
+            params = {
+                'INPUT': self.subBasinLayerProcessed,
+                'OUTPUT': self.geopackage_path,
+                'LAYER_NAME': 'Sub-basins Processed',
+                'OVERWRITE': True,
+            }
+            processing.run("native:savefeatures", params)
+            self.log_to_qtalsim_tab(f"Processed sub-basins layer was saved to: {self.geopackage_path}", Qgis.Info)
+
+            finalSubBasinsLayer = QgsVectorLayer(f"{self.geopackage_path}|layername=Sub-basins Processed", "Sub-basins Processed", "ogr")
+            QgsProject.instance().addMapLayer(finalSubBasinsLayer)
+
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+
+        finally:
+            self.end_operation()
+
+    def calculateHeightandAreaSubBasins(self):
+        '''
+            Calculates the min/max height and the area for every sub-basin
+        '''
+        if self.subBasinLayer == None:
+            self.log_to_qtalsim_tab("Please select a sub-basin layer to process the sub-basins..", Qgis.Critical)
+        #Get the max and min height for every sub-basin by using the input DEM-layer
+        self.subBasinLayerProcessed = processing.run("native:zonalstatisticsfb", {'INPUT':self.subBasinLayer,'INPUT_RASTER':self.DEMLayer,'RASTER_BAND':1,'COLUMN_PREFIX':'Height_','STATISTICS':[5,6],'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']            
+
+        #Add field to store area
+        if self.areaFieldName not in [field.name() for field in self.subBasinLayerProcessed.fields()]:
+            area_field = QgsField(self.areaFieldName, QVariant.Double)
+            self.subBasinLayerProcessed.dataProvider().addAttributes([area_field])
+            self.subBasinLayerProcessed.updateFields()
+        
+        #Calculate the area of every sub-basin
+        with edit(self.subBasinLayerProcessed):
+            for feature in self.subBasinLayerProcessed.getFeatures():
+                # Calculate the area for each feature and update the 'Area' field with the calculated value
+                area_sqm = feature.geometry().area() #area in squaremeter
+                area_hectares = area_sqm / 10000 #calculate area in hectares (.EZG-file needs hectares as input)
+                feature[self.areaFieldName] = area_hectares
+                
+                #Update the feature in the layer
+                self.subBasinLayerProcessed.updateFeature(feature)
+
+    def calculateImperviousness(self, sub_basins_layer, imperviousness_layer):
+        '''
+            Calculates average impervious area per sub-basin.
+        '''
+        self.subBasinLayerProcessed = processing.run("native:zonalstatisticsfb", {'INPUT': sub_basins_layer,'INPUT_RASTER': imperviousness_layer,'RASTER_BAND':1,'COLUMN_PREFIX':'Imp_','STATISTICS':[2],'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']            
+
+        return self.subBasinLayerProcessed
+    
     def performLFP(self):
         '''
             Calculates the LongestFlowPath for each sub-basin.
         '''
-        self.start_operation()
-        try:
-            self.log_to_qtalsim_tab(f"Calculating the longest flowpath for each sub-basin.", Qgis.Info) 
-            #DEM Layer
-            selected_layer_name = self.comboboxDEMLayer.currentText()
-            self.DEMLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+        self.log_to_qtalsim_tab(f"Calculating the longest flowpath for each sub-basin.", Qgis.Info) 
 
-            #Water Network Layer
-            selected_layer_name = self.comboboxWaterNetwork.currentText()
+        #Water Network Layer
+        selected_layer_name = self.comboboxWaterNetwork.currentText()
+        if selected_layer_name != self.noLayerSelected:
             self.waterNetworkLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
-            
-            #Check if the layers are in same CRS
-            dem_crs = self.DEMLayer.crs()
-            water_network_crs = self.waterNetworkLayer.crs()
-            sub_basin_crs = self.subBasinLayer.crs()
+        else:
+            self.log_to_qtalsim_tab("Please select a water-network layer to calculate LFP.", Qgis.Critical)
+        
+        #Check if the layers are in same CRS
+        dem_crs = self.DEMLayer.crs()
+        water_network_crs = self.waterNetworkLayer.crs()
+        sub_basin_crs = self.subBasinLayer.crs()
 
-            # Check if all CRS are the same
-            if dem_crs == water_network_crs == sub_basin_crs:
-                self.log_to_qtalsim_tab("All layers are in the same CRS.", Qgis.Info)
-            else:
-                self.log_to_qtalsim_tab("Layers have different CRS.", Qgis.Error)
-                return
+        # Check if all CRS are the same
+        if dem_crs == water_network_crs == sub_basin_crs:
+            pass
+        else:
+            self.log_to_qtalsim_tab("Layers have different CRS.", Qgis.Critical)
+            return
+            
+        #UI Sub-basin
+        self.subbasinUIField = self.comboboxUISubBasin.currentText()
+
+        #Burn and Fill DEM-Layer
+        self.DEMLayerBurnFill = self.createFilledDEM(self.subBasinLayer, self.DEMLayer, self.waterNetworkLayer, self.outputFolder)
+        
+        #Get the raw output of LFP
+        lfpOutputs = self.create_longestflowpath_raw(self.subBasinLayer, self.DEMLayerBurnFill)   
+
+        #Create final LFPs
+        self.create_final_lfp(lfpOutputs)
+
+        #Delete temporary raw files of lfps
+        #Does not work correctly yet:
+        gc.collect()  # Collect garbage before attempting to remove files
+
+        try:
+            for path in self.path_lfp_outputs_raw:
+                # Find layers that correspond to the current path
+                layers_to_remove = [layer for layer in lfpOutputs if layer.dataProvider().dataSourceUri().split('|')[0] == path]
+
+                # Explicitly delete these layers from memory
+                for layer in layers_to_remove:
+                    lfpOutputs.remove(layer)  #Remove from the list first
+                    del layer  #Delete the layer reference
                 
-            #UI Sub-basin
-            self.subbasinUIField = self.comboboxUISubBasin.currentText()
+                #Force another garbage collection to ensure the layers are released
+                gc.collect()
 
-            #Burn and Fill DEM-Layer
-            self.DEMLayerBurnFill = self.createFilledDEM(self.subBasinLayer, self.DEMLayer, self.waterNetworkLayer, self.outputFolder)
-            
-            #Get the raw output of LFP
-            lfpOutputs = self.create_longestflowpath_raw(self.subBasinLayer, self.DEMLayerBurnFill)   
+                # Attempt to remove the file
+                if os.path.exists(path):
+                    os.remove(path)
 
-            #Create final LFPs
-            self.create_final_lfp(lfpOutputs)
-
-            #Delete temporary raw files of lfps
-            #Does not work yet:
-
-            gc.collect()  # Collect garbage before attempting to remove files
+        except Exception as first_exception:
+            time.sleep(1)  # Wait a bit before trying again
 
             try:
                 for path in self.path_lfp_outputs_raw:
-                    # Find layers that correspond to the current path
-                    layers_to_remove = [layer for layer in lfpOutputs if layer.dataProvider().dataSourceUri().split('|')[0] == path]
-
-                    # Explicitly delete these layers from memory
-                    for layer in layers_to_remove:
-                        lfpOutputs.remove(layer)  # Remove from the list first
-                        del layer  # Delete the layer reference
-                    
-                    # Force another garbage collection to ensure the layers are released
-                    gc.collect()
-
-                    # Attempt to remove the file
                     if os.path.exists(path):
                         os.remove(path)
+            except Exception as e:
+                self.log_to_qtalsim_tab(f"Error removing {path}: {e}", Qgis.Info)
 
-            except Exception as first_exception:
-                time.sleep(1)  # Wait a bit before trying again
-
-                try:
-                    for path in self.path_lfp_outputs_raw:
-                        if os.path.exists(path):
-                            os.remove(path)
-                except Exception as e:
-                    self.log_to_qtalsim_tab(f"Error removing {path}: {e}", Qgis.Info)
-
-            # Delete the file
-            if os.path.exists(self.dem_burn_output):
-                try:
-                    os.remove(self.dem_burn_output)
-                except:
-                    pass
+        # Delete the file
+        if os.path.exists(self.dem_burn_output):
+            try:
+                os.remove(self.dem_burn_output)
+            except:
+                pass
 
 
-            self.log_to_qtalsim_tab(f"Finished the calculation of the longest flowpaths. The output-files were saved to {self.outputFolder}.", Qgis.Info)
-        
-        except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
-        
-        finally:
-            self.end_operation()
+        self.log_to_qtalsim_tab(f"Finished the calculation of the longest flowpaths.", Qgis.Info)
 
     def createFilledDEM(self, sub_basins_layer, dem_layer, water_network_layer, output_path):
         '''
-            Burns and fills the DEM
+            Pre-processing step of LFPs
+                Burns and fills the DEM
         '''
 
         result = processing.run("qgis:deleteholes", {
@@ -325,6 +427,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #QgsProject.instance().removeMapLayer(dem_burn_layer.id())
         
         #Remove DEM-burn-layer
+        QgsProject.instance().removeMapLayer(water_network_rasterized.id()) #Remove layer
         QgsProject.instance().removeMapLayer(dem_burn_layer.id()) #Remove layer
 
         return dem_burn_fill_layer
@@ -407,16 +510,16 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.path_lfp_outputs_raw.append(lfp_output)
             new_layer = QgsVectorLayer(lfp_output, 'Temporary Layer', 'ogr')
 
-            # Check if the 'BASIN' field exists, if not, create it
-            if not new_layer.fields().indexOf('BASINID') >= 0:
-                basin_field = QgsField('BASINID', QVariant.String)
+            #Check if the 'BASINID' (= self.basinIDField) field exists, if not, create it
+            if not new_layer.fields().indexOf(self.basinIDField) >= 0:
+                basin_field = QgsField(self.basinIDField, QVariant.String)
                 new_layer.dataProvider().addAttributes([basin_field])
                 new_layer.updateFields()
 
-            # Update the 'BASIN' field with the subbasin_id for each feature
+            #Update the 'BASINID' field with the subbasin_id for each feature
             new_layer.startEditing()
             for feature in new_layer.getFeatures():
-                feature['BASINID'] = subbasin_id
+                feature[self.basinIDField] = subbasin_id
                 new_layer.updateFeature(feature)
             new_layer.commitChanges()
             lfpOutputs.append(new_layer)
@@ -476,7 +579,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         # Iterate through each feature and find the longest line for each sub-basin
         for feature in lfpLayerTotal.getFeatures():
-            basin_id = feature['BASINID']
+            basin_id = feature[self.basinIDField]
             length = feature['length2']
             
             if basin_id not in longest_lines or longest_lines[basin_id]['length2'] < length:
@@ -485,19 +588,19 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Rename the field 'length2' to 'LENGTH'
         if 'length2' in [field.name() for field in lfpLayerTotal.fields()]:
             with edit(lfpLayerTotal):
-                lfpLayerTotal.renameAttribute(lfpLayerTotal.fields().indexFromName('length2'), 'LENGTH')
+                lfpLayerTotal.renameAttribute(lfpLayerTotal.fields().indexFromName('length2'), self.lengthFieldName)
 
         # Create a new layer to store the longest lines
         crs = lfpLayerTotal.crs().toWkt()
-        lfpFinalLayer = QgsVectorLayer('LineString?crs=' + crs, 'LFP Final', 'memory')
-        provider = lfpFinalLayer.dataProvider()
+        self.lfpFinalLayer = QgsVectorLayer('LineString?crs=' + crs, 'LFP Final', 'memory')
+        provider = self.lfpFinalLayer.dataProvider()
 
         # Add fields from the original layer to the new layer
         provider.addAttributes(lfpLayerTotal.fields())
-        lfpFinalLayer.updateFields()
+        self.lfpFinalLayer.updateFields()
         
         # Add the longest lines to the new layer
-        with edit(lfpFinalLayer):
+        with edit(self.lfpFinalLayer):
             for feature in longest_lines.values():
                 try:
                     provider.addFeature(feature)
@@ -506,11 +609,150 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         
         lfp_output_final = os.path.join(self.outputFolder, f'LongestFlowPath.gpkg')
         os.makedirs(os.path.dirname(lfp_output_final), exist_ok=True)
-        QgsVectorFileWriter.writeAsVectorFormat(lfpFinalLayer, lfp_output_final, "UTF-8", lfpFinalLayer.crs(), "GPKG")
+        QgsVectorFileWriter.writeAsVectorFormat(self.lfpFinalLayer, lfp_output_final, "UTF-8", self.lfpFinalLayer.crs(), "GPKG")
+
+        self.log_to_qtalsim_tab(f"LongestFlowPath-layer was saved to: {self.outputFolder}", Qgis.Info)
 
         # Add the layer to the QGIS project
         permanent_layer = QgsVectorLayer(lfp_output_final, 'LFP Final', 'ogr')
         QgsProject.instance().addMapLayer(permanent_layer)
+
+    def selectAsciiFilename(self):
+        #Get the filename, as specified by the user
+        self.filename, self.ascii_ok = QInputDialog.getText(None, 'Input Dialog', 'Enter filename for EZG-file:')
+
+        self.log_to_qtalsim_tab(f".EZG-filename: {self.filename}.EZG", Qgis.Info)
+
+    def asciiExport(self):
+        '''
+            If the user selects asciiExport, an EZG-file is exported to the output-folder and the specified filename
+        '''
+        try:
+
+            #The template file of EZG-file holds a line that defines the field lengths and spaces between lengths
+            def parse_definition_linev1(line):
+                field_lengths = []
+                inside_field = False
+                current_length = 0
+
+                for char in line:
+                    if char == '<': #new field
+                        inside_field = True
+                        current_length = 0 
+                        current_length += 1
+                    
+                    elif char == '>': #field closed
+                        inside_field = False
+                        current_length += 1
+                        field_lengths.append(current_length)  # Append length after closing '>'
+                    
+                    elif inside_field and char == '-':
+                        current_length += 1
+                    
+                    elif char == '+': #fields with only one character
+                        field_lengths.append(1)
+                        
+                return field_lengths
+
+            #Define the characters between the fields 
+            def parse_inter_field_charactersv1(definition_line):
+                inter_field_characters = []
+                temp_str = ""
+                collecting = True
+
+                for char in definition_line:
+                    if char == '>':
+                        collecting = True  # Start collecting characters after '>'
+                    elif char == '<':
+                        if collecting:
+                            # Add the collected characters to the list
+                            inter_field_characters.append(temp_str)
+                            temp_str = ""
+                        collecting = False  # Stop collecting characters
+                    elif char == '+' and collecting:
+                        inter_field_characters.append(temp_str)
+                        temp_str = ""
+                        collecting = True
+                    elif collecting:
+                        if char == '*':
+                            char = " "  # Replace '*' with space
+                        if char == '-':
+                            char = " "  # Replace '-' with space
+                        temp_str += char
+                return inter_field_characters
+
+            #Defines the length of the fields
+            def format_field(value, length):
+                if isinstance(value, float):
+                    # Round the float to a maximum of 3 decimal places
+                    # Adjust the precision to ensure the total length fits within 'length'
+                    precision = min(3, length - 2)  # Subtract 2 for the digit and decimal point
+                    value_str = f"{value:.{precision}f}"
+                elif value is None or str(value).strip().upper() == 'NULL':
+                    value_str = ""
+                else:
+                    value_str = str(value)
+                return value_str[:length].rjust(length)
+
+            if self.ascii_ok and self.filename:
+                self.log_to_qtalsim_tab("Exporting ASCII-files.", Qgis.Info)
+
+                current_path = os.path.dirname(os.path.abspath(__file__))
+                ezgPath = os.path.join(current_path, "talsim_parameter", "template.EZG")
+                
+                with open(ezgPath, 'r', encoding='iso-8859-1') as ezgFile:
+                    templateEzgContent = ezgFile.readlines()
+                    definition_line = templateEzgContent[-1].strip()
+                field_lengths = parse_definition_linev1(definition_line)
+
+                outputPathEzg = os.path.join(self.outputFolder, f"{self.filename}.EZG")
+
+                data = []
+
+                for feature in self.subBasinLayerProcessed.getFeatures():
+                    #A: Fläche
+                    #VG: Versiegelungsgrad / Anteil der undurchlässigen Fläche [%]
+                    layer_data = {'Bez' : feature[self.subbasinUIField], 'KNG': None,
+                                  'A' : feature[self.areaFieldName], 'VG' : feature[self.imperviousFieldName], 'Ho' : feature['Height_max'],
+                                    'Hu': feature['Height_min'], 'L' : feature[self.lengthFieldName], #Gebietskenngrößen
+                                  'Datei': None, #N
+                                  'Kng' : None, 'Sum': None, 'Datei': None, 'HYO': None, #Verdunstung
+                                  'Kng': None, 'Tem' : None, 'JGG': None, 'TGG': None, 'Datei': None, #Temperatur
+                                  'qB': None, 'JGG' : None, #QBASIS
+                                  'PSI' : None, #PSI (1)
+                                  'CN': None, 'VorRg': None, #SCS (2)
+                                  'BF0' : None, #BF0 (3)
+                                  'R': None, 'K(VG)': None, 'K1': None, 'K2': None, 'Int': None, 'Bas': None, #Retentionskonstanten
+                                  'con': None, 'Expo': None, #SCS
+                                  'Beta1': None, 'Beta2': None,  #Aufteilung
+                                   'Muld': None, 'SCS': None, 'SCH': None, 'Int2_J/N': None, 'Int2_h': None, 
+                                   'QUrb': None, 'QNat': None, 'QInt': None, 'QIn2': None, 'QBas': None, 'QGWt': None, #Ablaufzuordnung: Gibt nach Objekt
+                                   'Bas2_J/N': None, 'Bas2_h': None, 'Beta': None, #Grundwasser-Tief
+                                   'KNG': None, 'Datei_Abgabe': None, 'Datei_WaEquiva': None, #Schnee
+                                   'Precip': None #Scale
+                                   }
+                    data.append(layer_data)
+
+                formatted_data = []
+                inter_field_characters = parse_inter_field_charactersv1(definition_line)  
+                for row in data:
+                    formatted_row = ""
+                    for i, (length, inter_char) in enumerate(zip(field_lengths, inter_field_characters + [''])):
+                        field_name = list(row.keys())[i] if i < len(row) else ""
+                        field_value = row.get(field_name,"")
+                        formatted_row += inter_char  # Add inter-field characters
+                        formatted_row += format_field(field_value, length)
+                    formatted_row += "|"
+                    formatted_row += "\n"
+                    formatted_data.append(formatted_row)
+
+                completeContentEzg = templateEzgContent + ['\n'] + formatted_data + [definition_line]
+
+                with open(outputPathEzg, 'w', encoding='iso-8859-1', errors='replace') as outputEzg:
+                    outputEzg.writelines(completeContentEzg)
+
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
 
 #To be improved:
 class NoFeedback(QgsProcessingFeedback):
