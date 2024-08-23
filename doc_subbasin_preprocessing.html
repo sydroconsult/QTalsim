@@ -5,11 +5,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Sub-basins preprocessing &#8212; QTalsim 1.4.3 documentation</title>
+    <title>Sub-basins preprocessing &#8212; QTalsim 1.5.0 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
     <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
     
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=84f0443f"></script>
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=c2dd840c"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
     
@@ -26,7 +26,7 @@
         <li class="right" >
           <a href="doc_connect_to_db.html" title="Connect to Talsim DB"
              accesskey="P">previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.4.3 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.5.0 documentation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Sub-basins preprocessing</a></li> 
       </ul>
     </div>  
@@ -39,53 +39,61 @@
   <section id="sub-basins-preprocessing">
 <h1>Sub-basins preprocessing<a class="headerlink" href="#sub-basins-preprocessing" title="Permalink to this heading">¶</a></h1>
 <blockquote>
-<div><p>The third core functionality allows you to calculate the longest flowpath for each sub-basin in the input layer. Please note that to use this functionality, SAGA GIS and WhiteboxTools must be installed.</p>
-</div></blockquote>
-<section id="input">
-<h2>Input:<a class="headerlink" href="#input" title="Permalink to this heading">¶</a></h2>
-<blockquote>
-<div><ul class="simple">
-<li><p>Sub-basin layer</p></li>
-<li><p>Digital Elevation Model (DEM) layer</p></li>
-<li><p>Water network layer</p></li>
-</ul>
+<div><p>The third core functionality allows you to pre-process a sub-basins layer. It calculates the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin, and the longest flow path for each sub-basin. Output includes a line layer containing the longest flow paths, a sub-basins layer (and Geopackage) containing the sub-basins with all calculated parameters and an .EZG-ASCII file, which can be used as <a class="reference external" href="https://www.talsim.de/docs/index.php?title=EZG-Datei">input to Talsim</a> (optional). Please note that to use this functionality, SAGA GIS and WhiteboxTools must be installed.</p>
 </div></blockquote>
 <section id="prerequisites">
-<h3>Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this heading">¶</a></h3>
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this heading">¶</a></h2>
 <blockquote>
-<div><p>To use this plugin’s functionality, SAGA GIS and WhiteboxTools must be installed.
+<div><p><strong>Input Layers:</strong>
+- Sub-basin layer
+- Digital Elevation Model (DEM) layer
+- Water network layer
+- Optional: Layer with impervious areas</p>
+<p>To use this plugin’s functionality, SAGA GIS and WhiteboxTools must be installed.
 - SAGA GIS: Ensure that the “Processing Saga NextGen Provider” plugin is installed via the Plugin Manager in QGIS.
 - WhiteboxTools: Install the “WhiteboxTools for QGIS” plugin, and make sure the environment path is set correctly. For further guidance, you can watch this instructional <a class="reference external" href="https://www.youtube.com/watch?v=xJXDBsNbcTg">video</a> produced by Whitebox.</p>
 </div></blockquote>
 </section>
 <section id="executing-the-plugin">
-<h3>Executing the plugin<a class="headerlink" href="#executing-the-plugin" title="Permalink to this heading">¶</a></h3>
+<h2>Executing the Plugin<a class="headerlink" href="#executing-the-plugin" title="Permalink to this heading">¶</a></h2>
 <blockquote>
-<div><p>After installing SAGA GIS and WhiteboxTools, you can run the plugin. Follow these steps:</p>
+<div><p>After installing SAGA GIS and WhiteboxTools, you can run the plugin.</p>
 </div></blockquote>
-</section>
-</section>
 <section id="select-layers">
-<h2>Select Layers:<a class="headerlink" href="#select-layers" title="Permalink to this heading">¶</a></h2>
+<h3>Select Layers<a class="headerlink" href="#select-layers" title="Permalink to this heading">¶</a></h3>
 <blockquote>
 <div><ul class="simple">
 <li><p>Choose the correct polygon layer for the sub-basin layer.</p></li>
 <li><p>Select the field that contains the unique identifier for the sub-basins.</p></li>
 <li><p>Select the DEM layer (raster layer) and the water network layer (line layer).</p></li>
+<li><p>Optional: Select a layer containing impervious areas (<a class="reference external" href="https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862">Example data set</a> ).</p></li>
 </ul>
 </div></blockquote>
 </section>
-<section id="output-folder">
-<h2>Output Folder:<a class="headerlink" href="#output-folder" title="Permalink to this heading">¶</a></h2>
+<section id="output">
+<h3>Output<a class="headerlink" href="#output" title="Permalink to this heading">¶</a></h3>
 <blockquote>
 <div><ul class="simple">
-<li><p>When choosing the output folder, it is recommended to use a folder that does not contain any spatial files.</p></li>
+<li><p>When choosing the output folder, it is recommended to use a folder that does not contain any spatial files, as using the same file names can lead to issues.</p></li>
+<li><p>Optional: Choose ASCII-Output to input a filename for the .EZG-ASCII-file.</p></li>
+<li><p>Output Parameters:
+- Area of sub-basin in hectares [ha].
+- Optional: Average impervious area in the sub-basin [%] (=field ‘Imp_mean’).
+- Maximum height in sub-basin [MASL].
+- Minimum height in sub-basin [MASL].
+- Longest flow path [m] (=field ‘Length’).</p></li>
 </ul>
-<p>The plugin first burns the water network into the DEM using the QGIS “Raster calculator”.
+</div></blockquote>
+</section>
+<section id="calculation-of-longestflowpath">
+<h3>Calculation of LongestFlowPath<a class="headerlink" href="#calculation-of-longestflowpath" title="Permalink to this heading">¶</a></h3>
+<blockquote>
+<div><p>The plugin first burns the water network into the DEM using the QGIS “Raster calculator”.
 It then applies SAGA’s “Fill sinks (Wang &amp; Liu)” tool to fill any sinks in the DEM. After this The plugin uses WhiteboxTools’ “LongestFlowPath” (LFP) to generate the longest flowpath for each sub-basin. To address an issue with LFP creating disconnected flowpaths across different sub-basins (see details <a class="reference external" href="https://github.com/jblindsay/whitebox-tools/issues/289">here</a>), the plugin processes each sub-basin individually, generating the LFP for each one separately. Finally, the plugin saves the correct LFP for each sub-basin and merges them into a single layer.</p>
 <p>The final LFP layer is added to the current QGIS project and saved to the specified output folder. Additionally, the burned and filled DEM layer is also saved and added to the current project.</p>
 <p><img alt="Screenshot Sub-basin preprocessing" src="_images/SubBasinPreprocessing.png" /></p>
 </div></blockquote>
+</section>
 </section>
 </section>
 
@@ -100,13 +108,13 @@ It then applies SAGA’s “Fill sinks (Wang &amp; Liu)” tool to fill any sink
     <h3><a href="index.html">Table of Contents</a></h3>
     <ul>
 <li><a class="reference internal" href="#">Sub-basins preprocessing</a><ul>
-<li><a class="reference internal" href="#input">Input:</a><ul>
 <li><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
-<li><a class="reference internal" href="#executing-the-plugin">Executing the plugin</a></li>
+<li><a class="reference internal" href="#executing-the-plugin">Executing the Plugin</a><ul>
+<li><a class="reference internal" href="#select-layers">Select Layers</a></li>
+<li><a class="reference internal" href="#output">Output</a></li>
+<li><a class="reference internal" href="#calculation-of-longestflowpath">Calculation of LongestFlowPath</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#select-layers">Select Layers:</a></li>
-<li><a class="reference internal" href="#output-folder">Output Folder:</a></li>
 </ul>
 </li>
 </ul>
@@ -147,7 +155,7 @@ It then applies SAGA’s “Fill sinks (Wang &amp; Liu)” tool to fill any sink
         <li class="right" >
           <a href="doc_connect_to_db.html" title="Connect to Talsim DB"
              >previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.4.3 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.5.0 documentation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Sub-basins preprocessing</a></li> 
       </ul>
     </div>
