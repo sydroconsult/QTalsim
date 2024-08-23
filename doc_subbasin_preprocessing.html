@@ -44,14 +44,18 @@
 <section id="prerequisites">
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this heading">¶</a></h2>
 <blockquote>
-<div><p><strong>Input Layers:</strong>
-- Sub-basin layer
-- Digital Elevation Model (DEM) layer
-- Water network layer
-- Optional: Layer with impervious areas</p>
-<p>To use this plugin’s functionality, SAGA GIS and WhiteboxTools must be installed.
-- SAGA GIS: Ensure that the “Processing Saga NextGen Provider” plugin is installed via the Plugin Manager in QGIS.
-- WhiteboxTools: Install the “WhiteboxTools for QGIS” plugin, and make sure the environment path is set correctly. For further guidance, you can watch this instructional <a class="reference external" href="https://www.youtube.com/watch?v=xJXDBsNbcTg">video</a> produced by Whitebox.</p>
+<div><p><strong>Input Layers:</strong></p>
+<ul class="simple">
+<li><p>Sub-basin layer</p></li>
+<li><p>Digital Elevation Model (DEM) layer</p></li>
+<li><p>Water network layer</p></li>
+<li><p>Optional: Layer with impervious areas</p></li>
+</ul>
+<p>To use this plugin’s functionality, SAGA GIS and WhiteboxTools must be installed.</p>
+<ul class="simple">
+<li><p>SAGA GIS: Ensure that the “Processing Saga NextGen Provider” plugin is installed via the Plugin Manager in QGIS.</p></li>
+<li><p>WhiteboxTools: Install the “WhiteboxTools for QGIS” plugin, and make sure the environment path is set correctly. For further guidance, you can watch this instructional <a class="reference external" href="https://www.youtube.com/watch?v=xJXDBsNbcTg">video</a> produced by Whitebox.</p></li>
+</ul>
 </div></blockquote>
 </section>
 <section id="executing-the-plugin">
@@ -76,12 +80,15 @@
 <div><ul class="simple">
 <li><p>When choosing the output folder, it is recommended to use a folder that does not contain any spatial files, as using the same file names can lead to issues.</p></li>
 <li><p>Optional: Choose ASCII-Output to input a filename for the .EZG-ASCII-file.</p></li>
-<li><p>Output Parameters:
-- Area of sub-basin in hectares [ha].
-- Optional: Average impervious area in the sub-basin [%] (=field ‘Imp_mean’).
-- Maximum height in sub-basin [MASL].
-- Minimum height in sub-basin [MASL].
-- Longest flow path [m] (=field ‘Length’).</p></li>
+<li><p>Output Parameters:</p>
+<ul>
+<li><p>Area of sub-basin in hectares [ha].</p></li>
+<li><p>Optional: Average impervious area in the sub-basin [%] (=field ‘Imp_mean’).</p></li>
+<li><p>Maximum height in sub-basin [MASL].</p></li>
+<li><p>Minimum height in sub-basin [MASL].</p></li>
+<li><p>Longest flow path [m] (=field ‘Length’).</p></li>
+</ul>
+</li>
 </ul>
 </div></blockquote>
 </section>
