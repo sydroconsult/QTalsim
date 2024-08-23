@@ -7,17 +7,17 @@ Prerequisites
 ^^^^^^^^^^^^^
    .. prerequisites:
 
-   **Input Layers:**
+**Input Layers:**
 
-   - Sub-basin layer
-   - Digital Elevation Model (DEM) layer
-   - Water network layer
-   - Optional: Layer with impervious areas
+- Sub-basin layer
+- Digital Elevation Model (DEM) layer
+- Water network layer
+- Optional: Layer with impervious areas
    
    To use this plugin's functionality, SAGA GIS and WhiteboxTools must be installed.
 
-   - SAGA GIS: Ensure that the "Processing Saga NextGen Provider" plugin is installed via the Plugin Manager in QGIS.
-   - WhiteboxTools: Install the "WhiteboxTools for QGIS" plugin, and make sure the environment path is set correctly. For further guidance, you can watch this instructional `video <https://www.youtube.com/watch?v=xJXDBsNbcTg>`__ produced by Whitebox.
+- SAGA GIS: Ensure that the "Processing Saga NextGen Provider" plugin is installed via the Plugin Manager in QGIS.
+- WhiteboxTools: Install the "WhiteboxTools for QGIS" plugin, and make sure the environment path is set correctly. For further guidance, you can watch this instructional `video <https://www.youtube.com/watch?v=xJXDBsNbcTg>`__ produced by Whitebox.
 
 Executing the Plugin
 ^^^^^^^^^^^^^^^^^^^^
@@ -27,22 +27,21 @@ Executing the Plugin
 Select Layers
 -------------
 
-   - Choose the correct polygon layer for the sub-basin layer.
-   - Select the field that contains the unique identifier for the sub-basins.
-   - Select the DEM layer (raster layer) and the water network layer (line layer).
-   - Optional: Select a layer containing impervious areas (`Example data set <https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862>`__ ). 
+- Choose the correct polygon layer for the sub-basin layer.
+- Select the field that contains the unique identifier for the sub-basins.
+- Select the DEM layer (raster layer) and the water network layer (line layer).
+- Optional: Select a layer containing impervious areas (`Example data set <https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862>`__ ). 
 
 Output
 ------
-   - When choosing the output folder, it is recommended to use a folder that does not contain any spatial files, as using the same file names can lead to issues.
-   - Optional: Choose ASCII-Output to input a filename for the .EZG-ASCII-file.
-   - Output Parameters:
-
-     - Area of sub-basin in hectares [ha].
-     - Optional: Average impervious area in the sub-basin [%] (=field 'Imp_mean').
-     - Maximum height in sub-basin [MASL].
-     - Minimum height in sub-basin [MASL].
-     - Longest flow path [m] (=field 'Length'). 
+- When choosing the output folder, it is recommended to use a folder that does not contain any spatial files, as using the same file names can lead to issues.
+- Optional: Choose ASCII-Output to input a filename for the .EZG-ASCII-file.
+- Output Parameters:
+  - Area of sub-basin in hectares [ha].
+  - Optional: Average impervious area in the sub-basin [%] (=field 'Imp_mean').
+  - Maximum height in sub-basin [MASL].
+  - Minimum height in sub-basin [MASL].
+  - Longest flow path [m] (=field 'Length'). 
 
 Calculation of LongestFlowPath
 ------------------------------
