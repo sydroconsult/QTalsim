@@ -14,7 +14,7 @@ Prerequisites
 - Water network layer
 - Optional: Layer with impervious areas
    
-   To use this plugin's functionality, SAGA GIS and WhiteboxTools must be installed.
+To use this plugin's functionality, SAGA GIS and WhiteboxTools must be installed.
 
 - SAGA GIS: Ensure that the "Processing Saga NextGen Provider" plugin is installed via the Plugin Manager in QGIS.
 - WhiteboxTools: Install the "WhiteboxTools for QGIS" plugin, and make sure the environment path is set correctly. For further guidance, you can watch this instructional `video <https://www.youtube.com/watch?v=xJXDBsNbcTg>`__ produced by Whitebox.
@@ -30,7 +30,7 @@ Select Layers
 - Choose the correct polygon layer for the sub-basin layer.
 - Select the field that contains the unique identifier for the sub-basins.
 - Select the DEM layer (raster layer) and the water network layer (line layer).
-- Optional: Select a layer containing impervious areas (`Example data set <https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862>`__ ). 
+- Optional: Select a layer containing impervious areas (`Example data set <https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862>`__). 
 
 Output
 ------
