@@ -31,6 +31,7 @@ from .resources import *
 from .qtalsim_dialog import QTalsimDialog
 from .qtalsim_sqllite_dialog import SQLConnectDialog
 from .qtalsim_subbasin_dialog import SubBasinPreprocessingDialog
+from .qtalsim_soil_dialog import SoilPreprocessingDialog
 import os.path
 from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsRasterLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest, QgsMapLayer, QgsFields, QgsTask, QgsTaskManager, QgsApplication, QgsExpression
 from qgis.analysis import QgsGeometrySnapper
@@ -271,7 +272,8 @@ class QTalsim:
         #self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_secondary_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
         self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_sql_connect_dock, parent=self.iface.mainWindow(), add_to_toolbar=True)
         self.add_action(icon_path, text=self.tr(u'Sub-basin preprocessing'), callback=self.open_sub_basin_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
-
+        self.add_action(icon_path, text=self.tr(u'Soil preprocessing'), callback=self.open_soil_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        
         self.first_start = True
         self.initialize_parameters()
 
@@ -3569,10 +3571,29 @@ class QTalsim:
         
         self.subBasinWindow.raise_()
         self.subBasinWindow.show()
-        self.subBasinWindow.destroyed.connect(self.onWindowDestroyed)
+        self.subBasinWindow.destroyed.connect(self.onWindowDestroyedSubbasin)
 
-    def onWindowDestroyed(self, obj=None):
+    def open_soil_window(self):
+        if self.first_start:
+            self.first_start = False
+        if not hasattr(self, 'soilWindow'):
+            self.soilWindow = QMainWindow(self.iface.mainWindow())
+
+            self.soilDialog = SoilPreprocessingDialog(self.iface.mainWindow(), self)
+            self.soilWindow.setCentralWidget(self.soilDialog)
+        else:
+            self.soilDialog.initialize_parameters()
+        
+        self.soilWindow.raise_()
+        self.soilWindow.show()
+        self.soilWindow.destroyed.connect(self.onWindowDestroyedSoil)
+
+    def onWindowDestroyedSubbasin(self, obj=None):
         self.subBasinWindow = None
+
+    def onWindowDestroyedSoil(self, obj=None):
+        self.soilWindow = None
+    
 '''
     Custom Dock Widget for 'Connect to Talsim DB' to overwrite the closeEvent-Action with a custom function. 
 '''
