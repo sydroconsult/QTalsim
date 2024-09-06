@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Soil preprocessing &#8212; QTalsim 1.5.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
+    
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=c2dd840c"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.5.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Soil preprocessing</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="soil-preprocessing">
+<h1>Soil preprocessing<a class="headerlink" href="#soil-preprocessing" title="Permalink to this heading">¶</a></h1>
+<blockquote>
+<div><p>Another core functionality of QTalsim is downloading and processing soil data from <a class="reference external" href="https://www.talsim.de/docs/index.php?title=EZG-Datei">ISRIC</a>. The plugin downloads the data based on a bounding box defined by the user and then creates output layers: one for each soil layer containing the soil type, and another for each soil layer showing the bulk density.</p>
+<p><img alt="Screenshot Soil preprocessing" src="_images/SoilPreprocessing.png" /></p>
+</div></blockquote>
+<section id="executing-the-plugin">
+<h2>Executing the Plugin<a class="headerlink" href="#executing-the-plugin" title="Permalink to this heading">¶</a></h2>
+<blockquote>
+<div><p>To execute this plugin, the user must select the following:</p>
+</div></blockquote>
+<ul>
+<li><p>An input layer that defines the bounding box.</p></li>
+<li><p>An output folder where the plugin will save all generated files.</p></li>
+<li><p>A target CRS to which the output layers will be transformed.</p>
+<blockquote>
+<div><p>When the “Download ISRIC Data” button is clicked, the plugin downloads data for clay, silt and sand share, and bulk density within the area defined by the bounding box. The raster files are saved in the specified output folder. The original output files, as returned by ISRIC (in the Homolosine projection), are stored in the ‘orig’ folder, while the reprojected files (in the user-defined projection) are stored in the ‘proj’ folder. Each of these folders will contain four files for each of the six soil layers.</p>
+<p>Next, the user can select “Calculate Soil Type.” In the first step, the plugin recalculates the values from the mapped units to conventional units, as defined <a class="reference external" href="https://www.isric.org/explore/soilgrids/faq-soilgrids#What_do_the_filename_codes_mean">here</a>. Then, the soil type for each cell is calculated using the clay, silt, and sand proportions, following the soil texture triangle below. The results are saved to the output folder and added to the current QGIS project. Additionally, the bulk density values are recalculated, and those layers are also added to the current project.</p>
+</div></blockquote>
+</li>
+</ul>
+<figure class="align-default" id="id1">
+<img alt="Bodenartendreieck" src="_images/Bodenartendreieck.png" />
+<figcaption>
+<p><span class="caption-text">Source: <a class="reference external" href="https://www.gd.nrw.de/zip/bo_Bestimmungsschluessel-Bodenart.pdf">Geologischer Dienst NRW 2012</a></span><a class="headerlink" href="#id1" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <div>
+    <h3><a href="index.html">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">Soil preprocessing</a><ul>
+<li><a class="reference internal" href="#executing-the-plugin">Executing the Plugin</a></li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/doc_soil.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.5.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Soil preprocessing</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2024, Sydro Consult GmbH.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
+    </div>
+  </body>
+</html>

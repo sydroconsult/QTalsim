@@ -77,7 +77,7 @@ External TransportReaches Layer
 
 Update Coordinates to Center of Geometry
 ----------------------------------------
-.. _update-coordinates
+.. _update-coordinates:
 
 	Another provided feature is the option to update the coordinates of all features that have a geometry (line/polygon) to the center of their respective geometries. This 	functionality is accessed by clicking the button labeled "Optional: Update Coordinates to Center of Sub-basins." Upon clicking this button, the plugin calculates the centroid of 	the geometries and updates all coordinates (columns 'Latitude' and 'Longitude') with the coordinates of the centroid.
 
