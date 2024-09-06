@@ -306,6 +306,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
             self.changeSymbolsSymbology(pathSymbology, svg_base_path)
             
+            
             #self.adjust_symbology_paths(self.elementsPointLayer, pathSymbology, svg_base_path)
             self.elementsPointLayer.loadNamedStyle(pathSymbology)
             self.elementsPointLayer.triggerRepaint()
