@@ -306,7 +306,6 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
             self.changeSymbolsSymbology(pathSymbology, svg_base_path)
             
-            
             #self.adjust_symbology_paths(self.elementsPointLayer, pathSymbology, svg_base_path)
             self.elementsPointLayer.loadNamedStyle(pathSymbology)
             self.elementsPointLayer.triggerRepaint()
@@ -367,7 +366,6 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             QgsProject.instance().addMapLayer(self.line_layer, False)
             line_layer_tree = QgsLayerTreeLayer(self.line_layer)
             self.layerGroup.addChildNode(line_layer_tree)
-            
             
             self.addPolygonsSubBasins() #Add SubBasins-Polygons-Layer
             self.addLinesTransportReach() #Add TransportReach-Line-Layer
@@ -465,7 +463,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         
         current_path = os.path.dirname(os.path.abspath(__file__))
         pathSymbology = os.path.join(current_path, "symbology", "SubBasins.qml")
-        self.subBasinsLayer.loadNamedStyle(pathSymbology)
+        self.subBasinsLayer.loadNamedStyle(pathSymbology) #if it does not work add flag True
         self.subBasinsLayer.triggerRepaint()
         
         self.subBasinsLayer.setName(f"Sub-basins")

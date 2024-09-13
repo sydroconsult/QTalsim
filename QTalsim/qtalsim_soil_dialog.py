@@ -2,8 +2,8 @@
 import os
 from qgis.PyQt import uic, QtWidgets
 from qgis.PyQt.QtWidgets import  QFileDialog, QDialog, QDialogButtonBox
-from qgis.PyQt.QtCore import QVariant
-from qgis.core import QgsProject, Qgis, QgsCoordinateReferenceSystem, QgsRasterLayer, QgsVectorLayer, QgsField, edit, QgsLayerTreeLayer
+from qgis.PyQt.QtCore import QVariant, QTimer
+from qgis.core import QgsProject, Qgis, QgsCoordinateReferenceSystem, QgsRasterLayer, QgsVectorLayer, QgsField, edit, QgsLayerTreeLayer, QgsCategorizedSymbolRenderer
 from qgis.gui import QgsProjectionSelectionDialog
 from osgeo import gdal
 import processing
@@ -33,6 +33,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         
         #Variables
         self.noLayerSelected = "No Layer selected"
+        self.fieldNameSoilType = 'soil_type'
         self.path_proj = None
         self.destinationCRS = None
         self.outputPath.clear()
@@ -441,9 +442,9 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.log_to_qtalsim_tab("Calculating soil types from clay, silt and sand share...", Qgis.Info)
             root = QgsProject.instance().layerTreeRoot()
 
-            # Create a new group in the layer tree
+            #Create layer group to store all layers
             group_name = "QTalsim Soil Layers"
-            self.layer_group = root.addGroup(group_name)
+            self.layer_group = root.insertGroup(0, group_name) #Add the layer group to the top of the layer catalog
 
             self.createCombinedLayer()
             self.soilMapping()
@@ -458,26 +459,26 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
             Creates stacked numpy arrays with clay, silt and sand share of the respective soil layer.
         '''
-        self.layer_data = {}
-        self.bdod_data = {}
+        self.layer_data = {} #Stores the data of clay, silt and sand share
+        self.bdod_data = {} #Stores the data of bulk density
 
         def read_tif_as_array(file_path):
             dataset = gdal.Open(file_path)
             array = dataset.ReadAsArray()
             
-            # Get the "no data" value from the dataset
+            #Get the "no data" value from the dataset
             no_data_value = dataset.GetRasterBand(1).GetNoDataValue()
             
             if no_data_value is not None:
-                # Replace "no data" values in the array with numpy's NaN
+                #Replace "no data" values in the array with numpy's NaN
                 array = np.where(array == no_data_value, np.nan, array)
             
             return array
 
         for file_name in os.listdir(self.path_proj):
             if file_name.endswith('.tif'):
-                base_name = file_name.split('_')[0]  # 'clay', 'sand', 'silt', or 'bdod'
-                layer = '_'.join(file_name.split('_')[1:])  # e.g., '0-5cm_mean.tif'
+                base_name = file_name.split('_')[0]  #'clay', 'sand', 'silt', or 'bdod'
+                layer = '_'.join(file_name.split('_')[1:])  #needed to store the arrays in the relevant soil layer, e.g., '0-5cm_mean.tif'
                 
                 #Read files with gdal
                 file_path = os.path.join(self.path_proj, file_name)
@@ -491,10 +492,8 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     if layer not in self.layer_data:
                         self.layer_data[layer] = {}
                     
-                    self.layer_data[layer][base_name] = array
+                    self.layer_data[layer][base_name] = array #store the data in the respective soil layer + type (clay, silt, sand)
         
-        self.log_to_qtalsim_tab("Recalculating the clay, silt and sand values.", Qgis.Info)
-
         #Convert dicts to numpy arrays and convert the units of the data (https://www.isric.org/explore/soilgrids/faq-soilgrids#What_do_the_filename_codes_mean)
         for layer in self.layer_data:
             clay = self.layer_data[layer].get('clay')
@@ -556,9 +555,6 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         QgsProject.instance().addMapLayer(raster_layer, False)
         self.layer_group.addLayer(raster_layer) 
         self.log_to_qtalsim_tab(f"Created layer '{layer_name}' successfully!", Qgis.Info)
-        
-        #Cleanup: remove the in-memory file
-        #gdal.Unlink(tmp_path) - doesnt work correctly if unlinked
 
         return raster_layer, layer_name
 
@@ -600,7 +596,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             yo = yn
 
         if (kreuz % 2 == 1):
-            return True
+            return True #soil type was found
         
         return False
 
@@ -655,8 +651,8 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             cols, rows = clay_array.shape
             
             #Initialize result array with nodata values
-            nodata = -9999
-            boa_array = np.full([cols, rows], nodata, dtype=int)
+            nodata = -9999 #no data value
+            boa_array = np.full([cols, rows], nodata, dtype=int) #array to store the soil types of the pixels
             for x in range(cols):
                 for y in range(rows):
                     sand = sand_array[x,y]
@@ -672,12 +668,12 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     if sum < 95.0 or sum > 102.0:
                         self.log_to_qtalsim_tab(f"Sum of shares is not 100%%: %.2f%%! { (x, y, sum)}", Qgis.Warning)
                     
-                    # adjust to 100%
+                    #adjust to 100%
                     clay = clay + clay / sum * (100.0 - sum)
                     silt = silt + silt / sum * (100.0 - sum)
                     sand = sand + sand / sum * (100.0 - sum)
 
-                    # Schleife über Bodenarten-Polygone
+                    #Schleife über Bodenarten-Polygone
                     bda = self.boa[0][0]
                     self.polyX = [None]*30
                     self.polyY = [None]*30
@@ -693,12 +689,12 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                             self.polyX[self.count] = self.boa[i][1] #Clay as x-coordinate
                             self.polyY[self.count] = self.boa[i][2] #Silt as y-coordinate
                             bda = self.boa[i][0]
-                        else: #if still the same polygon
+                        else: #if still the same polygon/soil type
                             self.count += 1 #Number of points in the polygon
                             self.polyX[self.count] = self.boa[i][1] #Clay as x-coordinate
                             self.polyY[self.count] = self.boa[i][2] #Silt as y-coordinate
                             
-                    boa_array[x, y] = self.talsim_soilids[bda]
+                    boa_array[x, y] = self.talsim_soilids[bda] #store the soil type of the current pixel
 
             #Geotransform and projection are taken from the project input dataset
             input_file_path = os.path.join(self.path_proj, 'clay_0-5cm_mean.tif')  
@@ -728,7 +724,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 for feature in result_layer.getFeatures():
                     talsim_soilid = feature['talsim_soilid']
                     soil_type = get_soil_type_by_id(int(talsim_soilid))
-                    feature['soil_type'] = soil_type
+                    feature[self.fieldNameSoilType] = soil_type
                     result_layer.updateFeature(feature)
             
             result_layer.setName(layer_name)
@@ -737,9 +733,9 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Export soil type layers as geopackage
         gpkgOutputPath = os.path.join(self.outputFolder, "soil_types.gpkg")
         processing.run("native:package", {'LAYERS':soilTypeLayers,'OUTPUT':gpkgOutputPath,'OVERWRITE':True,'SAVE_STYLES':True,'SAVE_METADATA':True,'SELECTED_FEATURES_ONLY':False,'EXPORT_RELATED_LAYERS':False})
-        
+
         for layer in soilTypeLayers:
-            layer_name = layer.name()  # Get the layer name
+            layer_name = layer.name() #Get the layer name
             uri = f"{gpkgOutputPath}|layername={layer_name}"
             
             gpkg_layer = QgsVectorLayer(uri, layer_name, "ogr")
@@ -747,27 +743,29 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             #Add the layers to the Qgis project
             if gpkg_layer.isValid():
                 current_path = os.path.dirname(os.path.abspath(__file__))
-                pathSymbology = os.path.join(current_path, "symbology", "SoilTypes.qml")
+                pathSymbology = os.path.join(current_path, "symbology", "SoilTypes.qml") #Get symbology
 
-                gpkg_layer.loadNamedStyle(pathSymbology)
-                gpkg_layer.triggerRepaint()
+                self.apply_filtered_symbology(gpkg_layer, pathSymbology, self.fieldNameSoilType)
 
                 QgsProject.instance().addMapLayer(gpkg_layer, False)
-
                 tree_layer = QgsLayerTreeLayer(gpkg_layer)
                 self.layer_group.addChildNode(tree_layer)
 
         self.log_to_qtalsim_tab(f"Soil type vector layers were saved here: {gpkgOutputPath}", Qgis.Info)
 
-        
         #Add bulk density raster layers
         bdodLayers = []
         for layer_name, data_array in self.bdod_data.items():
             layer_name = 'bdod_' + layer_name
+            
+            #Convert numpy array to raster and add to project
             bdod_raster_layer, layer_name = self.add_single_band_numpy_array_to_qgis(data_array, geotransform, projection, layer_name)
+            layer_name = layer_name.replace(".tif", "") #remove .tif from layer_name
+
+            #Convert BDOD-layer to vector layer
             vector_layer = self.convertRasterToVectorLayer(bdod_raster_layer, 'bbod')
             vector_layer.setName(layer_name)
-            bdodLayers.append(vector_layer)
+            bdodLayers.append(vector_layer) #store bdod vector layers
 
         #Export bulk density layers as geopackage
         gpkgOutputPathBdod = os.path.join(self.outputFolder, "bdod.gpkg")
@@ -786,7 +784,34 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.log_to_qtalsim_tab(f"Bulk density vector layers were saved here: {gpkgOutputPathBdod}", Qgis.Info)
 
+    def apply_filtered_symbology(self, gpkg_layer, pathSymbology, symbology_field):
+        """
+            Loads symbology from a QML file and shows unique values of layer gpkg_layer.
+        """
+        #Load the symbology from the QML file
+        gpkg_layer.loadNamedStyle(pathSymbology, True)
+        
+        #Get unique values from the layer
+        unique_values = gpkg_layer.uniqueValues(gpkg_layer.fields().indexOf(symbology_field))
 
+        #Get the renderer from the layer
+        renderer = gpkg_layer.renderer()
+
+        if isinstance(renderer, QgsCategorizedSymbolRenderer):
+            #Get the current categories from the symbology file
+            categories = renderer.categories()
+
+            #Iterate over categories and remove those that are not in the unique values
+            for idx in reversed(range(len(categories))):  #Reverse loop to avoid index shifting when deleting
+                category = categories[idx]
+                if category.value() not in unique_values:
+                    #Delete the category if its value is not in the unique values
+                    renderer.deleteCategory(idx)
+            
+            gpkg_layer.setRenderer(renderer)
+
+            #Repaint the layer to apply the filtered symbology
+            gpkg_layer.triggerRepaint()
 
     
                      
