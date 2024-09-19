@@ -34,6 +34,8 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Variables
         self.noLayerSelected = "No Layer selected"
         self.fieldNameSoilType = 'soil_type'
+        self.fieldNameBdod = 'bdod'
+        self.fieldNameBdodClass = 'bdod_class'
         self.path_proj = None
         self.destinationCRS = None
         self.outputPath.clear()
@@ -604,7 +606,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Convert the raster_layer to polygon_layer
         result_layer = processing.run("native:pixelstopolygons", {'INPUT_RASTER':raster_layer,'RASTER_BAND':1,'FIELD_NAME':field_name,'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
         result_layer = processing.run("native:dissolve", {'INPUT':result_layer,'FIELD':[field_name],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
-        'talsim_soilid'
+
         #Buffer and negative buffer to remove borders of pixels, when neighboring a pixel with the same soil type
         result_layer = processing.run("native:buffer", {
             'INPUT': result_layer,
@@ -763,8 +765,32 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             layer_name = layer_name.replace(".tif", "") #remove .tif from layer_name
 
             #Convert BDOD-layer to vector layer
-            vector_layer = self.convertRasterToVectorLayer(bdod_raster_layer, 'bbod')
+            vector_layer = self.convertRasterToVectorLayer(bdod_raster_layer, self.fieldNameBdod)
             vector_layer.setName(layer_name)
+            
+            #Add a field holding the bdod class
+            bdod_class_field = QgsField(self.fieldNameBdodClass, QVariant.Int)
+            vector_layer.dataProvider().addAttributes([bdod_class_field])
+            vector_layer.updateFields()
+
+            #Add the bdod class
+            vector_layer.startEditing()
+            for feature in vector_layer.getFeatures():
+                bdod_value = feature[self.fieldNameBdod]
+                if bdod_value < 1.3:
+                    feature[self.fieldNameBdodClass] = 1
+                elif bdod_value >= 1.3 and bdod_value < 1.55:
+                    feature[self.fieldNameBdodClass] = 2
+                elif bdod_value >= 1.55 and bdod_value < 1.75:
+                    feature[self.fieldNameBdodClass] = 3  
+                elif bdod_value >= 1.75 and bdod_value < 1.95:
+                    feature[self.fieldNameBdodClass] = 4 
+                elif bdod_value >= 1.95:
+                    feature[self.fieldNameBdodClass] = 5
+                vector_layer.updateFeature(feature)
+            vector_layer.commitChanges()
+
+            vector_layer = processing.run("native:dissolve", {'INPUT':vector_layer,'FIELD':[self.fieldNameBdodClass],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
             bdodLayers.append(vector_layer) #store bdod vector layers
 
         #Export bulk density layers as geopackage
@@ -783,7 +809,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.layer_group.addLayer(gpkg_layer)
 
         self.log_to_qtalsim_tab(f"Bulk density vector layers were saved here: {gpkgOutputPathBdod}", Qgis.Info)
-
+    
     def apply_filtered_symbology(self, gpkg_layer, pathSymbology, symbology_field):
         """
             Loads symbology from a QML file and shows unique values of layer gpkg_layer.

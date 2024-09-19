@@ -29,11 +29,12 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.finalButtonBox.button(QDialogButtonBox.Help).setText('Help')
 
     def initialize_parameters(self):
-        
         #Initialize variables
         self.subBasinLayer = None
+        self.DEMLayer = None
         self.polygonLayers = None
         self.rasterLayers = None
+        self.lfpFinalLayer = None
         self.noLayerSelected = "No Layer selected"
         self.outputFolder = None
         self.outputPath.clear()
@@ -53,6 +54,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.log_to_qtalsim_tab = self.mainPlugin.log_to_qtalsim_tab
 
         #Connect Buttons to Functions 
+        self.connectButtontoFunction(self.onLongestFlowPath, self.performLFP) #Calculate LongestFlowPath
         self.connectButtontoFunction(self.onRun, self.runSubBasinPreprocessing) 
         self.connectButtontoFunction(self.onOutputFolder, self.selectOutputFolder) 
         self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
@@ -168,11 +170,12 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.start_operation()
 
             #Select DEM Layer
-            selected_layer_name = self.comboboxDEMLayer.currentText()
-            if selected_layer_name != self.noLayerSelected:
-                self.DEMLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
-            else:
-                self.log_to_qtalsim_tab("Please select a DEM layer to process the sub-basins.", Qgis.Critical)
+            if self.DEMLayer is None:
+                selected_layer_name = self.comboboxDEMLayer.currentText()
+                if selected_layer_name != self.noLayerSelected:
+                    self.DEMLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+                else:
+                    self.log_to_qtalsim_tab("Please select a DEM layer to process the sub-basins.", Qgis.Critical)
 
             self.calculateHeightandAreaSubBasins()
 
@@ -186,15 +189,23 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 if self.imperviousFieldName not in [field.name() for field in self.subBasinLayerProcessed.fields()]:
                     imp_field = QgsField(self.imperviousFieldName, QVariant.Double)
                     self.subBasinLayerProcessed.dataProvider().addAttributes([imp_field])
-                    self.subBasinLayerProcessed.updateFields()
-            
+                    self.subBasinLayerProcessed.updateFields()            
+
+            #Recalculate the lengths, in case the user edited the longest flow path layer
+            if self.lfpFinalLayer is not None:
+                self.lfpFinalLayer.startEditing()  # Start editing
+                for feature in self.lfpFinalLayer.getFeatures():
+                    geom = feature.geometry()
+                    length = geom.length()
+                    feature[self.lengthFieldName] = length
+                    self.lfpFinalLayer.updateFeature(feature)
+                self.lfpFinalLayer.commitChanges()  # Commit changes
+
+                #Join the LFP length to sub-basin layer
+                self.subBasinLayerProcessed = processing.run("native:joinattributestable", {'INPUT': self.subBasinLayerProcessed,'FIELD':'Talsim_ID','INPUT_2': self.lfpFinalLayer,'FIELD_2':'BASINID','FIELDS_TO_COPY':[self.lengthFieldName],'METHOD':1,'DISCARD_NONMATCHING':False,'PREFIX':'','OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+                
             self.geopackage_path = os.path.join(self.outputFolder, f"Sub_basins_processed.gpkg") #Output-path
 
-            self.performLFP() #Calculate LongestFlowPath
-
-            #Join the LFP length to sub-basin layer
-            self.subBasinLayerProcessed = processing.run("native:joinattributestable", {'INPUT': self.subBasinLayerProcessed,'FIELD':'Talsim_ID','INPUT_2': self.lfpFinalLayer,'FIELD_2':'BASINID','FIELDS_TO_COPY':[self.lengthFieldName],'METHOD':1,'DISCARD_NONMATCHING':False,'PREFIX':'','OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
-            
             if self.filename is not None:
                 self.asciiExport()
 
@@ -255,79 +266,91 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
             Calculates the LongestFlowPath for each sub-basin.
         '''
-        self.log_to_qtalsim_tab(f"Calculating the longest flowpath for each sub-basin.", Qgis.Info) 
-
-        #Water Network Layer
-        selected_layer_name = self.comboboxWaterNetwork.currentText()
-        if selected_layer_name != self.noLayerSelected:
-            self.waterNetworkLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
-        else:
-            self.log_to_qtalsim_tab("Please select a water-network layer to calculate LFP.", Qgis.Critical)
-        
-        #Check if the layers are in same CRS
-        dem_crs = self.DEMLayer.crs()
-        water_network_crs = self.waterNetworkLayer.crs()
-        sub_basin_crs = self.subBasinLayer.crs()
-
-        # Check if all CRS are the same
-        if dem_crs == water_network_crs == sub_basin_crs:
-            pass
-        else:
-            self.log_to_qtalsim_tab("Layers have different CRS.", Qgis.Critical)
-            return
-            
-        #UI Sub-basin
-        self.subbasinUIField = self.comboboxUISubBasin.currentText()
-
-        #Burn and Fill DEM-Layer
-        self.DEMLayerBurnFill = self.createFilledDEM(self.subBasinLayer, self.DEMLayer, self.waterNetworkLayer, self.outputFolder)
-        
-        #Get the raw output of LFP
-        lfpOutputs = self.create_longestflowpath_raw(self.subBasinLayer, self.DEMLayerBurnFill)   
-
-        #Create final LFPs
-        self.create_final_lfp(lfpOutputs)
-
-        #Delete temporary raw files of lfps
-        #Does not work correctly yet:
-        gc.collect()  # Collect garbage before attempting to remove files
-
         try:
-            for path in self.path_lfp_outputs_raw:
-                # Find layers that correspond to the current path
-                layers_to_remove = [layer for layer in lfpOutputs if layer.dataProvider().dataSourceUri().split('|')[0] == path]
+            self.start_operation()
+            self.log_to_qtalsim_tab(f"Calculating the longest flowpath for each sub-basin.", Qgis.Info) 
 
-                # Explicitly delete these layers from memory
-                for layer in layers_to_remove:
-                    lfpOutputs.remove(layer)  #Remove from the list first
-                    del layer  #Delete the layer reference
+            if self.DEMLayer is None:
+                selected_layer_name = self.comboboxDEMLayer.currentText()
+                if selected_layer_name != self.noLayerSelected:
+                    self.DEMLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+                else:
+                    self.log_to_qtalsim_tab("Please select a DEM layer to process the sub-basins.", Qgis.Critical)
+
+            #Water Network Layer
+            selected_layer_name = self.comboboxWaterNetwork.currentText()
+            if selected_layer_name != self.noLayerSelected:
+                self.waterNetworkLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+            else:
+                self.log_to_qtalsim_tab("Please select a water-network layer to calculate LFP.", Qgis.Critical)
+            
+            #Check if the layers are in same CRS
+            dem_crs = self.DEMLayer.crs()
+            water_network_crs = self.waterNetworkLayer.crs()
+            sub_basin_crs = self.subBasinLayer.crs()
+
+            # Check if all CRS are the same
+            if dem_crs == water_network_crs == sub_basin_crs:
+                pass
+            else:
+                self.log_to_qtalsim_tab("Layers have different CRS.", Qgis.Critical)
+                return
                 
-                #Force another garbage collection to ensure the layers are released
-                gc.collect()
+            #UI Sub-basin
+            self.subbasinUIField = self.comboboxUISubBasin.currentText()
 
-                # Attempt to remove the file
-                if os.path.exists(path):
-                    os.remove(path)
+            #Burn and Fill DEM-Layer
+            self.DEMLayerBurnFill = self.createFilledDEM(self.subBasinLayer, self.DEMLayer, self.waterNetworkLayer, self.outputFolder)
+            
+            #Get the raw output of LFP
+            lfpOutputs = self.create_longestflowpath_raw(self.subBasinLayer, self.DEMLayerBurnFill)   
 
-        except Exception as first_exception:
-            time.sleep(1)  # Wait a bit before trying again
+            #Create final LFPs
+            self.create_final_lfp(lfpOutputs)
+
+            #Delete temporary raw files of lfps
+            #Does not work correctly yet:
+            gc.collect()  # Collect garbage before attempting to remove files
 
             try:
                 for path in self.path_lfp_outputs_raw:
+                    # Find layers that correspond to the current path
+                    layers_to_remove = [layer for layer in lfpOutputs if layer.dataProvider().dataSourceUri().split('|')[0] == path]
+
+                    # Explicitly delete these layers from memory
+                    for layer in layers_to_remove:
+                        lfpOutputs.remove(layer)  #Remove from the list first
+                        del layer  #Delete the layer reference
+                    
+                    #Force another garbage collection to ensure the layers are released
+                    gc.collect()
+
+                    # Attempt to remove the file
                     if os.path.exists(path):
                         os.remove(path)
-            except Exception as e:
-                self.log_to_qtalsim_tab(f"Error removing {path}: {e}", Qgis.Info)
 
-        # Delete the file
-        if os.path.exists(self.dem_burn_output):
-            try:
-                os.remove(self.dem_burn_output)
-            except:
-                pass
+            except Exception as first_exception:
+                time.sleep(1)  # Wait a bit before trying again
 
+                try:
+                    for path in self.path_lfp_outputs_raw:
+                        if os.path.exists(path):
+                            os.remove(path)
+                except Exception as e:
+                    self.log_to_qtalsim_tab(f"Error removing {path}: {e}", Qgis.Info)
 
-        self.log_to_qtalsim_tab(f"Finished the calculation of the longest flowpaths.", Qgis.Info)
+            # Delete the file
+            if os.path.exists(self.dem_burn_output):
+                try:
+                    os.remove(self.dem_burn_output)
+                except:
+                    pass
+            
+            self.log_to_qtalsim_tab(f"Finished the calculation of the longest flowpaths. Please check the longest flowpaths and edit the geometries, if necessary. The lengths will be recalculated when saving the sub-basins-layer (Button: Run).", Qgis.Info)
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+        finally:
+            self.end_operation()
 
     def createFilledDEM(self, sub_basins_layer, dem_layer, water_network_layer, output_path):
         '''
@@ -614,8 +637,8 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.log_to_qtalsim_tab(f"LongestFlowPath-layer was saved to: {self.outputFolder}", Qgis.Info)
 
         # Add the layer to the QGIS project
-        permanent_layer = QgsVectorLayer(lfp_output_final, 'LFP Final', 'ogr')
-        QgsProject.instance().addMapLayer(permanent_layer)
+        self.lfpFinalLayer = QgsVectorLayer(lfp_output_final, 'LFP Final', 'ogr')
+        QgsProject.instance().addMapLayer(self.lfpFinalLayer)
 
     def selectAsciiFilename(self):
         #Get the filename, as specified by the user
@@ -628,6 +651,8 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             If the user selects asciiExport, an EZG-file is exported to the output-folder and the specified filename
         '''
         try:
+            #UI Sub-basin
+            self.subbasinUIField = self.comboboxUISubBasin.currentText()
 
             #The template file of EZG-file holds a line that defines the field lengths and spaces between lengths
             def parse_definition_linev1(line):
@@ -707,14 +732,20 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 outputPathEzg = os.path.join(self.outputFolder, f"{self.filename}.EZG")
 
-                data = []
+                data = []                    
+
+                fields = [field.name() for field in self.subBasinLayerProcessed.fields()]
 
                 for feature in self.subBasinLayerProcessed.getFeatures():
+                    if self.lengthFieldName not in fields:
+                        length = None
+                    else:
+                        length = feature[self.lengthFieldName]
                     #A: Fläche
                     #VG: Versiegelungsgrad / Anteil der undurchlässigen Fläche [%]
                     layer_data = {'Bez' : feature[self.subbasinUIField], 'KNG': None,
                                   'A' : feature[self.areaFieldName], 'VG' : feature[self.imperviousFieldName], 'Ho' : feature['Height_max'],
-                                    'Hu': feature['Height_min'], 'L' : feature[self.lengthFieldName], #Gebietskenngrößen
+                                    'Hu': feature['Height_min'], 'L' : length, #Gebietskenngrößen
                                   'Datei': None, #N
                                   'Kng' : None, 'Sum': None, 'Datei': None, 'HYO': None, #Verdunstung
                                   'Kng': None, 'Tem' : None, 'JGG': None, 'TGG': None, 'Datei': None, #Temperatur

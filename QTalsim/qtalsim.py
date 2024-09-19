@@ -272,7 +272,7 @@ class QTalsim:
         #self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_secondary_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
         self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_sql_connect_dock, parent=self.iface.mainWindow(), add_to_toolbar=True)
         self.add_action(icon_path, text=self.tr(u'Sub-basin preprocessing'), callback=self.open_sub_basin_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        self.add_action(icon_path, text=self.tr(u'Soil preprocessing'), callback=self.open_soil_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        self.add_action(icon_path, text=self.tr(u'ISRIC Soil Type Converter'), callback=self.open_soil_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
         
         self.first_start = True
         self.initialize_parameters()
@@ -3403,6 +3403,8 @@ class QTalsim:
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
         if not hasattr(self, 'dlg'):
             self.dlg = QTalsimDialog()
+            #self.iface.mainWindow().setWindowTitle("HRU Calculation")
+        
         if self.first_start == True:
             self.first_start = False
             self.dlg.onCreateSoilLayer.setVisible(False)
@@ -3562,7 +3564,7 @@ class QTalsim:
             self.first_start = False
         if not hasattr(self, 'subBasinWindow'):
             self.subBasinWindow = QMainWindow(self.iface.mainWindow())
-
+            self.subBasinWindow.setWindowTitle("Sub-basin preprocessing")
             self.subBasinDialog = SubBasinPreprocessingDialog(self.iface.mainWindow(), self)
             self.subBasinWindow.setCentralWidget(self.subBasinDialog)
             #self.iface.mainWindow().addDockWidget(Qt.RightDockWidgetArea, self.subBasinWindow)
@@ -3578,7 +3580,7 @@ class QTalsim:
             self.first_start = False
         if not hasattr(self, 'soilWindow'):
             self.soilWindow = QMainWindow(self.iface.mainWindow())
-
+            self.soilWindow.setWindowTitle("ISRIC Soil Type Converter")
             self.soilDialog = SoilPreprocessingDialog(self.iface.mainWindow(), self)
             self.soilWindow.setCentralWidget(self.soilDialog)
         else:

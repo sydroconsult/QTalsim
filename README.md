@@ -1,9 +1,7 @@
 # QTalsim
 
-QTalsim is a QGIS plugin with two principal functionalities that enable the processing of spatial data suitable for [Talsim](https://www.talsim.de/docs/index.php?title=Hauptseite/en). 
+QTalsim is a QGIS plugin with four principal functionalities that enable the processing of spatial data suitable for [Talsim](https://www.talsim.de/docs/index.php?title=Hauptseite/en). 
 
-The functionality "HRU Calculation" is designed to create hyrological response units (HRUs) suitable for Talsim. It processes three layer, including a catchment area layer, soil layer and land use layer. It clips the layers in accordance with the catchment area layer’s boundaries. The plugin then intersects those three layers and creates HRUs. Additionally, "HRU calculation" offers functionality to remove duplicate geometries, overlapping features and unwanted gaps.
-
-The second functionality of QTalsim allows users to connect to a Talsim database, load system elements, and sub-basins. Moreover, users can edit existing sub-basins and import new sub-basins from an external polygon layer.
+Firstly, it enables users to calculate Hydrological Response Units (HRUs). Secondly, the plugin faciliates a direct connection to a Talsim database, enabling users to edit system elements, sub-basins and transport reaches. The third functionality allows the user to preprocess sub-basins and calculate the longest flowpaths for each sub-basin. Another functionality downloads data from ISRIC and creates layers containing the soil type and bulk density for a given input area. 
 
 For detailed information, please refer to the [Full Documentation](https://sydroconsult.github.io/QTalsim/index.html).
