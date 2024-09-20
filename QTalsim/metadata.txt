@@ -16,7 +16,7 @@ license=GPL-3.0
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=https://github.com/sydroconsult/QTalsim/main/CHANGELOG.md
+changelog=https://github.com/sydroconsult/QTalsim/blob/main/QTalsim/CHANGELOG.md
 
 # Tags are comma separated with spaces allowed
 tags=python, talsim, hydrological-modelling
