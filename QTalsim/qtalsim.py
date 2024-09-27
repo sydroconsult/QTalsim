@@ -1192,31 +1192,39 @@ class QTalsim:
 
             #Create Table
             self.dlg.tableSoilMapping.setRowCount(self.dfsoilParametersTalsim.shape[0])
-            self.dlg.tableSoilMapping.setColumnCount(2)
-            self.dlg.tableSoilMapping.setHorizontalHeaderLabels(['Talsim Soil Parameters', 'Soil Layer Fields'])
+            self.dlg.tableSoilMapping.setColumnCount(6) 
+            self.dlg.tableSoilMapping.setHorizontalHeaderLabels(['Talsim Soil Parameters', 'Soil Layer 1', 'Soil Layer 2', 'Soil Layer 3', 'Soil Layer 4', 'Soil Layer 5', 'Soil Layer 6'])
             
             # Set the size of the table columns
-            self.dlg.tableSoilMapping.setColumnWidth(0, 300)
-            self.dlg.tableSoilMapping.setColumnWidth(1, 300)
+            self.dlg.tableSoilMapping.setColumnWidth(0, 200)
+            self.dlg.tableSoilMapping.setColumnWidth(1, 200)
+            self.dlg.tableSoilMapping.setColumnWidth(2, 200)
+            self.dlg.tableSoilMapping.setColumnWidth(3, 200)
+            self.dlg.tableSoilMapping.setColumnWidth(4, 200)
+            self.dlg.tableSoilMapping.setColumnWidth(5, 200)
+            self.dlg.tableSoilMapping.setColumnWidth(6, 200)
 
-            #Get Landuse Data from csv-file
+            #Get Data from csv-file
             soilTextures = self.dfsoilParametersTalsim.loc[:,'SoilTexture']
+            number_soilLayers = 6
+
             #Fill data
             for row, data in enumerate(soilTextures):
-
                 item = QTableWidgetItem(str(data)) #add soil
                 self.dlg.tableSoilMapping.setItem(row, 0, item)
-                
-                combo_box = QComboBox()
-                # Add parameters as items to the combo box
-                if data != self.IDSoil:
-                    combo_box.addItem('Parameter not available')
+                for i in range(0, number_soilLayers): #Add a combobox to every column in the soil mapping table
+                    self.log_to_qtalsim_tab(f"{i}", Qgis.Info)
+                    combo_box = QComboBox()
+                    # Add parameters as items to the combo box
+                    if data != self.IDSoil:
+                        combo_box.addItem('Parameter not available')
 
-                if data == self.IDSoil:
-                    combo_box.addItem('Feature IDs of Soil Layer')
+                    if data == self.IDSoil:
+                        combo_box.addItem('Feature IDs of Soil Layer')
 
-                combo_box.addItems([str(field) for field in fieldsSoil])
-                self.dlg.tableSoilMapping.setCellWidget(row, 1, combo_box)
+                    combo_box.addItems([str(field) for field in fieldsSoil])
+                    i += 1
+                    self.dlg.tableSoilMapping.setCellWidget(row, i, combo_box)
 
             self.dlg.onCreateSoilLayer.setVisible(True)
         
