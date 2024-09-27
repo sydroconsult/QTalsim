@@ -15,9 +15,11 @@ Executing the Plugin
 - A target CRS to which the output layers will be transformed.
 
 
-   When the "Download ISRIC Data" button is clicked, the plugin downloads data for clay, silt and sand share, and bulk density within the area defined by the bounding box. The raster files are saved in the specified output folder. The original output files, as returned by ISRIC (in the Homolosine projection), are stored in the 'orig' folder, while the reprojected files (in the user-defined projection) are stored in the 'proj' folder. Each of these folders will contain four files for each of the six soil layers.
+When the "Download ISRIC Data" button is clicked, the plugin downloads data for clay, silt and sand share, and bulk density within the area defined by the bounding box. The raster files are saved in the specified output folder. The original output files, as returned by ISRIC (in the Homolosine projection), are stored in the 'orig' folder, while the reprojected files (in the user-defined projection) are stored in the 'proj' folder. Each of these folders will contain four files for each of the six soil layers.
 
-   Next, the user can select "Calculate Soil Type." In the first step, the plugin recalculates the values from the mapped units to conventional units, as defined `here <https://www.isric.org/explore/soilgrids/faq-soilgrids#What_do_the_filename_codes_mean>`__. Then, the soil type for each cell is calculated using the clay, silt, and sand proportions, following the soil texture triangle below. The results are saved to the output folder and added to the current QGIS project. Additionally, the bulk density values are recalculated, and those layers are also added to the current project. 
+   Next, the user can select "Calculate Soil Type." In the first step, the plugin recalculates the values from the mapped units to conventional units, as defined `here <https://www.isric.org/explore/soilgrids/faq-soilgrids#What_do_the_filename_codes_mean>`__. Then, the soil type for each cell is calculated using the clay, silt, and sand proportions, following the soil texture triangle below. The results are saved to the output folder and added to the current QGIS project. In the layer "Soil Types Combined" the soil types of the soil layers are displayed in the different columns of the layer. Additionally, the bulk density values are recalculated and are assigned to the respective bulk density class. This layer is also saved and added to the current Qgis project. 
+
+The layer "Soil Types Combined" produced by this plugin can be used as input to "QTalsim HRU calculation". 
 
 .. |Bodenartendreieck| 
 
