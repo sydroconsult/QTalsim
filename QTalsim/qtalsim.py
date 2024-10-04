@@ -416,9 +416,9 @@ class QTalsim:
         '''
             Checks for overlapping features in an input layer.
         '''
+        layerName = layer.name()
         layer, _ = self.make_geometries_valid(layer)
         layer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-        layerName = layer.name()
         index = QgsSpatialIndex()
         feature_dict = {feature.id(): feature for feature in layer.getFeatures()} #Dict with all features
         geometry_dict = {fid: feature.geometry() for fid, feature in feature_dict.items()} #Dict with all geometries
@@ -1192,7 +1192,7 @@ class QTalsim:
 
             #Create Table
             self.dlg.tableSoilMapping.setRowCount(self.dfsoilParametersTalsim.shape[0])
-            self.dlg.tableSoilMapping.setColumnCount(6) 
+            self.dlg.tableSoilMapping.setColumnCount(7) 
             self.dlg.tableSoilMapping.setHorizontalHeaderLabels(['Talsim Soil Parameters', 'Soil Layer 1', 'Soil Layer 2', 'Soil Layer 3', 'Soil Layer 4', 'Soil Layer 5', 'Soil Layer 6'])
             
             # Set the size of the table columns
@@ -1206,20 +1206,19 @@ class QTalsim:
 
             #Get Data from csv-file
             soilTextures = self.dfsoilParametersTalsim.loc[:,'SoilTexture']
-            number_soilLayers = 6
+            self.number_soilLayers = 6
 
             #Fill data
             for row, data in enumerate(soilTextures):
                 item = QTableWidgetItem(str(data)) #add soil
                 self.dlg.tableSoilMapping.setItem(row, 0, item)
-                for i in range(0, number_soilLayers): #Add a combobox to every column in the soil mapping table
-                    self.log_to_qtalsim_tab(f"{i}", Qgis.Info)
+                for i in range(0, self.number_soilLayers): #Add a combobox to every column in the soil mapping table
                     combo_box = QComboBox()
                     # Add parameters as items to the combo box
-                    if data != self.IDSoil:
+                    if data != self.IDSoil or i != 0: #Only one soil layer is needed
                         combo_box.addItem('Parameter not available')
 
-                    if data == self.IDSoil:
+                    if data == self.IDSoil and i == 0:
                         combo_box.addItem('Feature IDs of Soil Layer')
 
                     combo_box.addItems([str(field) for field in fieldsSoil])
@@ -1262,34 +1261,39 @@ class QTalsim:
             textureTypes = self.dfsoilParametersTalsim.loc[:,'TextureType'] #Get the texture types
             value_mapping = {}
             new_fields = []
+            self.soilIDNames = []
             fields_wrong_datatype = [] #store those fields that have a wrong datatype 
             for row in range(self.dlg.tableSoilMapping.rowCount()): #Loop over all entries of the Soil Mapping Table
-                old_field = self.dlg.tableSoilMapping.cellWidget(row, 1).currentText() #Current Text of Combo-Box specified by user
-                new_field = self.dlg.tableSoilMapping.item(row, 0).text() #Get Talsim parameter
-                value_mapping[old_field] = new_field
-                if textureTypes[row].strip() == 'string':
-                    type = QVariant.String
-                elif textureTypes[row].strip() == 'float':
-                    type = QVariant.Double
-                elif textureTypes[row].strip() == 'int':
-                    type = QVariant.Type.Int
-                else:
-                    type = QVariant.String
-                new_fields.append(QgsField(str(new_field), type)) #Store talsim parameters in a variable
-                self.soilFieldNames.append(new_field)
-                if self.soilLayerIntermediate.fields().indexOf(old_field) != -1:
-                    type_old = self.soilLayerIntermediate.fields().field(old_field).type()
-                    if type_old != type:
-                        self.log_to_qtalsim_tab(f'You entered {old_field} for Talsim parameter {new_field}. Your field has type {QVariant.typeToName(type_old)}, when it should have type {QVariant.typeToName(type)}.', Qgis.Warning)
-                        fields_wrong_datatype.append(old_field)
-                    #if new_field == 'Name' and old_field is 'Parameter not available':
+                for i in range(0, self.number_soilLayers): 
+                    old_field = self.dlg.tableSoilMapping.cellWidget(row, i+1).currentText() #Current Text of Combo-Box specified by user
+                    new_field = f"{self.dlg.tableSoilMapping.item(row, 0).text()}_soillayer{i+1}" #Get Talsim parameter
+                    if old_field == 'Parameter not available' and row == 1:
+                        self.soilIDNames.append(new_field) 
+                        #hier evtl. implementieren, dass nur jene Schichten angezeigt werden, die auch wirklich befüllt wurden
+                    value_mapping[old_field] = new_field
+                    if textureTypes[row].strip() == 'string':
+                        type = QVariant.String
+                    elif textureTypes[row].strip() == 'float':
+                        type = QVariant.Double
+                    elif textureTypes[row].strip() == 'int':
+                        type = QVariant.Int
+                    else:
+                        type = QVariant.String
+                    new_fields.append(QgsField(str(new_field), type)) #Store talsim parameters in a variable
+                    self.soilFieldNames.append(new_field)
+                    if self.soilLayerIntermediate.fields().indexOf(old_field) != -1:
+                        type_old = self.soilLayerIntermediate.fields().field(old_field).type()
+                        if type_old != type:
+                            self.log_to_qtalsim_tab(f'You entered {old_field} for Talsim parameter {new_field}. Your field has type {QVariant.typeToName(type_old)}, when it should have type {QVariant.typeToName(type)}.', Qgis.Warning)
+                            fields_wrong_datatype.append(old_field)
+                        #if new_field == 'Name' and old_field is 'Parameter not available':
                     
             self.soilLayerIntermediate.dataProvider().addAttributes(new_fields) #create new fields with the talsim parameters
             self.soilLayerIntermediate.updateFields()
             
             #Populate soil parameter fields in soil layer
             self.soilLayerIntermediate.startEditing()
-            try:
+            try: 
                 for feature in self.soilLayerIntermediate.getFeatures():
                     for old_field, new_field in value_mapping.items():
                         if old_field == 'Parameter not available':
@@ -1321,7 +1325,7 @@ class QTalsim:
             self.soilLayerIntermediate.commitChanges()
             
             if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
-                self.soilLayerIntermediate = self.deletePolygonsBelowThreshold(self.soilLayerIntermediate, self.soilFieldNames, self.IDSoil)
+                self.soilLayerIntermediate = self.deletePolygonsBelowThreshold(self.soilLayerIntermediate, self.soilFieldNames, self.soilIDNames)
             
             try:   
                 #Only keep relevant fields
@@ -1378,7 +1382,7 @@ class QTalsim:
             self.dlg.tableSoilTypeDelete.setColumnWidth(2, 200)
 
             self.soilFields = self.soilLayerIntermediate.fields()
-            field_index = self.soilFields.indexFromName(self.nameSoil)
+            field_index = self.soilFields.indexFromName(f"{self.nameSoil}_soillayer1") #Which field should be shown in the list of overlapping 
             self.dlg.tableSoilTypeDelete.setUpdatesEnabled(False)
             self.radio_buttons_soil = []
             self.radio_button_to_row_soil = {}
@@ -1399,9 +1403,10 @@ class QTalsim:
                     last_logged_progress = progress
 
                 feature_id1, feature_id2 = feature_pair
+                self.log_to_qtalsim_tab(f"{feature_pair}", Qgis.Info)
                 feature1 = self.soilLayerIntermediate.getFeature(feature_id1)
                 feature2 = self.soilLayerIntermediate.getFeature(feature_id2)
-
+                
                 overlappingName1 = feature1[field_index] #Get the names of field  soil names
                 overlappingName2 = feature2[field_index] #Get the names of field  soil names
                 
@@ -2393,7 +2398,12 @@ class QTalsim:
             #EFL-Dissolve-List
             eflFieldList = []
             eflFieldList.append(self.ezgUniqueIdentifier) #ID of catchment area
-            eflFieldList.append(id_field) #ID Soil/Landuse
+            if isinstance(id_field, list):
+                # If id_field is a list, append each item to eflFieldList
+                eflFieldList.extend(id_field)
+            else:
+                # If id_field is a single string, append it directly
+                eflFieldList.append(id_field) #ID Soil/Landuse
             splitLayers = []
 
             total_features = len([name for name in os.listdir(outputDirSplit) if os.path.isfile(os.path.join(outputDirSplit, name))])
@@ -2613,7 +2623,7 @@ class QTalsim:
             #Features with no geometry or NULL-values may lead to errors: delete those features
             features_to_delete = []
             for feature in intersectedDissolvedLayer.getFeatures():
-                if feature.geometry().isEmpty() or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' and str(feature[self.IDSoil]).strip().upper() == 'NULL' and str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
+                if feature.geometry().isEmpty() or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' and str(feature[self.soilIDNames[0]]).strip().upper() == 'NULL' and str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
                     features_to_delete.append(feature.id())                    
             
             intersectedDissolvedLayer.startEditing()
@@ -2643,7 +2653,7 @@ class QTalsim:
             #EFL-Dissolve-List
             eflFieldList = []
             eflFieldList.append(self.ezgUniqueIdentifier) #ID of catchment area
-            eflFieldList.append(self.IDSoil) #ID Soil
+            eflFieldList.extend(self.soilIDNames) #ID Soil
             eflFieldList.append(self.fieldLanduseID) #ID LNZ
             splitLayers = []
 
@@ -2757,7 +2767,7 @@ class QTalsim:
             features_to_delete = []
             for feature in self.finalLayer.getFeatures():
                 # Check if all attribute values are 'NULL'
-                if feature.geometry().isEmpty() or feature.geometry() is None or feature.geometry().area() == 0 or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' and str(feature[self.IDSoil]).strip().upper() == 'NULL' and str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
+                if feature.geometry().isEmpty() or feature.geometry() is None or feature.geometry().area() == 0 or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' and str(feature[self.soilIDNames[0]]).strip().upper() == 'NULL' and str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
                     features_to_delete.append(feature.id())
             if len(features_to_delete) > 0:
                 self.log_to_qtalsim_tab(f"{len(features_to_delete)} features are deleted as they are empty polygons. ", Qgis.Info)
@@ -2779,6 +2789,7 @@ class QTalsim:
             self.finalLayer.commitChanges()
 
             #SoilId is needed two times
+            '''
             # Start editing the layer
             self.finalLayer.startEditing()
 
@@ -2793,7 +2804,7 @@ class QTalsim:
             # Add the new field to the layer
             self.finalLayer.dataProvider().addAttributes([new_field])
             self.finalLayer.updateFields()
-
+            
             # Prepare a dictionary to hold the attribute changes
             attributes = {}
 
@@ -2810,7 +2821,7 @@ class QTalsim:
 
             # Commit the changes
             self.finalLayer.commitChanges()
-
+            '''
             #Log catchment areas where size of all HRUs != size of catchment area
             sum_areas = {key: 0 for key in ezgAreas.keys()}
             for feature in self.finalLayer.getFeatures():
@@ -2875,9 +2886,7 @@ class QTalsim:
             self.eflLayer.commitChanges()
 
             #Rename the fieldnames  
-            field_index = self.eflLayer.fields().indexFromName(self.IDSoil)
             self.eflLayer.startEditing()
-            self.eflLayer.renameAttribute(field_index, self.hruSoilTypeId)
             field_index = self.eflLayer.fields().indexFromName(self.fieldLanduseID)
             self.eflLayer.renameAttribute(field_index, self.hruLandUseId)
             field_index = self.eflLayer.fields().indexFromName(self.ezgUniqueIdentifier)
@@ -2885,8 +2894,7 @@ class QTalsim:
             self.eflLayer.commitChanges()
             self.eflLayer.setName("EFL")
 
-            QgsProject.instance().addMapLayer(self.eflLayer) 
-
+            #Adding the BOD-ID below
             '''
                 Create .LNZ
             '''
@@ -2914,6 +2922,121 @@ class QTalsim:
 
             '''
                 Create .BOA - SoilTexture
+            '''
+
+            new_fields = QgsFields()
+
+            #Get the field names of the first soil layer in the final layer
+            for field in self.finalLayer.fields():
+                if field.name().endswith(f"soillayer1"):  #Start with 'soillayer1', but this will handle all similar layers
+                    #Remove the 'soillayer1' suffix to create the new field name
+                    base_field_name = field.name().rsplit('_soillayer', 1)[0]  #Remove the suffix like '_soillayer1'
+                    new_fields.append(QgsField(base_field_name, field.type()))
+
+            #Create the final soil texture layer
+            crs = self.finalLayer.crs()
+            self.soilTextureFinal = QgsVectorLayer(f"Polygon?crs={crs}", "BOA", "memory", crs=crs)
+            new_layer_data_provider = self.soilTextureFinal.dataProvider()
+            new_layer_data_provider.addAttributes(new_fields)
+            self.soilTextureFinal.updateFields()
+            
+            unique_combinations = set()
+            unique_feature_index = {}
+            for feature in self.finalLayer.getFeatures():
+                geometry = feature.geometry()
+                for i in range(1, self.number_soilLayers + 1):
+                    combination = tuple(feature[f"{field.name()}_soillayer{i}"] for field in new_fields)
+                    if combination not in unique_combinations:
+                        unique_combinations.add(combination)
+                        #Create new feature for each soil layer
+                        new_feature = QgsFeature(self.soilTextureFinal.fields())
+                        new_feature.setGeometry(geometry)
+                        for field in new_fields:
+                            #Construct the field name for this soil layer (e.g., 'soil_layer1_soil_id')
+                            original_field_name = f"{field.name()}_soillayer{i}"
+
+                            #Add the corresponding value to the new feature if the field exists
+                            if self.finalLayer.fields().indexOf(original_field_name) != -1:
+                                new_feature.setAttribute(field.name(), feature[original_field_name])
+
+                        # Add the new feature (row) to the new layer
+                        new_layer_data_provider.addFeature(new_feature)
+                        unique_feature_index[combination] = new_feature.id()
+
+            self.soilTextureFinal.commitChanges()
+            QgsProject.instance().addMapLayer(self.soilTextureFinal)
+
+            '''
+                BOD
+            '''
+            bod_fields = QgsFields()
+
+            #Create reference fields to soil textures
+            bod_fields.append(QgsField(f"ID", QVariant.Int))
+            for i in range(1, self.number_soilLayers + 1):
+                bod_fields.append(QgsField(f"soillayer{i}_id_boa", QVariant.Int))  #Reference to the soil_id in the first layer
+
+            self.soilTypeFinal = QgsVectorLayer(f"Polygon?crs={crs}", "BOD", "memory")
+            bod_data_provider = self.soilTypeFinal.dataProvider()
+            bod_data_provider.addAttributes(bod_fields)
+            self.soilTypeFinal.updateFields()
+
+            j=1
+            combination_to_id = {}
+            for feature in self.finalLayer.getFeatures():
+                new_feature = QgsFeature(self.soilTypeFinal.fields())
+                geometry = feature.geometry()
+                for i in range(1, self.number_soilLayers + 1):
+                    # Create a tuple that holds the values of the dynamic fields
+                    combination = tuple(feature[f"{field.name()}_soillayer{i}"] for field in new_fields)
+
+                    #Add ID
+                    if combination not in combination_to_id:
+                        # If it's a new combination, assign a new ID and store it in the dictionary
+                        combination_to_id[combination] = j
+                        j += 1
+
+                    # Find the index of the corresponding feature in the new_layer and set the reference
+                    if combination in unique_feature_index:
+                        new_feature.setGeometry(geometry)
+                        new_feature.setAttribute(f"soillayer{i}_id_boa", unique_feature_index[combination])
+                # Add the feature (row) to the second layer
+                bod_data_provider.addFeature(new_feature)
+
+            bod_field_names = [field.name() for field in bod_fields]
+            resultDissolve = processing.run("native:dissolve", {'INPUT': self.soilTypeFinal,'FIELD': bod_field_names,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
+            self.soilTypeFinal = resultDissolve['OUTPUT']
+            self.soilTypeFinal.setName("BOD")
+            QgsProject.instance().addMapLayer(self.soilTypeFinal)
+
+
+            #Join the soil id (BOD) to the EFL-layer
+            # Define the parameters for the spatial join
+            params = {
+                'INPUT': self.eflLayer,  
+                'JOIN': self.soilTypeFinal,  
+                'PREDICATE': [0],  
+                'JOIN_FIELDS': ['ID'],  
+                'METHOD': 1,  
+                'DISCARD_NONMATCHING': False,  
+                'OUTPUT': 'memory:'  
+            }
+
+            # Run the spatial join
+            result = processing.run('native:joinattributesbylocation', params)
+
+            # Get the resulting layer (joined output)
+            self.eflLayer = result['OUTPUT']
+
+            # Now rename the joined 'ID' column to the desired target_column_name
+            self.eflLayer.startEditing()
+            for field in self.eflLayer.fields():
+                if field.name() == 'ID': 
+                    self.eflLayer.renameAttribute(self.eflLayer.fields().indexOf('ID'), self.hruSoilTypeId)  # Rename it
+            self.eflLayer.commitChanges()
+
+            # Add the updated eflLayer to the map
+            QgsProject.instance().addMapLayer(self.eflLayer)
             '''
             try:
                 self.soilFieldNames.remove(self.soilTypeThickness)
@@ -2945,11 +3068,11 @@ class QTalsim:
             self.soilTextureFinal.commitChanges()
 
             QgsProject.instance().addMapLayer(self.soilTextureFinal) 
-
+            '''
             '''
                 Create .BOD - SoilType
             '''
-            
+            '''
             self.soilTypeList.append(self.soilTypeThickness)
             self.soilTypeList.append(self.IDSoil)
             self.soilTypeList.append(self.nameSoil)
@@ -2967,22 +3090,6 @@ class QTalsim:
                 if i not in dissolve_fields_indices:
                     self.soilTypeFinal.deleteAttribute(i)
             self.soilTypeFinal.commitChanges() 
-            
-            '''
-            #Add Fields Id
-            self.soilTypeFinal.startEditing()
-            
-            soilTypeDP = self.soilTypeFinal.dataProvider()
-            soilTypeDP.addAttributes([QgsField("Id", QVariant.Int)])
-            self.soilTypeFinal.commitChanges()
-            self.soilTypeFinal.updateFields()
-            
-            self.soilTypeFinal.startEditing()
-            for feature in self.soilTypeFinal.getFeatures():
-                feature["Id"] = int(feature.id())
-                self.soilTypeFinal.updateFeature(feature)
-            self.soilTypeFinal.commitChanges()
-            '''
 
             self.soilTypeFinal.setName("BOD")
 
@@ -2997,7 +3104,7 @@ class QTalsim:
             self.soilTypeFinal.commitChanges()
 
             QgsProject.instance().addMapLayer(self.soilTypeFinal) 
-
+            '''
             self.log_to_qtalsim_tab(f"Finished intersection of layers.", Qgis.Info)
         
         except Exception as e:
@@ -3184,9 +3291,9 @@ class QTalsim:
                 data = []
                 for feature in features:
                     #hier weitermachen - die anderen Features ohne Werte auch noch hinzufügen 
-                    layer_data = {"ID" : feature["Id"], "anzsch" : 1, "d1" : feature[self.soilTypeThickness], "boa1": feature[self.soilTextureId1],
-                                "d2" : None, "boa2" : None, "d3" : None, "boa3" : None, "d4" : None, "boa4" : None, "d5" : None, "boa5" : None,
-                                "d6" : None, "boa6" : None, "Beschreibung" : feature[self.soilDescription]}
+                    layer_data = {"ID" : feature["Id"], "anzsch" : self.number_soilLayers, "d1" : feature[self.soilTypeThickness], "boa1": feature['soillayer1_id_boa'],
+                                "d2" : None, "boa2" : feature['soillayer2_id_boa'], "d3" : None, "boa3" : feature['soillayer3_id_boa'], "d4" : None, "boa4" : feature['soillayer4_id_boa'], "d5" : None, "boa5" : feature['soillayer5_id_boa'],
+                                "d6" : None, "boa6" : feature['soillayer6_id_boa'], "Beschreibung" : feature[self.soilDescription]}
                     data.append(layer_data)
 
                 formatted_data = []
@@ -3219,7 +3326,7 @@ class QTalsim:
 
                 outputPathBoa = os.path.join(self.outputFolder, f"{filename}.BOA")
 
-                clause = QgsFeatureRequest.OrderByClause(self.boaId, ascending=True)
+                clause = QgsFeatureRequest.OrderByClause('ID_Soil', ascending=True)
                 orderby = QgsFeatureRequest.OrderBy([clause])
 
                 request = QgsFeatureRequest()
@@ -3230,7 +3337,7 @@ class QTalsim:
                 data = []
                 for feature in features:
                    
-                    layer_data = {"ID" : feature[self.boaId], "Soil" : feature[self.boaName], "BD": feature["BulkDensityClass"],
+                    layer_data = {"ID" : feature['ID_Soil'], "Soil" : feature[self.boaName], "BD": feature["BulkDensityClass"],
                                 "Typ" : feature["Category"], "WP" : feature["WiltingPoint"], "FK" : feature["FieldCapacity"],
                                 "GPV" : feature["TotalPoreVolume"], "Kf" : feature["KfValue"], "maxInf" : feature["MaxInfiltration"],
                                 "maxKap" : feature["MaxCapillarySuction"], "Beschreibung" : feature[self.soilDescription]}
