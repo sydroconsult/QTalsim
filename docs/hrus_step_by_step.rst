@@ -141,16 +141,6 @@ Select and Edit Land use layer
 
 
       -  **Land use Mapping**
-         This table contains Talsim soil parameters in the first column
-         and all the field names of the soil layer in drop-down menus in
-         the other six columns. These six columns represent the soil layers. In this step, users are required to map each
-         Talsim parameter to its corresponding fields in the soil layer.
-         The table below shows the necessary type for these parameters.
-         If the user-mapped field has a different datatype, the plugin,
-         where possible, converts the field’s values to the parameter’s
-         type. If ‘Parameter not available’ is selected, that parameter
-         will be added with null values.
-
          The land use mapping table is populated similarily to the soil mapping table. The first column contains Talsim land use parameters and the second column contains drop-down menus with all field names of the input land use layer. 
          Here, you must match each Talsim parameter (in the first column) with the corresponding field in the input layer (in the second column).
          The table below shows the necessary type for these parameters. Additionally, it also shows the required unit and restrictions of the parameters. If the user-mapped field has a different datatype, the plugin,
