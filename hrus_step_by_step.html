@@ -86,13 +86,9 @@ table is populated with the fields of the soil layer.</p>
 <li><p><strong>Soil Mapping</strong></p>
 <p>This table contains Talsim soil parameters in the first column
 and all the field names of the soil layer in drop-down menus in
-the second column. In this step, users are required to map each
-Talsim parameter to its corresponding field in the soil layer.
-If the user selects “Feature IDs of Soil Layer” for the ID-column,
-it is recommended that the soil input layer is a dissolved layer.
-QTalsim takes the feature ids of the input layer.
-The table below shows the necessary type for these parameters.
-If the user-mapped field has a different datatype, the plugin,
+the other six columns. These six columns represent the soil layers. In this step, users are required to map each
+Talsim parameter to its corresponding fields in the soil layer.
+The table below shows the necessary type for these parameters. Additionally, it also shows the required unit and restrictions of the parameters. If the user-mapped field has a different datatype, the plugin,
 where possible, converts the field’s values to the parameter’s
 type. If ‘Parameter not available’ is selected, that parameter
 will be added with null values.</p>
@@ -111,45 +107,92 @@ parameter, a warning is logged.</p>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Unit</p></th>
 <th class="head"><p>Type</p></th>
+<th class="head"><p>Restriction</p></th>
 </tr>
 </thead>
 <tbody>
 <tr class="row-even"><td><p>ID_Soil</p></td>
+<td><ul class="simple">
+<li></li>
+</ul>
+</td>
 <td><p>int</p></td>
+<td><ul class="simple">
+<li></li>
+</ul>
+</td>
 </tr>
 <tr class="row-odd"><td><p>NameSoil</p></td>
+<td><ul class="simple">
+<li></li>
+</ul>
+</td>
 <td><p>string</p></td>
+<td><p>max length 4</p></td>
 </tr>
 <tr class="row-even"><td><p>Description</p></td>
+<td><ul class="simple">
+<li></li>
+</ul>
+</td>
 <td><p>string</p></td>
+<td><ul class="simple">
+<li></li>
+</ul>
+</td>
 </tr>
 <tr class="row-odd"><td><p>BulkDensityClass</p></td>
+<td><ul class="simple">
+<li></li>
+</ul>
+</td>
 <td><p>int</p></td>
+<td><p>1 &gt;= x &gt;= 5</p></td>
 </tr>
 <tr class="row-even"><td><p>Category</p></td>
+<td><ul class="simple">
+<li></li>
+</ul>
+</td>
 <td><p>int</p></td>
+<td><p>1 = Sand, 2 = Silt, 3 = Clay</p></td>
 </tr>
 <tr class="row-odd"><td><p>WiltingPoint</p></td>
+<td><p>mm/m</p></td>
 <td><p>float</p></td>
+<td><p>0 &gt;= x &gt;= 1000</p></td>
 </tr>
 <tr class="row-even"><td><p>FieldCapacity</p></td>
+<td><p>mm/m</p></td>
 <td><p>float</p></td>
+<td><p>0 &gt;= x &gt;= 1000</p></td>
 </tr>
 <tr class="row-odd"><td><p>TotalPoreVolume</p></td>
+<td><p>mm/m</p></td>
 <td><p>float</p></td>
+<td><p>0 &gt;= x &gt;= 1000</p></td>
 </tr>
 <tr class="row-even"><td><p>KfValue</p></td>
+<td><p>mm/h</p></td>
 <td><p>float</p></td>
+<td><p>0 &gt; x</p></td>
 </tr>
 <tr class="row-odd"><td><p>MaxInfiltration</p></td>
+<td><p>mm/h</p></td>
 <td><p>float</p></td>
+<td><p>0 &gt; x</p></td>
 </tr>
 <tr class="row-even"><td><p>MaxCapillarySuction</p></td>
+<td><p>mm/h</p></td>
 <td><p>float</p></td>
+<td><p>0 &gt;= x</p></td>
 </tr>
 <tr class="row-odd"><td><p>LayerThickness1</p></td>
+<td><p>m</p></td>
 <td><p>float</p></td>
+<td><p>0 &gt; x</p></td>
 </tr>
 </tbody>
 </table>
@@ -194,35 +237,28 @@ confirm your selection by clicking ‘Confirm Layer’. Upon doing
 so, all valid geometries of this layer are selected and clipped
 to align with the boundaries of the sub-basin layer. During
 this process, any duplicate geometries within the layer are
-also removed. After confirming the layer, you must then select
-the field containing the land use types and confirm this
-selection by clicking ‘Confirm Field’. The unique land use
-types identified here will be used in a subsequent step.</p>
+also removed.</p>
 <p><img alt="Select Land use Layer" src="_images/SelectLanduseLayer.png" /></p>
 </li>
-<li><p><strong>Upload Talsim Land use Names and Parameters</strong></p>
-<p>The user must upload a CSV-file that includes the Talsim land
-use types and their associated parameter values. This can be
-done by by clicking ‘Select CSV-File’, which allows the user to
-choose the CSV-file. It is important to select the correct
-delimiter for the file. After uploading, users can check the
-parameters by reviewing the QTalsim-Log.</p>
-<p><img alt="CSV-File Land use" src="_images/CSVFile_Landuse.png" /> <img alt="Upload CSV-File" src="_images/UploadCSVFile.png" /></p>
-</li>
-<li><p><strong>Land use Mapping</strong></p>
-<p>When you click on ‘Start Landuse Mapping’, the land use mapping
-table will be populated with all unique land use types from the
-layer in the first column. In the second column, a
-dropdown-menu with all Talsim fields of the CSV-file will
-appear. Here, you must match each land use type from your data
-(in the first column) with the corresponding Talsim land use
-type (in the second column). For convenience, the second column
-is automatically prefilled with Talsim land use types that have
-the same name in the layer and the CSV-file. After completing
-the mapping, click ‘Confirm Landuse Mapping’ to create a new
+<li><p><strong>Land use Mapping</strong>
+This table contains Talsim soil parameters in the first column
+and all the field names of the soil layer in drop-down menus in
+the other six columns. These six columns represent the soil layers. In this step, users are required to map each
+Talsim parameter to its corresponding fields in the soil layer.
+The table below shows the necessary type for these parameters.
+If the user-mapped field has a different datatype, the plugin,
+where possible, converts the field’s values to the parameter’s
+type. If ‘Parameter not available’ is selected, that parameter
+will be added with null values.</p>
+<p>The land use mapping table is populated similarily to the soil mapping table. The first column contains Talsim land use parameters and the second column contains drop-down menus with all field names of the input land use layer.
+Here, you must match each Talsim parameter (in the first column) with the corresponding field in the input layer (in the second column).
+The table below shows the necessary type for these parameters. Additionally, it also shows the required unit and restrictions of the parameters. If the user-mapped field has a different datatype, the plugin,
+where possible, converts the field’s values to the parameter’s
+type. If ‘Parameter not available’ is selected, that parameter
+will be added with null values.</p>
+<p>After completing the mapping, click ‘Confirm Landuse Mapping’ to create a new
 layer containing the input fields from your layer and the
-Talsim parameter values, as specified in the CSV-file. If the user
-defines area/percentage thresholds, land use features below these thresholds are
+Talsim parameter values. If the user defines area/percentage thresholds, land use features below these thresholds are
 deleted during this step. The user can set a minimum size of
 the land use features [m²] and a minimum percentage of the land use features relative to the
 corresponding sub-basin’s area. Land use features that fall below the specified size or

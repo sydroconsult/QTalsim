@@ -18,9 +18,8 @@ Requirements for Input Layers
 
    #. Soil Layer
 
-      This layer should contain all soil types within the study area,
-      but it must only consist of one soil layer. It must contain a
-      field specifying the names of the soil types.
+      This layer should contain all soil types within the study area and can consist of up to 6 soil layers. It must contain at least a
+      field specifying the names of the soil types of one soil layer.
 
    #. Land Use Layer
 
