@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1015</width>
+    <width>1157</width>
     <height>860</height>
    </rect>
   </property>
@@ -18,7 +18,7 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>150</width>
+    <width>0</width>
     <height>0</height>
    </size>
   </property>
@@ -46,6 +46,12 @@
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
        <widget class="QScrollArea" name="scrollArea_2">
+        <property name="minimumSize">
+         <size>
+          <width>900</width>
+          <height>0</height>
+         </size>
+        </property>
         <property name="widgetResizable">
          <bool>true</bool>
         </property>
@@ -53,9 +59,9 @@
          <property name="geometry">
           <rect>
            <x>0</x>
-           <y>-60</y>
-           <width>948</width>
-           <height>1496</height>
+           <y>-465</y>
+           <width>877</width>
+           <height>1709</height>
           </rect>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout">
@@ -462,240 +468,194 @@
            </widget>
           </item>
           <item>
-           <widget class="QScrollArea" name="scrollArea">
+           <widget class="QWidget" name="widget" native="true">
             <property name="minimumSize">
              <size>
-              <width>0</width>
-              <height>500</height>
+              <width>500</width>
+              <height>700</height>
              </size>
             </property>
-            <property name="widgetResizable">
-             <bool>true</bool>
-            </property>
-            <widget class="QWidget" name="scrollAreaWidgetContents_2">
-             <property name="geometry">
-              <rect>
-               <x>0</x>
-               <y>0</y>
-               <width>903</width>
-               <height>722</height>
-              </rect>
-             </property>
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
-               <horstretch>11</horstretch>
-               <verstretch>100</verstretch>
-              </sizepolicy>
-             </property>
-             <layout class="QVBoxLayout" name="verticalLayout_3">
-              <property name="spacing">
-               <number>0</number>
-              </property>
-              <property name="leftMargin">
-               <number>0</number>
-              </property>
-              <property name="topMargin">
-               <number>0</number>
-              </property>
-              <property name="rightMargin">
-               <number>0</number>
-              </property>
-              <property name="bottomMargin">
-               <number>0</number>
-              </property>
-              <item>
-               <widget class="QWidget" name="widget" native="true">
-                <property name="minimumSize">
-                 <size>
-                  <width>500</width>
-                  <height>700</height>
-                 </size>
-                </property>
-                <layout class="QVBoxLayout" name="verticalLayout_6">
-                 <item>
-                  <widget class="QgsCollapsibleGroupBox" name="mGroupBox">
-                   <property name="enabled">
-                    <bool>true</bool>
-                   </property>
-                   <property name="sizePolicy">
-                    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                     <horstretch>11</horstretch>
-                     <verstretch>100</verstretch>
-                    </sizepolicy>
-                   </property>
-                   <property name="minimumSize">
-                    <size>
-                     <width>500</width>
-                     <height>700</height>
-                    </size>
-                   </property>
-                   <property name="maximumSize">
-                    <size>
-                     <width>4000</width>
-                     <height>16777215</height>
-                    </size>
-                   </property>
-                   <property name="title">
-                    <string>Edit Land Use Layer</string>
-                   </property>
-                   <property name="alignment">
-                    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
-                   </property>
-                   <property name="flat">
-                    <bool>false</bool>
-                   </property>
-                   <property name="checkable">
-                    <bool>false</bool>
-                   </property>
-                   <property name="collapsed">
-                    <bool>false</bool>
-                   </property>
-                   <property name="saveCollapsedState">
-                    <bool>true</bool>
-                   </property>
-                   <property name="saveCheckedState">
-                    <bool>false</bool>
-                   </property>
-                   <layout class="QVBoxLayout" name="verticalLayout_7" stretch="0,0,0,5,0">
-                    <item>
-                     <layout class="QHBoxLayout" name="horizontalLayout_19">
-                      <item>
-                       <widget class="QLabel" name="labelLanduse">
-                        <property name="text">
-                         <string>Select Land Use Layer</string>
-                        </property>
-                       </widget>
-                      </item>
-                      <item>
-                       <widget class="QComboBox" name="comboboxLanduseLayer">
-                        <property name="sizePolicy">
-                         <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
-                          <horstretch>0</horstretch>
-                          <verstretch>0</verstretch>
-                         </sizepolicy>
-                        </property>
-                       </widget>
-                      </item>
-                      <item>
-                       <widget class="QPushButton" name="onLanduseLayer">
-                        <property name="toolTip">
-                         <string/>
-                        </property>
-                        <property name="text">
-                         <string>Confirm Land Use Layer</string>
-                        </property>
-                       </widget>
-                      </item>
-                     </layout>
-                    </item>
-                    <item>
-                     <widget class="QTableWidget" name="tableLanduseMapping"/>
-                    </item>
-                    <item>
-                     <widget class="QPushButton" name="onConfirmLanduseMapping">
-                      <property name="text">
-                       <string>Confirm Land Use Mapping</string>
-                      </property>
-                     </widget>
-                    </item>
-                    <item>
-                     <layout class="QVBoxLayout" name="verticalLayout_5">
-                      <item>
-                       <widget class="QgsCollapsibleGroupBox" name="mGroupBox_2">
-                        <property name="title">
-                         <string>Optional Editing Steps for Land Use Layer</string>
-                        </property>
-                        <layout class="QVBoxLayout" name="verticalLayout_24">
-                         <item>
-                          <layout class="QHBoxLayout" name="horizontalLayout_14">
-                           <item>
-                            <widget class="QPushButton" name="onCheckOverlappingLanduse">
-                             <property name="text">
-                              <string>Check for Overlapping Features</string>
-                             </property>
-                            </widget>
-                           </item>
-                           <item>
-                            <widget class="QPushButton" name="onDeleteOverlapsLanduse">
-                             <property name="toolTip">
-                              <string>Deletes all overlapping parts of land use layer. If two polygons overlap, the overlapping part is assigned to the smaller of the two polygons.</string>
-                             </property>
-                             <property name="text">
-                              <string>Delete All Overlapping Features</string>
-                             </property>
-                            </widget>
-                           </item>
-                          </layout>
-                         </item>
-                         <item>
-                          <layout class="QHBoxLayout" name="horizontalLayout_17">
-                           <item>
-                            <widget class="QTableWidget" name="tableLanduseDelete">
-                             <property name="minimumSize">
-                              <size>
-                               <width>0</width>
-                               <height>200</height>
-                              </size>
-                             </property>
-                             <property name="toolTip">
-                              <string>In each row select </string>
-                             </property>
-                            </widget>
-                           </item>
-                           <item>
-                            <widget class="QPushButton" name="onLanduseTypeDelete">
-                             <property name="text">
-                              <string>Delete Overlapping Part of Selected Features</string>
-                             </property>
-                            </widget>
-                           </item>
-                          </layout>
-                         </item>
-                         <item>
-                          <layout class="QHBoxLayout" name="horizontalLayout_10">
-                           <item>
-                            <widget class="QPushButton" name="onCheckGapsLanduse">
-                             <property name="text">
-                              <string>Check for Gaps</string>
-                             </property>
-                            </widget>
-                           </item>
-                           <item>
-                            <widget class="QComboBox" name="comboboxModeEliminateLanduse">
-                             <property name="toolTip">
-                              <string>Choose the elimination to eliminate the gaps.</string>
-                             </property>
-                            </widget>
-                           </item>
-                           <item>
-                            <widget class="QPushButton" name="onFillGapsLanduse">
-                             <property name="text">
-                              <string>Fill Gaps</string>
-                             </property>
-                            </widget>
-                           </item>
-                          </layout>
-                         </item>
-                        </layout>
-                       </widget>
-                      </item>
-                     </layout>
-                    </item>
-                    <item>
-                     <widget class="QPushButton" name="onCreateLanduseLayer">
-                      <property name="text">
-                       <string>Create Land Use Layer</string>
-                      </property>
-                     </widget>
-                    </item>
-                   </layout>
-                  </widget>
-                 </item>
-                </layout>
-               </widget>
-              </item>
-             </layout>
-            </widget>
+            <layout class="QVBoxLayout" name="verticalLayout_6">
+             <item>
+              <widget class="QgsCollapsibleGroupBox" name="mGroupBox">
+               <property name="enabled">
+                <bool>true</bool>
+               </property>
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                 <horstretch>11</horstretch>
+                 <verstretch>100</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="minimumSize">
+                <size>
+                 <width>500</width>
+                 <height>700</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>4000</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="title">
+                <string>Edit Land Use Layer</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+               </property>
+               <property name="flat">
+                <bool>false</bool>
+               </property>
+               <property name="checkable">
+                <bool>false</bool>
+               </property>
+               <property name="collapsed">
+                <bool>false</bool>
+               </property>
+               <property name="saveCollapsedState">
+                <bool>true</bool>
+               </property>
+               <property name="saveCheckedState">
+                <bool>false</bool>
+               </property>
+               <layout class="QVBoxLayout" name="verticalLayout_7" stretch="0,0,0,5,0">
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_19">
+                  <item>
+                   <widget class="QLabel" name="labelLanduse">
+                    <property name="text">
+                     <string>Select Land Use Layer</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QComboBox" name="comboboxLanduseLayer">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="onLanduseLayer">
+                    <property name="toolTip">
+                     <string/>
+                    </property>
+                    <property name="text">
+                     <string>Confirm Land Use Layer</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <widget class="QTableWidget" name="tableLanduseMapping"/>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="onConfirmLanduseMapping">
+                  <property name="text">
+                   <string>Confirm Land Use Mapping</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <layout class="QVBoxLayout" name="verticalLayout_5">
+                  <item>
+                   <widget class="QgsCollapsibleGroupBox" name="mGroupBox_2">
+                    <property name="title">
+                     <string>Optional Editing Steps for Land Use Layer</string>
+                    </property>
+                    <layout class="QVBoxLayout" name="verticalLayout_24">
+                     <item>
+                      <layout class="QHBoxLayout" name="horizontalLayout_14">
+                       <item>
+                        <widget class="QPushButton" name="onCheckOverlappingLanduse">
+                         <property name="text">
+                          <string>Check for Overlapping Features</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QPushButton" name="onDeleteOverlapsLanduse">
+                         <property name="toolTip">
+                          <string>Deletes all overlapping parts of land use layer. If two polygons overlap, the overlapping part is assigned to the smaller of the two polygons.</string>
+                         </property>
+                         <property name="text">
+                          <string>Delete All Overlapping Features</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </item>
+                     <item>
+                      <layout class="QHBoxLayout" name="horizontalLayout_17">
+                       <item>
+                        <widget class="QTableWidget" name="tableLanduseDelete">
+                         <property name="minimumSize">
+                          <size>
+                           <width>0</width>
+                           <height>200</height>
+                          </size>
+                         </property>
+                         <property name="toolTip">
+                          <string>In each row select </string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QPushButton" name="onLanduseTypeDelete">
+                         <property name="text">
+                          <string>Delete Overlapping Part of Selected Features</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </item>
+                     <item>
+                      <layout class="QHBoxLayout" name="horizontalLayout_10">
+                       <item>
+                        <widget class="QPushButton" name="onCheckGapsLanduse">
+                         <property name="text">
+                          <string>Check for Gaps</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QComboBox" name="comboboxModeEliminateLanduse">
+                         <property name="toolTip">
+                          <string>Choose the elimination to eliminate the gaps.</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QPushButton" name="onFillGapsLanduse">
+                         <property name="text">
+                          <string>Fill Gaps</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="onCreateLanduseLayer">
+                  <property name="text">
+                   <string>Create Land Use Layer</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+            </layout>
            </widget>
           </item>
           <item>
@@ -807,6 +767,43 @@
         </property>
         <property name="centerButtons">
          <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QgsCollapsibleGroupBox" name="mGroupBox_3">
+     <property name="minimumSize">
+      <size>
+       <width>200</width>
+       <height>0</height>
+      </size>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout_4">
+      <item>
+       <widget class="QTextBrowser" name="textBrowser">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>180</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="html">
+         <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'MS Shell Dlg 2'; font-size:9.75pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8pt; font-weight:600;&quot;&gt;HRU Calculation&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:8pt; font-weight:600;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'sans-serif'; font-size:8pt; color:#000000; background-color:#ffffff;&quot;&gt;This plugin is designed to create hydrological response units (HRUs) suitable for Talsim. The plugin processes three layers, including a sub-basin layer, soil layer and land use layer. It clips the layers in accordance with the sub-basin layer’s boundaries. The plugin then intersects those three layers and creates HRUs. Additionally, the plugin offers functionality to remove duplicate geometries, overlapping features and unwanted gaps.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
        </widget>
       </item>

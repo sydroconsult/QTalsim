@@ -54,13 +54,9 @@ Select & Edit Soil Layer
 
          This table contains Talsim soil parameters in the first column
          and all the field names of the soil layer in drop-down menus in
-         the second column. In this step, users are required to map each
-         Talsim parameter to its corresponding field in the soil layer.
-	 If the user selects "Feature IDs of Soil Layer" for the ID-column,
-	 it is recommended that the soil input layer is a dissolved layer.
-	 QTalsim takes the feature ids of the input layer.
-         The table below shows the necessary type for these parameters.
-         If the user-mapped field has a different datatype, the plugin,
+         the other six columns. These six columns represent the soil layers. In this step, users are required to map each
+         Talsim parameter to its corresponding fields in the soil layer.
+         The table below shows the necessary type for these parameters. Additionally, it also shows the required unit and restrictions of the parameters. If the user-mapped field has a different datatype, the plugin,
          where possible, converts the field’s values to the parameter’s
          type. If ‘Parameter not available’ is selected, that parameter
          will be added with null values.
@@ -78,22 +74,22 @@ Select & Edit Soil Layer
          datatype mismatch between the soil layer’s field and the
          parameter, a warning is logged.
 
-         =================== ======
-         Parameter           Type
-         =================== ======
-         ID_Soil             int
-         NameSoil            string
-         Description         string
-         BulkDensityClass    int
-         Category            int
-         WiltingPoint        float
-         FieldCapacity       float
-         TotalPoreVolume     float
-         KfValue             float
-         MaxInfiltration     float
-         MaxCapillarySuction float
-         LayerThickness1     float
-         =================== ======
+         ==============================     ===========     ===========     ===========================
+         Parameter                           Unit           Type            Restriction
+         ==============================     ===========     ===========     ===========================
+         ID_Soil                              -               int             -
+         NameSoil                             -               string          max length 4
+         Description                          -               string          -
+         BulkDensityClass                     -               int             1 >= x >= 5
+         Category                             -               int             1 = Sand, 2 = Silt, 3 = Clay
+         WiltingPoint                         mm/m            float           0 >= x >= 1000
+         FieldCapacity                        mm/m            float           0 >= x >= 1000
+         TotalPoreVolume                      mm/m            float           0 >= x >= 1000
+         KfValue                              mm/h            float           0 > x
+         MaxInfiltration                      mm/h            float           0 > x
+         MaxCapillarySuction                  mm/h            float           0 >= x
+         LayerThickness1                      m               float           0 > x
+         ==============================     ===========     ===========     ===========================
 
          |Select and Edit Soil Layer|
 
@@ -139,43 +135,54 @@ Select and Edit Land use layer
          so, all valid geometries of this layer are selected and clipped
          to align with the boundaries of the sub-basin layer. During
          this process, any duplicate geometries within the layer are
-         also removed. After confirming the layer, you must then select
-         the field containing the land use types and confirm this
-         selection by clicking ‘Confirm Field’. The unique land use
-         types identified here will be used in a subsequent step.
+         also removed. 
 
          |Select Land use Layer|
 
-      -  **Upload Talsim Land use Names and Parameters**
-
-         The user must upload a CSV-file that includes the Talsim land
-         use types and their associated parameter values. This can be
-         done by by clicking ‘Select CSV-File’, which allows the user to
-         choose the CSV-file. It is important to select the correct
-         delimiter for the file. After uploading, users can check the
-         parameters by reviewing the QTalsim-Log.
-
-         |CSV-File Land use| |Upload CSV-File|
 
       -  **Land use Mapping**
+         This table contains Talsim soil parameters in the first column
+         and all the field names of the soil layer in drop-down menus in
+         the other six columns. These six columns represent the soil layers. In this step, users are required to map each
+         Talsim parameter to its corresponding fields in the soil layer.
+         The table below shows the necessary type for these parameters.
+         If the user-mapped field has a different datatype, the plugin,
+         where possible, converts the field’s values to the parameter’s
+         type. If ‘Parameter not available’ is selected, that parameter
+         will be added with null values.
 
-         When you click on ‘Start Landuse Mapping’, the land use mapping
-         table will be populated with all unique land use types from the
-         layer in the first column. In the second column, a
-         dropdown-menu with all Talsim fields of the CSV-file will
-         appear. Here, you must match each land use type from your data
-         (in the first column) with the corresponding Talsim land use
-         type (in the second column). For convenience, the second column
-         is automatically prefilled with Talsim land use types that have
-         the same name in the layer and the CSV-file. After completing
-         the mapping, click ‘Confirm Landuse Mapping’ to create a new
+         The land use mapping table is populated similarily to the soil mapping table. The first column contains Talsim land use parameters and the second column contains drop-down menus with all field names of the input land use layer. 
+         Here, you must match each Talsim parameter (in the first column) with the corresponding field in the input layer (in the second column).
+         The table below shows the necessary type for these parameters. Additionally, it also shows the required unit and restrictions of the parameters. If the user-mapped field has a different datatype, the plugin,
+         where possible, converts the field’s values to the parameter’s
+         type. If ‘Parameter not available’ is selected, that parameter
+         will be added with null values. 
+
+         After completing the mapping, click ‘Confirm Landuse Mapping’ to create a new
          layer containing the input fields from your layer and the
-         Talsim parameter values, as specified in the CSV-file. If the user
-	 defines area/percentage thresholds, land use features below these thresholds are
+         Talsim parameter values. If the user defines area/percentage thresholds, land use features below these thresholds are
 	 deleted during this step. The user can set a minimum size of
          the land use features [m²] and a minimum percentage of the land use features relative to the
          corresponding sub-basin's area. Land use features that fall below the specified size or
          percentage share are deleted and filled using the ‘Eliminate’-tool.
+
+         ==============================     ======     =====     =====================
+         Parameter                           Type       Unit       Restrictions
+         ==============================     ======     =====     =====================
+         ID_LNZ                              int        -          -
+         Name                                string     -          -
+         RootDepth                           float      m          0 >= x
+         RootDepthMonthlyPatternId           int        -          -
+         PlantCoverage                       float      %          0 >= x >= 100
+         PlantCoverageAnnualPatternId        int        -          -
+         LeafAreaIndex                       float      -          0 >= x
+         LeafAreaIndexAnnualPatternId        int        -          -
+         RoughnessCoefficient                float      m⅓/s       0 >= x
+         KcCoeffAnnualPatternId              int        -          -
+         KyYieldAnnualPatternId              int        -          -
+         BulkDensityChange                   int        -          -
+         pTAW                                float      -          0 >= x >= 1
+         ==============================     ======     =====     =====================
 
          |Land use Mapping|
 
@@ -330,8 +337,6 @@ Optional Editing Steps
 .. |Select and Edit Soil Layer| image:: qtalsim_screenshots/SelectandEditSoilLayer.png
 .. |Optional Soil Layer Steps| image:: qtalsim_screenshots/optionalStepsSoilLayer.png
 .. |Select Land use Layer| image:: qtalsim_screenshots/SelectLanduseLayer.png
-.. |CSV-File Land use| image:: qtalsim_screenshots/CSVFile_Landuse.png
-.. |Upload CSV-File| image:: qtalsim_screenshots/UploadCSVFile.png
 .. |Land use Mapping| image:: qtalsim_screenshots/LanduseMapping.png
 .. |Optional Steps Land Use Layer| image:: qtalsim_screenshots/optionalStepsLanduseLayer.png
 .. |Create Land use Layer| image:: qtalsim_screenshots/CreateLanduseLayer.png
