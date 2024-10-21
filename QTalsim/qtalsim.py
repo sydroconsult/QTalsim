@@ -24,7 +24,7 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon, QCursor, QMovie
 from qgis.PyQt.QtWidgets import QMainWindow, QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton, QDockWidget, QMessageBox, QApplication, QDialog
-from qgis.PyQt.QtCore import QVariant, QTimer, pyqtSignal
+from qgis.PyQt.QtCore import QVariant, QTimer, pyqtSignal, QEvent
 # Initialize Qt resources from file resources.py
 from .resources import *
 # Import the code for the dialog
@@ -280,7 +280,6 @@ class QTalsim:
 
         self.show_message_log_panel()
 
-
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
@@ -326,6 +325,21 @@ class QTalsim:
     def end_operation(self):
         QApplication.restoreOverrideCursor()  # Restore the default cursor
 
+    #
+    def eventFilter(self, source, event):
+        #Check if the event is a mouse button press event
+        if event.type() == QEvent.MouseButtonPress:
+            #Determine which group box was clicked and update text accordingly
+            if source == self.dlg.soilGroupBox:
+                self.update_text_overview("Group Box 1 clicked")
+        
+        # Pass the event to the base class
+        return super().eventFilter(source, event)
+
+    def update_text_overview(self, text):
+        #Set the text in the QTextBrowser
+        self.dlg.textOverview.setText(text)
+       
     def log_to_qtalsim_tab(self, message, level):
         '''
             Logging to a QTalsim tab in the current Qgis Project.
@@ -1326,8 +1340,10 @@ class QTalsim:
                         feature.setAttribute(field_name, i) 
                     i += 1 #increment ID
                     for new_field, old_field in value_mapping.items():
-                        if old_field == 'Parameter not available':
-                            feature[new_field] = None
+                        if old_field == 'Parameter not available' and str(new_field).startswith('BulkDensityClass') and int(str(new_field)[-1]) <= self.number_soilLayers:
+                            feature[new_field] = 3 #Medium bulk density class if there is no input
+                        elif old_field == 'Parameter not available':
+                            feature[new_field] = None 
                         else:
                             new_field_type = self.soilLayerIntermediate.fields().field(new_field).type()
                             if isinstance(feature[old_field], str) and new_field_type == QVariant.Int:
@@ -2800,8 +2816,13 @@ class QTalsim:
             self.finalLayer = self.fillGaps(self.finalLayer, self.clippingEZG, 0)
 
             self.log_to_qtalsim_tab("Deleting overlapping features...", Qgis.Info)
-            self.finalLayer = self.clipLayer(self.finalLayer, ezgDissolved)
-            self.finalLayer, _ = self.editOverlappingFeatures(self.finalLayer)
+            try:
+                self.finalLayer = self.clipLayer(self.finalLayer, ezgDissolved)
+                self.finalLayer, _ = self.editOverlappingFeatures(self.finalLayer)
+            except:
+                self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
+                self.finalLayer = self.clipLayer(self.finalLayer, ezgDissolved)   
+                self.finalLayer, _ = self.editOverlappingFeatures(self.finalLayer)
 
 
             #Delete features without geometry
@@ -2950,7 +2971,6 @@ class QTalsim:
                             geometries[combination] = [feature.geometry()]  #Start with a list containing this feature's geometry
                         else:
                             geometries[combination].append(feature.geometry())
-            self.log_to_qtalsim_tab(f"{unique_combinations}", Qgis.Info)
             self.soilTextureFinal.commitChanges()
             self.soilTextureFinal.startEditing()
             #Add the geomtries to the layer
@@ -3006,7 +3026,12 @@ class QTalsim:
                             value = feature[f'{self.soilDescription}_soillayer{i}']
                             if value:
                                 descriptionSoilLayersList = [].append(str(value))
-                descriptionSoilLayers = ', '.join(descriptionSoilLayersList)
+                                
+                if isinstance(descriptionSoilLayersList, (list, tuple)):
+                    descriptionSoilLayers = ', '.join(map(str, descriptionSoilLayersList))
+                else:
+                    descriptionSoilLayers = str(descriptionSoilLayersList)
+
                 new_feature.setAttribute(self.soilDescription, descriptionSoilLayers) #take the combination of all soil layer's description
                 bod_data_provider.addFeature(new_feature)
 
@@ -3754,6 +3779,8 @@ class QTalsim:
 class CustomDockWidget(QDockWidget):
     def __init__(self, title, parent=None):
         super(CustomDockWidget, self).__init__(title, parent)
+
+        self.dlg.soilGroupBox.installEventFilter(self)
     '''
     def layergroup(self, layerGroup):
         self.layerGroup = layerGroup

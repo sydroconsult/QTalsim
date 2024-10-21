@@ -24,9 +24,8 @@ Elimination of Hydrologic Response Units (HRUs)/small polygons
 .. _elimination_hrus_polygons:
       Specifying values in this section has two different effects.
 
-      Firstly, soil polygons and/or land use areas that fall below the specified size or percentage are eliminated. All features with the same parameters are evaluated. 
-      The percentage is calculated by comparing the size of the polygon to its sub-basin's area. These polygons are eliminated when confirming the soil/land 
-      use mapping, using the chosen elimination mode.
+      This part of the plugin was implemented to eliminate small polygons. Soil polygons and/or land use areas that fall below the specified size or percentage are eliminated. 
+      The percentage of all features with the same parameters is calculated by comparing the size of the polygons to its sub-basin's area. These polygons are eliminated when confirming the soil/land use mapping, using the chosen elimination mode.
 
       Secondly, HRUs are eliminated according to the specified parameters (sub-basin, soil and land use) during the intersection process. HRUs that fall below the specified size or percentage share are deleted and filled using the 'Eliminate' tool. 
       You can select the elimination mode from the drop-down menu (find further information
@@ -75,13 +74,13 @@ Select & Edit Soil Layer
          parameter, a warning is logged.
 
          ==============================     ===========     ===========     ===========================
-         Parameter                           Unit           Type            Restriction
+         Parameter                          Unit            Type            Restriction
          ==============================     ===========     ===========     ===========================
-         ID_Soil                              -               int             -
-         NameSoil                             -               string          max length 4
-         Description                          -               string          -
-         BulkDensityClass                     -               int             1 >= x >= 5
-         Category                             -               int             1 = Sand, 2 = Silt, 3 = Clay
+         ID_Soil                                              int              
+         NameSoil                                             string          max length 4
+         Description                                          string           
+         BulkDensityClass                                     int             1 >= x >= 5
+         Category                                             int             1 = Sand, 2 = Silt, 3 = Clay
          WiltingPoint                         mm/m            float           0 >= x >= 1000
          FieldCapacity                        mm/m            float           0 >= x >= 1000
          TotalPoreVolume                      mm/m            float           0 >= x >= 1000
@@ -141,9 +140,10 @@ Select and Edit Land use layer
 
 
       -  **Land use Mapping**
+
          The land use mapping table is populated similarily to the soil mapping table. The first column contains Talsim land use parameters and the second column contains drop-down menus with all field names of the input land use layer. 
          Here, you must match each Talsim parameter (in the first column) with the corresponding field in the input layer (in the second column).
-         The table below shows the necessary type for these parameters. Additionally, it also shows the required unit and restrictions of the parameters. If the user-mapped field has a different datatype, the plugin,
+         The table below shows the necessary types for these parameters. Additionally, it also shows the required unit and restrictions of the parameters. If the user-mapped field has a different datatype, the plugin,
          where possible, converts the field’s values to the parameter’s
          type. If ‘Parameter not available’ is selected, that parameter
          will be added with null values. 
@@ -156,23 +156,25 @@ Select and Edit Land use layer
          corresponding sub-basin's area. Land use features that fall below the specified size or
          percentage share are deleted and filled using the ‘Eliminate’-tool.
 
+
          ==============================     ======     =====     =====================
-         Parameter                           Type       Unit       Restrictions
+         Parameter                          Type       Unit      Restrictions
          ==============================     ======     =====     =====================
-         ID_LNZ                              int        -          -
-         Name                                string     -          -
-         RootDepth                           float      m          0 >= x
-         RootDepthMonthlyPatternId           int        -          -
-         PlantCoverage                       float      %          0 >= x >= 100
-         PlantCoverageAnnualPatternId        int        -          -
-         LeafAreaIndex                       float      -          0 >= x
-         LeafAreaIndexAnnualPatternId        int        -          -
-         RoughnessCoefficient                float      m⅓/s       0 >= x
-         KcCoeffAnnualPatternId              int        -          -
-         KyYieldAnnualPatternId              int        -          -
-         BulkDensityChange                   int        -          -
-         pTAW                                float      -          0 >= x >= 1
+         ID_LNZ                             int                    
+         Name                               string                 
+         RootDepth                          float      m          0 >= x
+         RootDepthMonthlyPatternId          int                    
+         PlantCoverage                      float      %          0 >= x >= 100
+         PlantCoverageAnnualPatternId       int                    
+         LeafAreaIndex                      float                 0 >= x
+         LeafAreaIndexAnnualPatternId       int                    
+         RoughnessCoefficient               float      m⅓/s       0 >= x
+         KcCoeffAnnualPatternId             int                    
+         KyYieldAnnualPatternId             int                    
+         BulkDensityChange                  int                    
+         pTAW                               float                 0 >= x >= 1
          ==============================     ======     =====     =====================
+
 
          |Land use Mapping|
 
@@ -221,7 +223,7 @@ Intersection of Layers
       To generate the HRUs, the three layers (sub-basins, soil and land use) are
       intersected in a first step. The user can set a minimum size of
       the HRUs [m²] and a minimum percentage of HRUs relative to the
-      sub-basin's area (see above). Please note, that the sum of the areas of all HRUs with the same parameters is
+      sub-basin's area (see above). The sum of the areas of all HRUs with the same parameters is
       compared with the area of the corresponding sub-basin. HRUs that fall below the specified size or
       percentage share are deleted and filled using the
       ‘Eliminate’-tool. You can select the elimination-mode from the
@@ -284,6 +286,7 @@ Optional Editing Steps
       of the two polygons.
   
    -  **Delete Overlapping Part of selected Features**
+
       In addition to the option of deleting all overlapping parts
       (using button 'Delete All Overlapping Features'), you can also
       selectively remove specific overlapping soil/land use features. This can

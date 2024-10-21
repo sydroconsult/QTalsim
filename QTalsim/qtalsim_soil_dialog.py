@@ -3,7 +3,7 @@ import os
 from qgis.PyQt import uic, QtWidgets
 from qgis.PyQt.QtWidgets import  QFileDialog, QDialog, QDialogButtonBox
 from qgis.PyQt.QtCore import QVariant, QTimer
-from qgis.core import QgsProject, Qgis, QgsCoordinateReferenceSystem, QgsRasterLayer, QgsVectorLayer, QgsField, edit, QgsLayerTreeLayer, QgsCategorizedSymbolRenderer, QgsVectorFileWriter
+from qgis.core import QgsProject, Qgis, QgsCoordinateReferenceSystem, QgsRasterLayer, QgsVectorLayer, QgsField, edit, QgsLayerTreeLayer, QgsCategorizedSymbolRenderer, QgsVectorFileWriter,QgsWkbTypes, QgsGeometry
 from qgis.gui import QgsProjectionSelectionDialog
 from osgeo import gdal
 import processing
@@ -248,6 +248,38 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
         webbrowser.open('https://sydroconsult.github.io/QTalsim/doc_soil')
 
+    def make_geometries_valid(self, layer):
+        '''
+            Checks for invalid geometries in an input layer and updates those geometries.
+                Also deletes features with empty geometries.
+        '''
+        invalid_features = False
+        layer.startEditing() 
+        for feature in layer.getFeatures():
+            geom = feature.geometry()
+            if not geom.isGeosValid():
+                fixed_geom = geom.makeValid()
+                # Check if the fixed geometry is valid and of the correct type
+                if fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
+                    feature.setGeometry(fixed_geom)
+                    layer.updateFeature(feature)
+                else:
+                    # Attempt to fix the geometry to be a MultiPolygon
+                    if fixed_geom.wkbType() == QgsWkbTypes.Polygon:
+                        fixed_geom = QgsGeometry.fromMultiPolygonXY([fixed_geom.asPolygon()])
+                    elif fixed_geom.wkbType() == QgsWkbTypes.LineString or fixed_geom.wkbType() == QgsWkbTypes.MultiLineString:
+                        fixed_geom = QgsGeometry.fromPolygonXY([fixed_geom.asPolyline()])
+                    # Set the fixed geometry if it's valid
+                    if fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
+                        feature.setGeometry(fixed_geom)
+                        layer.updateFeature(feature)
+                    else:
+                        invalid_features = True
+            if geom.isEmpty() or geom.area() == 0:
+                layer.deleteFeature(feature.id())
+        layer.commitChanges()
+        return layer, invalid_features
+    
     def fillLayerComboboxes(self):
         '''
             Fills all comboboxes with layers
@@ -637,7 +669,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             'BEHAVIOR': 0,                    
             'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
-
+        vector_layer,_ = self.make_geometries_valid(vector_layer)
         return vector_layer
     
     def soilMapping(self):
@@ -792,15 +824,26 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 #self.layer_group.addChildNode(tree_layer)
 
         #2.: Combine the layers to one soil type layer, holding the different soil layers in different columns
-        params = {
-            'INPUT': self.layers_to_combine[0],
-            'OVERLAYS' : self.layers_to_combine[1:],  #Input layers as a list
-            'OVERLAY_FIELDS_PREFIX':'',
-            'OUTPUT':'TEMPORARY_OUTPUT'
-        }
-
-        #Run the multiple intersection tool
-        combined_layer = processing.run("qgis:multiintersection", params)['OUTPUT']
+        try:
+            params = {
+                'INPUT': self.layers_to_combine[0],
+                'OVERLAYS' : self.layers_to_combine[1:],  #Input layers as a list
+                'OVERLAY_FIELDS_PREFIX':'',
+                'OUTPUT':'TEMPORARY_OUTPUT'
+            }
+            #Run the multiple intersection tool
+            combined_layer = processing.run("qgis:multiintersection", params)['OUTPUT']
+        except:
+            for i, layer in enumerate(self.layers_to_combine):
+                self.layers_to_combine[i], _ = self.make_geometries_valid(layer)
+            params = {
+                'INPUT': self.layers_to_combine[0],
+                'OVERLAYS' : self.layers_to_combine[1:],  #Input layers as a list
+                'OVERLAY_FIELDS_PREFIX':'',
+                'OUTPUT':'TEMPORARY_OUTPUT'
+            }
+            #Run the multiple intersection tool
+            combined_layer = processing.run("qgis:multiintersection", params)['OUTPUT']
 
         #Necessary to delete the 'fid' column to be able to save the combined layer with all soil types to a geopackage
         #Get the fields (attributes) from the combined layer
@@ -942,17 +985,36 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
   
         #Combine Soil types and BDOD
         #2.: Combine the layers to one soil type layer, holding the different soil layers in different columns
-        params = {
-            'INPUT': combined_soil_type_layer,
-            'OVERLAYS' : bdod_layers_to_combine[0:],  #Input layers as a list
-            'OVERLAY_FIELDS_PREFIX':'',
-            'OUTPUT':'TEMPORARY_OUTPUT'
-        }
+        try:
+            params = {
+                'INPUT': combined_soil_type_layer,
+                'OVERLAYS' : bdod_layers_to_combine[0:],  #Input layers as a list
+                'OVERLAY_FIELDS_PREFIX':'',
+                'OUTPUT':'TEMPORARY_OUTPUT'
+            }
 
-        #Run the multiple intersection tool
-        finalLayer = processing.run("qgis:multiintersection", params)['OUTPUT']
+            #Run the multiple intersection tool
+            finalLayer = processing.run("qgis:multiintersection", params)['OUTPUT']
+        except:
+            for i, layer in enumerate(bdod_layers_to_combine):
+                bdod_layers_to_combine[i], _ = self.make_geometries_valid(layer)
+            combined_soil_type_layer, _ = self.make_geometries_valid(combined_soil_type_layer)
+            params = {
+                'INPUT': combined_soil_type_layer,
+                'OVERLAYS' : bdod_layers_to_combine[0:],  #Input layers as a list
+                'OVERLAY_FIELDS_PREFIX':'',
+                'OUTPUT':'TEMPORARY_OUTPUT'
+            }
+
+            #Run the multiple intersection tool
+            finalLayer = processing.run("qgis:multiintersection", params)['OUTPUT']
+
         dissolve_list = bdod_dissolve_fields + field_names
-        finalLayer = processing.run("native:dissolve", {'INPUT':finalLayer,'FIELD':dissolve_list,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+        try:
+            finalLayer = processing.run("native:dissolve", {'INPUT':finalLayer,'FIELD':dissolve_list,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+        except:
+            finalLayer, _ = self.make_geometries_valid(finalLayer)
+            finalLayer = processing.run("native:dissolve", {'INPUT':finalLayer,'FIELD':dissolve_list,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
 
         #Delete the 'fid' columns to be able to save the combined layer with all soil types to a geopackage
         #Get the fields (attributes) from the combined layer

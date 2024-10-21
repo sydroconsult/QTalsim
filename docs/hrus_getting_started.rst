@@ -27,27 +27,11 @@ Requirements for Input Layers
       area, and it must contain a field specifying the names of the land
       use types. 
 
-      3.1 CSV-File with Talsim land use types + parameters
 
-         In addition to the land use layer, a CSV-File containing the
-         necessary Talsim land use types and their associated parameters
-         is also required. The screenshot below shows one example of
-         what the first lines of the CSV-file could look like:
-
-         |Screenshot CSV-File|
-
-         The following fields should be included in the CSV-file, the
-         bold fields must be included:
-
-         **ID_LNZ**, **Name**, RootDepth, RootDepthMonthlyPatternId,
-         PlantCoverage, PlantCoverageAnnualPatternId, LeafAreaIndex,
-         LeafAreaIndexAnnualPatternId, RoughnessCoefficient,
-         KcCoeffAnnualPatternId, KyYieldAnnualPatternId,
-         BulkDensityChange, pTAW
-
-         However, the plugin does not require every field to contain
-         values.
+Continue to the next section for detailed step-by-step instructions:
+:ref:`Step-by-Step Guide <hrus-step-by-step>`
 
       
-.. |Screenshot CSV-File| image:: qtalsim_screenshots/CSVFile_Landuse.png
+
+      
 
