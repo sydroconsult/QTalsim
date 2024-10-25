@@ -864,7 +864,11 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             combined_layer.commitChanges()
 
         #Dissolve the combined soil layer by all soil columns
-        combined_layer = processing.run("native:dissolve", {'INPUT':combined_layer,'FIELD':field_names,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+        try:
+            combined_layer = processing.run("native:dissolve", {'INPUT':combined_layer,'FIELD':field_names,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+        except:
+            combined_layer, _ = self.make_geometries_valid(combined_layer)
+            combined_layer = processing.run("native:dissolve", {'INPUT':combined_layer,'FIELD':field_names,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
 
         options = QgsVectorFileWriter.SaveVectorOptions()
         options.driverName = "GPKG"
@@ -920,8 +924,12 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     feature[self.fieldNameBdodClass] = 5
                 vector_layer.updateFeature(feature)
             vector_layer.commitChanges()
+            try:
+                vector_layer = processing.run("native:dissolve", {'INPUT':vector_layer,'FIELD':[self.fieldNameBdodClass],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+            except:
+                vector_layer, _ = self.make_geometries_valid(vector_layer)
+                vector_layer = processing.run("native:dissolve", {'INPUT':vector_layer,'FIELD':[self.fieldNameBdodClass],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
 
-            vector_layer = processing.run("native:dissolve", {'INPUT':vector_layer,'FIELD':[self.fieldNameBdodClass],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
             vector_layer.setName(layer_name)
 
             bdodLayers.append(vector_layer) #store bdod vector layers

@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.0] - 2024-10-25
+- Add fourth functionality: ISRIC Soil Type Converter
+  - Downloads soil data from ISRIC, converts it to soil types and bulk density class and combines this data for the area of interest in one layer
+  - Created layer can be used as soil layer input to HRU Calculation
+- Update HRU Calculation
+  - Bug fix of invalid geometries that can arise when performing spatial operations
+  - Enhancement: HRU Calculation can now process up to 6 soil horizons
+  - Set bulk density class to 3 for missing values
+
 ## [1.5.0] - 2024-08-23
 - Add third functionality: Sub-basin preprocessing
   - Enable calculation of the longest flowpath for every sub-basin in input layer

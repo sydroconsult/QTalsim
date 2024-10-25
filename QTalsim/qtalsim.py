@@ -332,7 +332,7 @@ class QTalsim:
             #Determine which group box was clicked and update text accordingly
             if source == self.dlg.soilGroupBox:
                 self.update_text_overview("Group Box 1 clicked")
-        
+                print("Group Box Click Detected")
         # Pass the event to the base class
         return super().eventFilter(source, event)
 
@@ -1448,12 +1448,11 @@ class QTalsim:
                     last_logged_progress = progress
 
                 feature_id1, feature_id2 = feature_pair
-                self.log_to_qtalsim_tab(f"{feature_pair}", Qgis.Info)
                 feature1 = self.soilLayerIntermediate.getFeature(feature_id1)
                 feature2 = self.soilLayerIntermediate.getFeature(feature_id2)
-                
-                overlappingName1 = feature1[field_index] #Get the names of field  soil names
-                overlappingName2 = feature2[field_index] #Get the names of field  soil names
+
+                overlappingName1 = str(feature1[field_index])  #Get the names of field soil names
+                overlappingName2 = str(feature2[field_index]) #Get the names of field soil names
                 
                 item1 = QTableWidgetItem(overlappingName1) #add first name
                 self.dlg.tableSoilTypeDelete.setItem(row, 0, item1)
@@ -1614,8 +1613,13 @@ class QTalsim:
         try:
             self.start_operation()
             #Dissolve the layer using the talsim soil parameters
-            resultDissolve = processing.run("native:dissolve", {'INPUT':self.soilLayerIntermediate,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
-            self.soilTalsim = resultDissolve['OUTPUT']
+            try:
+                resultDissolve = processing.run("native:dissolve", {'INPUT':self.soilLayerIntermediate,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
+                self.soilTalsim = resultDissolve['OUTPUT']
+            except:
+                self.soilLayerIntermediate,_ = self.make_geometries_valid(self.soilLayerIntermediate)
+                resultDissolve = processing.run("native:dissolve", {'INPUT':self.soilLayerIntermediate,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
+                self.soilTalsim = resultDissolve['OUTPUT']
             
             all_fields = [field.name() for field in self.soilTalsim.fields()]
             fields_to_delete_indices = [self.soilTalsim.fields().indexFromName(field)  for field in all_fields if field not in self.soilFieldNames]
@@ -2117,9 +2121,13 @@ class QTalsim:
             #Delete the polygons below the thresholds
             if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
                 self.landuseTalsim = self.deletePolygonsBelowThreshold(self.landuseTalsim, self.selected_landuse_parameters, self.fieldLanduseID)
-            
-            resultDissolve = processing.run("native:dissolve", {'INPUT':self.landuseTalsim,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'})
-            self.landuseTalsim = resultDissolve['OUTPUT']
+            try:
+                resultDissolve = processing.run("native:dissolve", {'INPUT':self.landuseTalsim,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'})
+                self.landuseTalsim = resultDissolve['OUTPUT']
+            except:
+                self.landuseTalsim, _ = self.make_geometries_valid(self.landuseTalsim)
+                resultDissolve = processing.run("native:dissolve", {'INPUT':self.landuseTalsim,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'})
+                self.landuseTalsim = resultDissolve['OUTPUT']
 
             all_fields = [field.name() for field in self.landuseTalsim.fields()]
             fields_to_delete_indices = [self.landuseTalsim.fields().indexFromName(field)  for field in all_fields if field not in self.selected_landuse_parameters]
@@ -2193,8 +2201,8 @@ class QTalsim:
                 feature1 = self.landuseTalsim.getFeature(feature_id1)
                 feature2 = self.landuseTalsim.getFeature(feature_id2)
 
-                overlappingName1 = feature1[field_index]
-                overlappingName2 = feature2[field_index]
+                overlappingName1 = str(feature1[field_index])
+                overlappingName2 = str(feature2[field_index])
                 item1 = QTableWidgetItem(overlappingName1) #add first name
                 self.dlg.tableLanduseDelete.setItem(row, 0, item1)
                 item2 = QTableWidgetItem(overlappingName2)
@@ -2346,8 +2354,14 @@ class QTalsim:
         try:
             self.start_operation()
             #Dissolve the layer using the talsim landuse parameters
-            resultDissolve = processing.run("native:dissolve", {'INPUT':self.landuseTalsim,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'})
-            self.landuseTalsim = resultDissolve['OUTPUT']
+            try:
+                resultDissolve = processing.run("native:dissolve", {'INPUT':self.landuseTalsim,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'})
+                self.landuseTalsim = resultDissolve['OUTPUT']
+            except:
+                self.landuseTalsim, _ = self.make_geometries_valid(self.landuseTalsim)
+                resultDissolve = processing.run("native:dissolve", {'INPUT':self.landuseTalsim,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'})
+                self.landuseTalsim = resultDissolve['OUTPUT']
+
             all_fields = [field.name() for field in self.landuseTalsim.fields()]
             fields_to_delete_indices = [self.landuseTalsim.fields().indexFromName(field)  for field in all_fields if field not in self.selected_landuse_parameters]
             self.landuseTalsim.startEditing()
@@ -2411,8 +2425,13 @@ class QTalsim:
 
             #Dissolve Layer 1
             dissolve_list.append(self.ezgUniqueIdentifier)
-            resultDissolve = processing.run("native:dissolve", {'INPUT': intermediateIntersectSingleparts,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback = None)
-            intersectedDissolvedLayer = resultDissolve['OUTPUT']
+            try:
+                resultDissolve = processing.run("native:dissolve", {'INPUT': intermediateIntersectSingleparts,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback = None)
+                intersectedDissolvedLayer = resultDissolve['OUTPUT']
+            except:
+                intermediateIntersectSingleparts, _ = self.make_geometries_valid(intermediateIntersectSingleparts)
+                resultDissolve = processing.run("native:dissolve", {'INPUT': intermediateIntersectSingleparts,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback = None)
+                intersectedDissolvedLayer = resultDissolve['OUTPUT']
             
             ezgDissolved = processing.run("native:dissolve", {'INPUT': self.ezgLayer,'FIELD': [],'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
 
@@ -2810,20 +2829,22 @@ class QTalsim:
                 deleted_features = set(original_features.keys()) - set(fixed_features.keys())
 
             #Dissolve Layer 2 
-            resultDissolve = processing.run("native:dissolve", {'INPUT': resultMerge,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
-            self.finalLayer = resultDissolve['OUTPUT']
-
-            self.finalLayer = self.fillGaps(self.finalLayer, self.clippingEZG, 0)
-
+            try:
+                resultDissolve = processing.run("native:dissolve", {'INPUT': resultMerge,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
+                self.finalLayer = resultDissolve['OUTPUT']
+            except:
+                resultMerge, _ = self.make_geometries_valid(resultMerge)
+                self.finalLayer = processing.run("native:dissolve", {'INPUT': resultMerge,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']  
+            
             self.log_to_qtalsim_tab("Deleting overlapping features...", Qgis.Info)
             try:
-                self.finalLayer = self.clipLayer(self.finalLayer, ezgDissolved)
-                self.finalLayer, _ = self.editOverlappingFeatures(self.finalLayer)
-            except:
-                self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
-                self.finalLayer = self.clipLayer(self.finalLayer, ezgDissolved)   
-                self.finalLayer, _ = self.editOverlappingFeatures(self.finalLayer)
-
+                self.finalLayerAfterGaps = self.fillGaps(self.finalLayer, self.clippingEZG, 0)
+                self.finalLayerAfterGaps, _ = self.make_geometries_valid(self.finalLayerAfterGaps)
+                self.finalLayerClipped = self.clipLayer(self.finalLayerAfterGaps, ezgDissolved)
+                self.finalLayer, _ = self.editOverlappingFeatures(self.finalLayerClipped)
+            except Exception as e:
+                self.log_to_qtalsim_tab(f"Operation did not work due to too complex features or other issues: {e}", Qgis.Warning)
+            
 
             #Delete features without geometry
             features_to_delete = []
@@ -2903,9 +2924,15 @@ class QTalsim:
             for field in fields_to_remove:
                 if field in self.selected_landuse_parameters:
                     self.selected_landuse_parameters.remove(field)
+            try:
+                resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
+                self.landuseFinal = resultDissolve['OUTPUT']
+            except:
+                self.soilTypeFinal = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
+                self.landuseFinal = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                self.landuseFinal = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
 
-            resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
-            self.landuseFinal = resultDissolve['OUTPUT']
             self.landuseFinal.startEditing()
             dissolve_fields_indices = [self.landuseFinal.fields().indexFromName(field) for field in self.selected_landuse_parameters]
             for i in range(self.landuseFinal.fields().count() - 1, -1, -1):
@@ -3780,6 +3807,7 @@ class CustomDockWidget(QDockWidget):
     def __init__(self, title, parent=None):
         super(CustomDockWidget, self).__init__(title, parent)
 
+        self.dlg.soilGroupBox.setMouseTracking(True)
         self.dlg.soilGroupBox.installEventFilter(self)
     '''
     def layergroup(self, layerGroup):
