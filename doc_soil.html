@@ -5,11 +5,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Soil preprocessing &#8212; QTalsim 1.5.0 documentation</title>
+    <title>ISRIC Soil Type Converter &#8212; QTalsim 1.6.0 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
     <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
     
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=c2dd840c"></script>
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=50a25ae7"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
     
@@ -26,8 +26,8 @@
         <li class="right" >
           <a href="doc_subbasin_preprocessing.html" title="Sub-basins preprocessing"
              accesskey="P">previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.5.0 documentation</a> &#187;</li>
-        <li class="nav-item nav-item-this"><a href="">Soil preprocessing</a></li> 
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">ISRIC Soil Type Converter</a></li> 
       </ul>
     </div>  
 
@@ -36,10 +36,10 @@
         <div class="bodywrapper">
           <div class="body" role="main">
             
-  <section id="soil-preprocessing">
-<h1>Soil preprocessing<a class="headerlink" href="#soil-preprocessing" title="Permalink to this heading">¶</a></h1>
+  <section id="isric-soil-type-converter">
+<h1>ISRIC Soil Type Converter<a class="headerlink" href="#isric-soil-type-converter" title="Permalink to this heading">¶</a></h1>
 <blockquote>
-<div><p>Another core functionality of QTalsim is downloading and processing soil data from <a class="reference external" href="https://www.talsim.de/docs/index.php?title=EZG-Datei">ISRIC</a>. The plugin downloads the data based on a bounding box defined by the user and then creates output layers: one for each soil layer containing the soil type, and another for each soil layer containing the bulk density.</p>
+<div><p>Another core functionality of QTalsim is downloading and processing soil data from <a class="reference external" href="https://www.isric.org/">ISRIC</a>. The plugin downloads the data based on a bounding box defined by the user and then creates an output layer containing the soil type and bulk density class for all cells in the input area across six soil layers.</p>
 <p><img alt="Screenshot Soil preprocessing" src="_images/SoilPreprocessing.png" /></p>
 </div></blockquote>
 <section id="executing-the-plugin">
@@ -47,15 +47,16 @@
 <blockquote>
 <div><p>To execute this plugin, the user must select the following:</p>
 </div></blockquote>
-<ul class="simple">
+<ul>
 <li><p>An input layer that defines the bounding box.</p></li>
 <li><p>An output folder where the plugin will save all generated files.</p></li>
-<li><p>A target CRS to which the output layers will be transformed.</p></li>
-</ul>
-<p>When the “Download ISRIC Data” button is clicked, the plugin downloads data for clay, silt and sand share, and bulk density within the area defined by the bounding box. The raster files are saved in the specified output folder. The original output files, as returned by ISRIC (in the Homolosine projection), are stored in the ‘orig’ folder, while the reprojected files (in the user-defined projection) are stored in the ‘proj’ folder. Each of these folders will contain four files for each of the six soil layers.</p>
+<li><p>A target CRS to which the output layers will be transformed.</p>
 <blockquote>
-<div><p>Next, the user can select “Calculate Soil Type.” In the first step, the plugin recalculates the values from the mapped units to conventional units, as defined <a class="reference external" href="https://www.isric.org/explore/soilgrids/faq-soilgrids#What_do_the_filename_codes_mean">here</a>. Then, the soil type for each cell is calculated using the clay, silt, and sand proportions, following the soil texture triangle below. The results are saved to the output folder and added to the current QGIS project. In the layer “Soil Types Combined” the soil types of the soil layers are displayed in the different columns of the layer. Additionally, the bulk density values are recalculated and are assigned to the respective bulk density class. The soil types and bulk density class values are intersected and merged into one layer. This vector layer holds the BDOD class and soil type name for every cell. This layer “Soil Types BDOD Combined” can be used as soil layer input to “QTalsim HRU calculation”.</p>
+<div><p>When the “Download ISRIC Data” button is clicked, the plugin downloads data for clay, silt and sand share, and bulk density within the area defined by the bounding box. The raster files are saved in the specified output folder. The original output files, as returned by ISRIC (in the Homolosine projection), are stored in the ‘orig’ folder, while the reprojected files (in the user-defined projection) are stored in the ‘proj’ folder. Each of these folders will contain four files for each of the six soil layers.</p>
+<p>Next, the user can select “Calculate Soil Type.” In the first step, the plugin recalculates the values from the mapped units to conventional units, as defined <a class="reference external" href="https://www.isric.org/explore/soilgrids/faq-soilgrids#What_do_the_filename_codes_mean">here</a>. Then, the soil type for each cell is calculated using the clay, silt, and sand proportions, following the soil texture triangle below. The results are saved to the output folder and added to the current QGIS project. In the layer “Soil Types Combined” the soil types of the soil layers are displayed in the different columns of the layer. Additionally, the bulk density values are recalculated and are assigned to the respective bulk density class. The soil types and bulk density class values are intersected and merged into one layer. This vector layer holds the BDOD class and soil type name for every cell. This layer “Soil Types BDOD Combined” can be used as soil layer input to “QTalsim HRU calculation”.</p>
 </div></blockquote>
+</li>
+</ul>
 <figure class="align-default" id="id1">
 <img alt="Bodenartendreieck" src="_images/Bodenartendreieck.png" />
 <figcaption>
@@ -75,7 +76,7 @@
   <div>
     <h3><a href="index.html">Table of Contents</a></h3>
     <ul>
-<li><a class="reference internal" href="#">Soil preprocessing</a><ul>
+<li><a class="reference internal" href="#">ISRIC Soil Type Converter</a><ul>
 <li><a class="reference internal" href="#executing-the-plugin">Executing the Plugin</a></li>
 </ul>
 </li>
@@ -117,8 +118,8 @@
         <li class="right" >
           <a href="doc_subbasin_preprocessing.html" title="Sub-basins preprocessing"
              >previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.5.0 documentation</a> &#187;</li>
-        <li class="nav-item nav-item-this"><a href="">Soil preprocessing</a></li> 
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">ISRIC Soil Type Converter</a></li> 
       </ul>
     </div>
     <div class="footer" role="contentinfo">
