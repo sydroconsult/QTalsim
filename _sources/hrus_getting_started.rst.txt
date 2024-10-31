@@ -28,8 +28,7 @@ Requirements for Input Layers
       use types. 
 
 
-   Continue to the next section for detailed step-by-step instructions: :ref:`Step-by-Step Guide <hrus_step_by_step>`
-
+   Continue to the next section for detailed step-by-step instructions: `Step-by-Step Guide <https://sydroconsult.github.io/QTalsim/hrus_step_by_step.html>`__ 
       
 
       
