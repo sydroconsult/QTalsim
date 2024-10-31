@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.1] - 2024-10-31
+- Enhancement
+  - ISRIC Soil Type Converter: Order field names in final layer by soil horizon/layer
+Fixes
+  - HRU-Calculation
+    - Do not allow null-references in EFL-layer (e.g. soil ID is null)
+    - Fix but do not delete complex geometries
+
 ## [1.6.0] - 2024-10-25
 - Add fourth functionality: ISRIC Soil Type Converter
   - Downloads soil data from ISRIC, converts it to soil types and bulk density class and combines this data for the area of interest in one layer
