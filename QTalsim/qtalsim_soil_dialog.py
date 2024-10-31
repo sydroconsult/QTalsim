@@ -3,7 +3,7 @@ import os
 from qgis.PyQt import uic, QtWidgets
 from qgis.PyQt.QtWidgets import  QFileDialog, QDialog, QDialogButtonBox
 from qgis.PyQt.QtCore import QVariant, QTimer
-from qgis.core import QgsProject, Qgis, QgsCoordinateReferenceSystem, QgsRasterLayer, QgsVectorLayer, QgsField, edit, QgsLayerTreeLayer, QgsCategorizedSymbolRenderer, QgsVectorFileWriter,QgsWkbTypes, QgsGeometry
+from qgis.core import QgsProject, Qgis, QgsCoordinateReferenceSystem, QgsRasterLayer, QgsVectorLayer, QgsField, edit, QgsLayerTreeLayer, QgsCategorizedSymbolRenderer, QgsVectorFileWriter,QgsWkbTypes, QgsGeometry, QgsFeature
 from qgis.gui import QgsProjectionSelectionDialog
 from osgeo import gdal
 import processing
@@ -1042,6 +1042,22 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             finalLayer.updateFields()
             finalLayer.commitChanges()
 
+        #Sort the fields by the soil layer/horizon
+        fields = finalLayer.fields()
+        sorted_fields = sorted(fields, key=lambda field: int(field.name().split('_')[0].split('-')[0]))
+        layer_crs = finalLayer.crs().authid()
+        finalLayerOrdered = QgsVectorLayer(f"Polygon?crs={layer_crs}", "Soil Types BDOD Combined", "memory")
+        final_layer_ordered_data_provider = finalLayerOrdered.dataProvider()
+
+        final_layer_ordered_data_provider.addAttributes([QgsField(field.name(), field.type()) for field in sorted_fields])
+        finalLayerOrdered.updateFields() 
+        for feature in finalLayer.getFeatures():
+            new_feature = QgsFeature(finalLayerOrdered.fields())
+            new_feature.setGeometry(feature.geometry())
+            #Map attributes according to sorted fields
+            new_feature.setAttributes([feature[field.name()] for field in sorted_fields])
+            final_layer_ordered_data_provider.addFeature(new_feature)
+
         #Save the final Layer
         options = QgsVectorFileWriter.SaveVectorOptions()
         options.driverName = "GPKG"
@@ -1050,7 +1066,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         output_layer_name = 'Soil Types BDOD Combined'
         options.layerName = output_layer_name
         error = QgsVectorFileWriter.writeAsVectorFormatV2(
-                    finalLayer,
+                    finalLayerOrdered,
                     gpkgOutputPath,
                     QgsProject.instance().transformContext(),
                     options

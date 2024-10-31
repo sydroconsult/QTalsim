@@ -332,7 +332,6 @@ class QTalsim:
             #Determine which group box was clicked and update text accordingly
             if source == self.dlg.soilGroupBox:
                 self.update_text_overview("Group Box 1 clicked")
-                print("Group Box Click Detected")
         # Pass the event to the base class
         return super().eventFilter(source, event)
 
@@ -680,8 +679,8 @@ class QTalsim:
             },feedback=None)['OUTPUT']
 
         #Simplifying geometries as problems arose without simplifying for large layers/layers with complex geometries
-        outputLayer = simplify_geometries(outputLayer, tolerance=0.01)
-        clipping_layer = simplify_geometries(clipping_layer, tolerance=0.01)
+        #outputLayer = simplify_geometries(outputLayer, tolerance=0.01)
+        #clipping_layer = simplify_geometries(clipping_layer, tolerance=0.01)
 
         outputLayer, _ = self.make_geometries_valid(outputLayer)
         outputLayer = processing.run("native:fixgeometries", {'INPUT': outputLayer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
@@ -1860,7 +1859,7 @@ class QTalsim:
                 error_message = f"An error occurred: {str(e)}"
                 self.log_to_qtalsim_tab(error_message, level=Qgis.Critical)
             self.landuseTalsim.commitChanges()
-            
+
             if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
                 self.landuseTalsim = self.deletePolygonsBelowThreshold(self.landuseTalsim, self.selected_landuse_parameters, self.fieldLanduseID)
 
@@ -1872,7 +1871,6 @@ class QTalsim:
                 self.landuseTalsim.dataProvider().deleteAttributes(fields_to_delete_indices)
                 self.landuseTalsim.commitChanges()
                 self.landuseTalsim.updateFields()
-
             except Exception as e:
                 self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
             self.landuseTalsim.dataProvider().reloadData()
@@ -2519,7 +2517,7 @@ class QTalsim:
                 percentage_sums = {}
                 # Get a representative feature to extract the ezg value
                 for attributes_key, summed_area in area_sums.items():
-                # This assumes all features in the same attributes_key group have the same ezg value
+                #This assumes all features in the same attributes_key group have the same ezg value
                     ezg = ezg_values[attributes_key]
                     ezgArea = ezgAreas[ezg]
                     percentage = (summed_area / ezgArea) * 100
@@ -2547,16 +2545,17 @@ class QTalsim:
                 #Eliminate with mode specified by user
                 tempLayersplit.selectByIds(ids_to_eliminate)
                 mode = 0 
-                if self.dlg.comboboxModeEliminateSoil.currentText() == 'Smallest Area':
+                if self.dlg.comboboxEliminateModes.currentText() == 'Smallest Area':
                     mode = 1
-                elif self.dlg.comboboxModeEliminateSoil.currentText() == 'Largest Common Boundary':
+                elif self.dlg.comboboxEliminateModes.currentText() == 'Largest Common Boundary':
                     mode = 2
-                elif self.dlg.comboboxModeEliminateSoil.currentText() == 'Largest Area':
+                elif self.dlg.comboboxEliminateModes.currentText() == 'Largest Area':
                     mode = 0
 
                 tempLayerSplitEliminated = processing.run("qgis:eliminateselectedpolygons", {'INPUT':tempLayersplit,'MODE':mode,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
                 tempLayerSplitEliminated = processing.run("native:multiparttosingleparts", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                tempLayerSplitEliminated = processing.run("native:fixgeometries", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                tempLayerSplitEliminated, _ = self.make_geometries_valid(tempLayerSplitEliminated)
+                #tempLayerSplitEliminated = processing.run("native:fixgeometries", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
                 splitLayers.append(tempLayerSplitEliminated)
 
             #Merge all of the split layers
@@ -2582,7 +2581,6 @@ class QTalsim:
 
         #Calculate the mean slope for each HRU
         statsLayer = processing.run("native:zonalstatisticsfb", {'INPUT':hruLayer,'INPUT_RASTER':self.slopeLayer,'RASTER_BAND':1,'COLUMN_PREFIX':'_','STATISTICS':[2],'OUTPUT':'TEMPORARY_OUTPUT'}).get('OUTPUT')
-        
 
         # Add field 'Slope'
         statsLayer.startEditing()
@@ -2683,11 +2681,9 @@ class QTalsim:
             ezgDissolved = processing.run("native:dissolve", {'INPUT': self.ezgLayer,'FIELD': [],'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             
             self.log_to_qtalsim_tab("Deleting overlapping features...", Qgis.Info)
-            #QgsProject.instance().addMapLayer(ezgDissolved)
             intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayer, ezgDissolved) #necessary because also wanted gaps (of sub-basins-layer) are filled when performing 'Fill Gaps'
             
             intersectedDissolvedLayer, _ = self.editOverlappingFeatures(intersectedDissolvedLayer)
-            #QgsProject.instance().addMapLayer(intersectedDissolvedLayer)
         
             all_fields = [field.name() for field in intersectedDissolvedLayer.fields()]
             fields_to_delete_indices = [intersectedDissolvedLayer.fields().indexFromName(field)  for field in all_fields if field not in dissolve_list]
@@ -2695,7 +2691,6 @@ class QTalsim:
             intersectedDissolvedLayer.dataProvider().deleteAttributes(fields_to_delete_indices)
             intersectedDissolvedLayer.commitChanges()
             intersectedDissolvedLayer.updateFields()
-
             #Features with no geometry or NULL-values may lead to errors: delete those features
             features_to_delete = []
             for feature in intersectedDissolvedLayer.getFeatures():
@@ -2706,7 +2701,6 @@ class QTalsim:
             for feature_id in features_to_delete:
                 intersectedDissolvedLayer.deleteFeature(feature_id)
             intersectedDissolvedLayer.commitChanges()
-            #evtl umstellen auf make_geometries_valid
             #Split the intersected areas and create own layer for each catchment area
                 # --> necessary for eliminating: deleted areas (e.g. area too small) should only take the attributes of features in the same catchment area
             resultSplit = processing.run("native:splitvectorlayer", {
@@ -2775,7 +2769,6 @@ class QTalsim:
                 percentage_sums = {}
                 # Get a representative feature to extract the ezg value
                 for attributes_key, summed_area in area_sums.items():
-                # This assumes all features in the same attributes_key group have the same ezg value
                     ezg = ezg_values[attributes_key]
                     ezgArea = ezgAreas[ezg]
                     percentage = (summed_area / ezgArea) * 100
@@ -2813,12 +2806,12 @@ class QTalsim:
                     mode = 0
                 tempLayerSplitEliminated = processing.run("qgis:eliminateselectedpolygons", {'INPUT':tempLayersplit,'MODE':mode,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
                 tempLayerSplitEliminated = processing.run("native:multiparttosingleparts", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                tempLayerSplitEliminated = processing.run("native:fixgeometries", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                #tempLayerSplitEliminated = processing.run("native:fixgeometries", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                tempLayerSplitEliminated, _ = self.make_geometries_valid(tempLayerSplitEliminated)
                 splitLayers.append(tempLayerSplitEliminated)
 
             #Merge all of the split layers
             resultMerge = processing.run("native:mergevectorlayers", {'LAYERS':splitLayers,'CRS':intersectedDissolvedLayer.crs(),'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-        
             #Check if 
             invalid_features = False
             resultMerge, invalid_features = self.make_geometries_valid(resultMerge)
@@ -2845,7 +2838,6 @@ class QTalsim:
             except Exception as e:
                 self.log_to_qtalsim_tab(f"Operation did not work due to too complex features or other issues: {e}", Qgis.Warning)
             
-
             #Delete features without geometry
             features_to_delete = []
             for feature in self.finalLayer.getFeatures():
@@ -2871,52 +2863,6 @@ class QTalsim:
                     self.finalLayer.deleteAttribute(i)
             self.finalLayer.commitChanges()
 
-            #SoilId is needed two times
-            '''
-            # Start editing the layer
-            self.finalLayer.startEditing()
-
-            # Get the original field details
-            original_field = self.finalLayer.fields().field(self.IDSoil)
-            original_field_type = original_field.type()
-            original_field_type_name = original_field.typeName()
-
-            # Create a new field with the same type as the original field
-            new_field = QgsField(self.soilTextureId1, original_field_type)
-
-            # Add the new field to the layer
-            self.finalLayer.dataProvider().addAttributes([new_field])
-            self.finalLayer.updateFields()
-            
-            # Prepare a dictionary to hold the attribute changes
-            attributes = {}
-
-            # Iterate over the features to copy values
-            for feature in self.finalLayer.getFeatures():
-                # Get the value from the original field
-                new_value = feature[self.IDSoil]
-                
-                # Add the new value to the dictionary with the feature ID
-                attributes[feature.id()] = {self.finalLayer.fields().indexFromName(self.soilTextureId1): new_value}
-
-            # Apply the attribute changes to the layer
-            self.finalLayer.dataProvider().changeAttributeValues(attributes)
-
-            # Commit the changes
-            self.finalLayer.commitChanges()
-            '''
-            #Log catchment areas where size of all HRUs != size of catchment area
-            sum_areas = {key: 0 for key in ezgAreas.keys()}
-            for feature in self.finalLayer.getFeatures():
-                area = feature.geometry().area()
-                ezg = feature[self.ezgUniqueIdentifier]
-                sum_areas[ezg] += area
-            for key in ezgAreas:
-                if key in sum_areas:
-                    if round(ezgAreas[key], -2) != round(sum_areas[key], -2):
-                        self.log_to_qtalsim_tab(f'Sub-basin with Unique-Identifier {key} has a different area {ezgAreas[key]} than the sum of all features in this sub-basin {sum_areas[key]}.', Qgis.Warning)
-            
- 
             '''
                 Create .LNZ
             '''
@@ -2928,10 +2874,10 @@ class QTalsim:
                 resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
                 self.landuseFinal = resultDissolve['OUTPUT']
             except:
-                self.soilTypeFinal = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
-                self.landuseFinal = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                self.landuseFinal = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                self.landuseFinal = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                self.landuseFinal, _ = self.make_geometries_valid(self.landuseFinal)
+                self.landuseFinal = processing.run("native:dissolve", {'INPUT': self.landuseFinal,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                self.landuseFinal = processing.run("native:dissolve", {'INPUT': self.landuseFinal,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
 
             self.landuseFinal.startEditing()
             dissolve_fields_indices = [self.landuseFinal.fields().indexFromName(field) for field in self.selected_landuse_parameters]
@@ -3046,7 +2992,7 @@ class QTalsim:
                         combination = tuple(feature[f"{field.name()}_soillayer{i}"] for field in new_fields if field.name() != self.IDSoil)
                         
                         if combination in unique_feature_index:
-                            # Find the index of the corresponding feature in the new_layer and set the reference
+                            #Find the index of the corresponding feature in the new_layer and set the reference
                             new_feature.setAttribute(f"soillayer{i}_id_boa", unique_feature_index[combination])
                             new_feature.setAttribute(f"soillayer{i}_{self.soilTypeThickness}", feature[f'{self.soilTypeThickness}_soillayer{i}'])
                         if str(feature[f'{self.soilDescription}_soillayer{i}']).strip().upper() != 'NULL':
@@ -3073,7 +3019,6 @@ class QTalsim:
                 self.soilTypeFinal = processing.run("native:dissolve", {'INPUT': self.soilTypeFinal,'FIELD': bod_field_names, 'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
                 self.soilTypeFinal = processing.run("native:dissolve", {'INPUT': self.soilTypeFinal,'FIELD': bod_field_names, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
 
-
             #Fill ID-column with the (internal) feature-id
             self.soilTypeFinal.startEditing()
             #Iterate through each feature in the dissolved layer and assign a new unique ID
@@ -3091,7 +3036,9 @@ class QTalsim:
                 Create .EFL
             '''
             #Join the soil id (BOD) to the EFL-layer
-            # Define the parameters for the spatial join
+            self.finalLayer = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+            self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
+            #Define the parameters for the spatial join
             params = {
                 'INPUT': self.finalLayer,  
                 'JOIN': self.soilTypeFinal,  
@@ -3102,24 +3049,51 @@ class QTalsim:
                 'OUTPUT': 'memory:'  
             }
 
-            # Run the spatial join
+            #Run the spatial join
             result = processing.run('native:joinattributesbylocation', params)
 
-            # Get the resulting layer (joined output)
+            #Get the resulting layer (joined output)
             self.finalLayer = result['OUTPUT']
 
-            # Now rename the joined 'ID' column to the desired target_column_name
+            #Now rename the joined 'ID' column to the desired self.hruSoilTypeId
             self.finalLayer.startEditing()
             for field in self.finalLayer.fields():
                 if field.name() == 'ID': 
-                    self.finalLayer.renameAttribute(self.finalLayer.fields().indexOf('ID'), self.hruSoilTypeId)  # Rename it
+                    self.finalLayer.renameAttribute(self.finalLayer.fields().indexOf('ID'), self.hruSoilTypeId)  #Rename it
             self.finalLayer.commitChanges()
+
+            #Delete features without geometry
+            features_to_delete = []
+            for feature in self.finalLayer.getFeatures():
+                # Check if all attribute values are 'NULL'
+                if feature.geometry().isEmpty() or feature.geometry() is None or feature.geometry().area() == 0 or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' or str(feature[self.hruSoilTypeId]).strip().upper() == 'NULL' or str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
+                    features_to_delete.append(feature.id())
+            if len(features_to_delete) > 0:
+                self.log_to_qtalsim_tab(f"{len(features_to_delete)} features are deleted as they are empty polygons. ", Qgis.Info)
+
+            self.finalLayer.startEditing()
+            for feature_id in features_to_delete:
+                self.finalLayer.deleteFeature(feature_id)
+            self.finalLayer.commitChanges()
+
+            #Log catchment areas where size of all HRUs != size of catchment area
+            sum_areas = {key: 0 for key in ezgAreas.keys()}
+            for feature in self.finalLayer.getFeatures():
+                area = feature.geometry().area()
+                ezg = feature[self.ezgUniqueIdentifier]
+                sum_areas[ezg] += area
+            for key in ezgAreas:
+                if key in sum_areas:
+                    if round(ezgAreas[key], -2) != round(sum_areas[key], -2):
+                        self.log_to_qtalsim_tab(f'Sub-basin with Unique-Identifier {key} has a different area {ezgAreas[key]} than the sum of all features in this sub-basin {sum_areas[key]}.', Qgis.Warning)
+     
             eflFieldList.append(self.hruSoilTypeId)
             eflFieldList = [item for item in eflFieldList if item not in self.soilIDNames]
-
             try:
+                #Dissolve the final Layer
                 self.eflLayer = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             except:
+                #Complex geometries can lead to errors when dissolving - cleaning the geometries might be necessary
                 self.finalLayer = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
                 self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
 
@@ -3131,7 +3105,7 @@ class QTalsim:
                 self.eflLayer = self.calculateSlopeHRUs(self.eflLayer)    
             else:
                 self.eflLayer.startEditing()
-                # Add the new field 'slope'
+                #Add the new field 'slope'
                 self.eflLayer.addAttribute(QgsField(self.slopeFieldName, QVariant.Double))
                 self.eflLayer.commitChanges()
 
@@ -3174,7 +3148,7 @@ class QTalsim:
             self.eflLayer.renameAttribute(field_index, self.subBasinUI)
             self.eflLayer.commitChanges()
 
-            # Add the updated eflLayer to the map
+            #Add the updated eflLayer to the map
             self.eflLayer.setName("EFL")
             QgsProject.instance().addMapLayer(self.eflLayer)
 
