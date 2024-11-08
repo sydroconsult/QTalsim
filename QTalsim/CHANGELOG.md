@@ -3,7 +3,8 @@
 ## [1.6.1] - 2024-10-31
 - Enhancement
   - ISRIC Soil Type Converter: Order field names in final layer by soil horizon/layer
-Fixes
+
+- Fixes
   - HRU-Calculation
     - Do not allow null-references in EFL-layer (e.g. soil ID is null)
     - Fix but do not delete complex geometries

@@ -14,7 +14,6 @@ HRU calculation
    -  Sub-basin layer
    -  Soil layer
    -  Land use layer
-   -  CSV-file containing talsim land use types and parameters
 
    **Output:**
 

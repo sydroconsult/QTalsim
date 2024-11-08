@@ -23,8 +23,8 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon, QCursor, QMovie
-from qgis.PyQt.QtWidgets import QMainWindow, QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton, QDockWidget, QMessageBox, QApplication, QDialog
-from qgis.PyQt.QtCore import QVariant, QTimer, pyqtSignal, QEvent
+from qgis.PyQt.QtWidgets import QMainWindow, QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton, QDockWidget, QMessageBox, QApplication, QDialog, QWidget
+from qgis.PyQt.QtCore import QVariant, QTimer, pyqtSignal, QEvent, QObject
 # Initialize Qt resources from file resources.py
 from .resources import *
 # Import the code for the dialog
@@ -41,6 +41,7 @@ import webbrowser
 import numpy as np
 from collections import defaultdict
 import re
+import csv
 
 
 class QTalsim:
@@ -92,7 +93,6 @@ class QTalsim:
             Initialize the parameters
         '''
         self.dialog_status = None
-
         self.unique_values_landuse = set()
 
         self.noLayerSelected = 'No Layer selected'
@@ -325,20 +325,32 @@ class QTalsim:
     def end_operation(self):
         QApplication.restoreOverrideCursor()  # Restore the default cursor
 
-    #
-    def eventFilter(self, source, event):
-        #Check if the event is a mouse button press event
-        if event.type() == QEvent.MouseButtonPress:
-            #Determine which group box was clicked and update text accordingly
-            if source == self.dlg.soilGroupBox:
-                self.update_text_overview("Group Box 1 clicked")
-        # Pass the event to the base class
-        return super().eventFilter(source, event)
 
     def update_text_overview(self, text):
         #Set the text in the QTextBrowser
+        self.dlg.textOverview.clear()
         self.dlg.textOverview.setText(text)
-       
+
+    def load_group_boxes_from_csv(self, path):
+        """
+        Load group boxes and associated text from a CSV file.
+        """
+        group_boxes = {}
+
+        # Read the CSV file
+        with open(path, mode='r', newline='', encoding='cp1252') as csvfile:
+            reader = csv.DictReader(csvfile, delimiter = ';')
+            for row in reader:
+                widget_name = row['GroupBox']
+                text = row['Text']
+
+                # Retrieve the widget from self.dlg using its name
+                widget = getattr(self.dlg, widget_name, None)
+                if widget is not None:
+                    group_boxes[widget] = text
+
+        return group_boxes
+
     def log_to_qtalsim_tab(self, message, level):
         '''
             Logging to a QTalsim tab in the current Qgis Project.
@@ -1141,6 +1153,9 @@ class QTalsim:
         try:
             self.start_operation()
             self.log_to_qtalsim_tab(f"Starting the clipping process of the Soil Layer.", Qgis.Info) 
+            if self.clippingEZG is None:
+                selected_layer_soil = None
+                raise Exception("User has not selected a sub-basins layer.")
             #Select Layer
             selected_layer_soil = self.dlg.comboboxSoilLayer.currentText()
             self.soilLayer = QgsProject.instance().mapLayersByName(selected_layer_soil)[0]
@@ -1181,15 +1196,16 @@ class QTalsim:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
 
         finally:
-            #Remove the created soil-ID-field from the input layer
-            layer = QgsProject.instance().mapLayersByName(selected_layer_soil)[0]
-            layer.startEditing()
-            field_index = layer.fields().indexFromName(self.soilFieldInputID)
+            if selected_layer_soil:
+                #Remove the created soil-ID-field from the input layer
+                layer = QgsProject.instance().mapLayersByName(selected_layer_soil)[0]
+                layer.startEditing()
+                field_index = layer.fields().indexFromName(self.soilFieldInputID)
 
-            if field_index != -1:  
-                layer.dataProvider().deleteAttributes([field_index])
-                layer.updateFields()
-                layer.commitChanges()
+                if field_index != -1:  
+                    layer.dataProvider().deleteAttributes([field_index])
+                    layer.updateFields()
+                    layer.commitChanges()
             self.end_operation()
 
     def fillSoilTable(self):
@@ -1201,7 +1217,7 @@ class QTalsim:
             self.start_operation()
             fieldsSoil = [field.name() for field in self.soilLayer.fields()]
             current_path = os.path.dirname(os.path.abspath(__file__))
-            soilTalsimPath = os.path.join(current_path, "talsim_parameter", "soilParameter.csv")
+            soilTalsimPath = os.path.join(current_path, "talsim_parameter", "soilParameter.csv") 
             self.dfsoilParametersTalsim = pd.read_csv(soilTalsimPath, delimiter = ';', skiprows=[1]) #Skip ID_Soil as it is not needed as input
 
             #Create Table
@@ -1655,6 +1671,9 @@ class QTalsim:
 
             if self.landuseLayer:
                 QgsProject.instance().removeMapLayer(self.landuseLayer)
+            if self.clippingEZG is None:
+                selected_layer_name = None
+                raise Exception("User has not selected a sub-basins layer.")
             selected_layer_name = self.dlg.comboboxLanduseLayer.currentText()
             self.landuseLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
             #self.dlg.comboboxLanduseFields.setVisible(True)
@@ -1694,16 +1713,6 @@ class QTalsim:
             #self.dlg.comboboxLanduseFields.clear()
             #self.dlg.comboboxLanduseFields.addItems([field.name() for field in self.landuseFields])
             
-            # Remove the created landuse-ID-field from input layer
-            layer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
-            layer.startEditing()
-            field_index = layer.fields().indexFromName(self.landuseFieldInputID)
-
-            # Delete the field
-            layer.dataProvider().deleteAttributes([field_index])
-            layer.updateFields()
-            layer.commitChanges()
-
             self.fillLanduseTable()
 
             self.landuseLayer.setName("LanduseLayer")
@@ -1714,6 +1723,16 @@ class QTalsim:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
 
         finally:
+            if selected_layer_name:
+                # Remove the created landuse-ID-field from input layer
+                layer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+                layer.startEditing()
+                field_index = layer.fields().indexFromName(self.landuseFieldInputID)
+
+                # Delete the field
+                layer.dataProvider().deleteAttributes([field_index])
+                layer.updateFields()
+                layer.commitChanges()
             self.end_operation()
 
     def fillLanduseTable(self):
@@ -2701,6 +2720,7 @@ class QTalsim:
             for feature_id in features_to_delete:
                 intersectedDissolvedLayer.deleteFeature(feature_id)
             intersectedDissolvedLayer.commitChanges()
+            #QgsProject.instance().addMapLayer(intersectedDissolvedLayer)
             #Split the intersected areas and create own layer for each catchment area
                 # --> necessary for eliminating: deleted areas (e.g. area too small) should only take the attributes of features in the same catchment area
             resultSplit = processing.run("native:splitvectorlayer", {
@@ -2809,9 +2829,10 @@ class QTalsim:
                 #tempLayerSplitEliminated = processing.run("native:fixgeometries", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
                 tempLayerSplitEliminated, _ = self.make_geometries_valid(tempLayerSplitEliminated)
                 splitLayers.append(tempLayerSplitEliminated)
-
+            
             #Merge all of the split layers
             resultMerge = processing.run("native:mergevectorlayers", {'LAYERS':splitLayers,'CRS':intersectedDissolvedLayer.crs(),'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+            #QgsProject.instance().addMapLayer(resultMerge)
             #Check if 
             invalid_features = False
             resultMerge, invalid_features = self.make_geometries_valid(resultMerge)
@@ -2828,7 +2849,7 @@ class QTalsim:
             except:
                 resultMerge, _ = self.make_geometries_valid(resultMerge)
                 self.finalLayer = processing.run("native:dissolve", {'INPUT': resultMerge,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']  
-            
+            #QgsProject.instance().addMapLayer(self.finalLayer)
             self.log_to_qtalsim_tab("Deleting overlapping features...", Qgis.Info)
             try:
                 self.finalLayerAfterGaps = self.fillGaps(self.finalLayer, self.clippingEZG, 0)
@@ -3578,20 +3599,45 @@ class QTalsim:
         '''
             Run method that performs all the real work.
         '''
-        # Only create GUI ONCE in callback, so that it will only load when the plugin is started
+        #Only create GUI ONCE in callback, so that it will only load when the plugin is started
         if not hasattr(self, 'dlg'):
             self.dlg = QTalsimDialog()
             #self.iface.mainWindow().setWindowTitle("HRU Calculation")
+
+        #Define the group boxes and their custom messages
+        '''self.group_boxes = {
+            self.dlg.soilGroupBox: "Soil information displayed.",
+            self.dlg.landuseGroupBox: "Land use group selected.",
+            self.dlg.groupboxIntersect: "Intersect group accessed."
+        }'''
+        current_path = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(current_path, "talsim_parameter", "textGroupBoxesHRU.csv") 
+        self.group_boxes = self.load_group_boxes_from_csv(path)
+
+        default_message = (
+            "This plugin is designed to create hydrological response units (HRUs) suitable for Talsim. "
+            "The plugin processes three layers, including a sub-basin layer, soil layer, and land use layer. "
+            "It clips the layers in accordance with the sub-basin layer’s boundaries. The plugin then intersects those "
+            "three layers and creates HRUs. Additionally, the plugin offers functionality to remove duplicate geometries, "
+            "overlapping features, and unwanted gaps."
+        )
         
+        #Install the event filter on each group box
+        self.custom_event_filter = CustomEventFilter(self.update_text_overview, self.group_boxes, default_message)
+        
+        # Install the event filter on each group box
+        for widget in self.group_boxes.keys():
+            widget.installEventFilter(self.custom_event_filter)
+
         if self.first_start == True:
             self.first_start = False
             self.dlg.onCreateSoilLayer.setVisible(False)
             #self.dlg.onLanduseConfirm2.setVisible(False)
             self.dlg.onCreateLanduseLayer.setVisible(False)
 
-        #Translating the buttons to English for constistency
+        #Translating the buttons to English for consistency
         if self.dlg.finalButtonBox:
-            # Set button texts in English
+            #Set button texts in English
             self.dlg.finalButtonBox.button(QDialogButtonBox.Ok).setText('OK')
             self.dlg.finalButtonBox.button(QDialogButtonBox.Cancel).setText('Cancel')
             self.dlg.finalButtonBox.button(QDialogButtonBox.Reset).setText('Reset')
@@ -3745,7 +3791,6 @@ class QTalsim:
             self.subBasinWindow.setWindowTitle("Sub-basin preprocessing")
             self.subBasinDialog = SubBasinPreprocessingDialog(self.iface.mainWindow(), self)
             self.subBasinWindow.setCentralWidget(self.subBasinDialog)
-            #self.iface.mainWindow().addDockWidget(Qt.RightDockWidgetArea, self.subBasinWindow)
         else:
             self.subBasinDialog.initialize_parameters()
         
@@ -3781,12 +3826,6 @@ class CustomDockWidget(QDockWidget):
     def __init__(self, title, parent=None):
         super(CustomDockWidget, self).__init__(title, parent)
 
-        self.dlg.soilGroupBox.setMouseTracking(True)
-        self.dlg.soilGroupBox.installEventFilter(self)
-    '''
-    def layergroup(self, layerGroup):
-        self.layerGroup = layerGroup
-    '''
     def closeEvent(self, event):
         
         reply = QMessageBox.question(self, 'Confirm Close',
@@ -3803,3 +3842,25 @@ class CustomDockWidget(QDockWidget):
             '''
         else:
             event.ignore()
+
+class CustomEventFilter(QObject):
+    def __init__(self, callback, group_boxes, default_message):
+        """
+        :param callback: Function to call when an area is clicked.
+        :param group_boxes: Dictionary mapping group boxes to custom messages.
+        :param default_message: Message to show when clicking outside group boxes.
+        """
+        super().__init__()
+        self.callback = callback
+        self.group_boxes = group_boxes  #Dictionary of group box widgets and their custom messages
+        self.default_message = default_message  #Default message for clicks outside group boxes
+
+    def eventFilter(self, source, event):
+        if event.type() == QEvent.MouseButtonPress:
+            for group_box, message in self.group_boxes.items():
+                if source == group_box or group_box.isAncestorOf(source):
+                    # Trigger the specific message for this group box
+                    self.callback(message)
+                    return True  # Stop event propagation after handling
+
+        return super().eventFilter(source, event)
