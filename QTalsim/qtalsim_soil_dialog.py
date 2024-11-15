@@ -5,7 +5,7 @@ from qgis.PyQt.QtWidgets import  QFileDialog, QDialog, QDialogButtonBox
 from qgis.PyQt.QtCore import QVariant, QTimer
 from qgis.core import QgsProject, Qgis, QgsCoordinateReferenceSystem, QgsRasterLayer, QgsVectorLayer, QgsField, edit, QgsLayerTreeLayer, QgsCategorizedSymbolRenderer, QgsVectorFileWriter,QgsWkbTypes, QgsGeometry, QgsFeature
 from qgis.gui import QgsProjectionSelectionDialog
-from osgeo import gdal
+from osgeo import gdal, osr, ogr
 import processing
 import numpy as np
 import webbrowser
@@ -501,11 +501,19 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             array = dataset.ReadAsArray()
             
             #Get the "no data" value from the dataset
+            standard_no_data_value = -9999
             no_data_value = dataset.GetRasterBand(1).GetNoDataValue()
-            
             if no_data_value is not None:
-                #Replace "no data" values in the array with numpy's NaN
-                array = np.where(array == no_data_value, np.nan, array)
+                if base_name != 'bdod':
+                    #Use NaN for other layers except bdod
+                    array = np.where(array == no_data_value, np.nan, array)
+                else:
+                    #Replace bdod no-data values with standard no-data value
+                    array = np.where(array == no_data_value, standard_no_data_value, array)
+            else:
+                #If no-data value is missing in raster, apply standard no-data for bdod layers
+                if base_name == 'bdod':
+                    array[array == standard_no_data_value] = standard_no_data_value
             
             return array
 
@@ -550,8 +558,13 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         #Convert bulk density layer from cg/cm³ to kg/dm³ by dividing by 100
         for layer in self.bdod_data:
-            self.bdod_data[layer] = self.bdod_data[layer] / 100
+            self.bdod_data[layer] = self.bdod_data[layer].astype(float)
+            
+            self.bdod_data[layer][np.isclose(self.bdod_data[layer], -9999, atol=1e-3)] = -9999.0
+            #Create a mask to exclude no-data values
+            mask = self.bdod_data[layer] > -9999.0
 
+            self.bdod_data[layer][mask] = self.bdod_data[layer][mask] / 100
 
     def add_single_band_numpy_array_to_qgis(self, numpy_array, geotransform, projection, layer_name):
         '''
@@ -635,10 +648,11 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         return False
 
     def convertRasterToVectorLayer(self, raster_layer, field_name):
+        self.log_to_qtalsim_tab("Converting raster layer to vector layer...", Qgis.Info)
         #Convert the raster_layer to polygon_layer
         result_layer = processing.run("native:pixelstopolygons", {'INPUT_RASTER':raster_layer,'RASTER_BAND':1,'FIELD_NAME':field_name,'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
         result_layer = processing.run("native:dissolve", {'INPUT':result_layer,'FIELD':[field_name],'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
-
+        
         #Buffer and negative buffer to remove borders of pixels, when neighboring a pixel with the same soil type
         '''result_layer = processing.run("native:buffer", {
             'INPUT': result_layer,
@@ -671,6 +685,105 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         })['OUTPUT']
         vector_layer,_ = self.make_geometries_valid(vector_layer)
         return vector_layer
+    
+    def convertArrayToVectorLayer(self, array, geotransform, projection, original_dataset, field_name, output_gpkg, layer_name):
+        nodata_value = -9999 #Qgis interprets this as nodata
+        #Get dimensions
+        rows, cols = array.shape
+
+        #Create an in-memory GDAL dataset with the correct dimensions
+        driver = gdal.GetDriverByName('MEM')
+        dataset = driver.Create('', cols, rows, 1, gdal.GDT_Float32)
+        
+        if field_name != 'talsim_soilid':
+            class_boundaries = [0, 1.3, 1.55, 1.75, 1.95, np.inf]
+            class_values = [1, 2, 3, 4, 5]
+
+            # Replace values in the array with classes
+            classified_array = np.full(array.shape, nodata_value, dtype=np.int32)  # Initialize with no-data value
+            for i in range(len(class_boundaries) - 1):
+                lower_bound = class_boundaries[i]
+                upper_bound = class_boundaries[i + 1]
+                classified_array[
+                    (array >= lower_bound) & (array < upper_bound)
+                ] = class_values[i]
+            array = classified_array
+        #Set geotransform and projection
+        dataset.SetGeoTransform(geotransform)
+        dataset.SetProjection(projection)
+        
+        #Write the numpy array data to the GDAL dataset
+        band = dataset.GetRasterBand(1)
+        band.WriteArray(array)
+
+        
+        band.SetNoDataValue(nodata_value)
+    
+        #Get the CRS of the raster
+        raster_crs = original_dataset.GetProjection()
+        srs = osr.SpatialReference()
+        srs.ImportFromWkt(raster_crs)
+        raster_epsg = srs.GetAttrValue("AUTHORITY", 1)  #Get EPSG code if available
+
+        #Create the CRS for the QGIS layer
+        if raster_epsg:
+            crs = f"EPSG:{raster_epsg}"
+        else:
+            crs = QgsCoordinateReferenceSystem()
+            crs.createFromWkt(raster_crs)
+        
+        #Set up the GeoPackage driver
+        gpkg_driver = ogr.GetDriverByName("GPKG")
+        if os.path.exists(output_gpkg):
+            gpkg_ds = gpkg_driver.Open(output_gpkg, 1)  #'1' for update mode
+            if gpkg_ds is None:
+                raise RuntimeError(f"Failed to open existing GeoPackage at {output_gpkg}")
+        else:
+            #Create a new GeoPackage
+            gpkg_ds = gpkg_driver.CreateDataSource(output_gpkg)
+            if gpkg_ds is None:
+                raise RuntimeError(f"Failed to create GeoPackage at {output_gpkg}")
+
+        #Create a file path
+        layer_name = layer_name.replace("_mean", "")
+        if not layer_name.startswith("bdod"):
+            layer_name = 'soiltype_' + layer_name
+
+        #Create a new layer in the GeoPackage
+        temp_layer = gpkg_ds.CreateLayer(layer_name, srs, ogr.wkbPolygon)
+        if temp_layer is None:
+            raise RuntimeError(f"Failed to create layer '{layer_name}' in GeoPackage.")
+
+        #Add a field to hold the talsim-soilid
+        field_defn = ogr.FieldDefn(field_name, ogr.OFTInteger)
+
+        temp_layer.CreateField(field_defn)
+
+        #Confirm the field was added successfully
+        field_index = temp_layer.GetLayerDefn().GetFieldIndex(field_name)
+
+        #Polygonize
+        err = gdal.Polygonize(band, None, temp_layer, field_index, [], callback=None)
+        if err != 0:
+            self.log_to_qtalsim_tab("Polygonization failed with error code:", Qgis.Critical)
+
+        #Check if polygons were created
+        if temp_layer.GetFeatureCount() == 0:
+            self.log_to_qtalsim_tab("No features created by Polygonize.", Qgis.Critical)
+
+        #Delete no data polygons
+        temp_layer.StartTransaction() 
+        for feature in temp_layer:
+            if feature.GetField(field_name) == nodata_value:
+                temp_layer.DeleteFeature(feature.GetFID())
+        temp_layer.CommitTransaction()  #Commit deletion transaction
+
+        #Load the GeoPackage layer into QGIS
+        result_layer = QgsVectorLayer(f"{output_gpkg}|layername={layer_name}", f"{layer_name}", "ogr")
+        result_layer,_ = self.make_geometries_valid(result_layer)
+        self.log_to_qtalsim_tab(f"Successfully created layer {layer_name}", Qgis.Info)
+
+        return result_layer, layer_name
     
     def soilMapping(self):
         '''
@@ -737,20 +850,23 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                             self.polyY[self.count] = self.boa[i][2] #Silt as y-coordinate
                             
                     boa_array[x, y] = self.talsim_soilids[bda] #store the soil type of the current pixel
-
+            self.log_to_qtalsim_tab(f"Finished calculation of soil types of layer {layer_name}.", Qgis.Info)
             #Geotransform and projection are taken from the project input dataset
             input_file_path = os.path.join(self.path_proj, 'clay_0-5cm_mean.tif')  
             original_dataset = gdal.Open(input_file_path)
             geotransform = original_dataset.GetGeoTransform()
             projection = original_dataset.GetProjection()
 
-            #Add the soil type layer to QGIS
-            raster_layer, layer_name = self.add_single_band_numpy_array_to_qgis(boa_array, geotransform, projection, layer_name)
+            #Convert the boa array to a vector layer
+            gpkgOutputPath = os.path.join(self.outputFolder, "soil_types.gpkg")
             layer_name = layer_name.replace(".tif", "")
-
-            #Convert to Vector Layer
-            result_layer = self.convertRasterToVectorLayer(raster_layer, 'talsim_soilid')
-
+            result_layer, layer_name = self.convertArrayToVectorLayer(boa_array, geotransform, projection, original_dataset, 'talsim_soilid', gpkgOutputPath, layer_name)
+            ''''dissolve_params = {
+                'INPUT': result_layer,
+                'FIELD': ['talsim_soilid'],  # Dissolve all features; add fields to dissolve by specific attributes
+                'OUTPUT': 'TEMPORARY_OUTPUT'
+            }
+            result_layer = processing.run("qgis:dissolve", dissolve_params)['OUTPUT']'''
             #Add the "soil_type" column
             result_layer.dataProvider().addAttributes([QgsField("soil_type", QVariant.String)])
             result_layer.dataProvider().addAttributes([QgsField("layer_thickness", QVariant.Double)])
@@ -761,6 +877,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     if value == talsim_soilid:
                         return key
                 return 'Unknown' 
+            self.log_to_qtalsim_tab(f"Further processing layer {layer_name}...", Qgis.Info)
 
             #Populate the "soil_type" field based on talsim_soilid
             with edit(result_layer):
@@ -783,9 +900,6 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             soilTypeLayers.append(result_layer)
 
         #Export soil type layers as geopackage
-        gpkgOutputPath = os.path.join(self.outputFolder, "soil_types.gpkg")
-        processing.run("native:package", {'LAYERS':soilTypeLayers,'OUTPUT':gpkgOutputPath,'OVERWRITE':True,'SAVE_STYLES':True,'SAVE_METADATA':True,'SELECTED_FEATURES_ONLY':False,'EXPORT_RELATED_LAYERS':False})
-
         self.layers_to_combine = []
         field_names = []
         #1.: Save the vector layers to a geopackage
@@ -794,19 +908,20 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             soil_layer = '_'.join(layer_name.split('_')[1:])
             uri = f"{gpkgOutputPath}|layername={layer_name}"
             gpkg_layer = QgsVectorLayer(uri, layer_name, "ogr")
-
+            dissolve_params = {
+                'INPUT': gpkg_layer,
+                'FIELD': ['talsim_soilid', "soil_type", "layer_thickness"],  #Dissolve all features; add fields to dissolve by specific attributes
+                'OUTPUT': 'TEMPORARY_OUTPUT',
+                'SEPARATE_DISJOINT': False
+            }
+            gpkg_layer_dissolved = processing.run("qgis:dissolve", dissolve_params)['OUTPUT']
             #Add the layers to the Qgis project
-            if gpkg_layer.isValid():
-                current_path = os.path.dirname(os.path.abspath(__file__))
-                pathSymbology = os.path.join(current_path, "symbology", "SoilTypes.qml") #Get symbology
-
-                self.apply_filtered_symbology(gpkg_layer, pathSymbology, self.fieldNameSoilType)
-
+            if gpkg_layer_dissolved.isValid():
                 field_mapping = {}
-                layer_fields = gpkg_layer.fields()
+                layer_fields = gpkg_layer_dissolved.fields()
                 for field in layer_fields:
                     new_field_name = f"{soil_layer}_{field.name()}"
-                    field_index = gpkg_layer.fields().indexOf(field.name())
+                    field_index = gpkg_layer_dissolved.fields().indexOf(field.name())
                     if field_index != -1:
                         field_mapping[field_index] = new_field_name
 
@@ -814,15 +929,13 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 # Apply the renaming
                 if field_mapping:
-                    gpkg_layer.dataProvider().renameAttributes(field_mapping)
-                    gpkg_layer.updateFields()
+                    gpkg_layer_dissolved.dataProvider().renameAttributes(field_mapping)
+                    gpkg_layer_dissolved.updateFields()
 
-                self.layers_to_combine.append(gpkg_layer)  
+                self.layers_to_combine.append(gpkg_layer_dissolved)  
 
-                #QgsProject.instance().addMapLayer(gpkg_layer, False)
-                #tree_layer = QgsLayerTreeLayer(gpkg_layer)
-                #self.layer_group.addChildNode(tree_layer)
 
+        self.log_to_qtalsim_tab("Combining the soil layers to one soil type layer...", Qgis.Info)
         #2.: Combine the layers to one soil type layer, holding the different soil layers in different columns
         try:
             params = {
@@ -863,6 +976,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             combined_layer.updateFields()
             combined_layer.commitChanges()
 
+        self.log_to_qtalsim_tab("Dissolving the soil type layer...", Qgis.Info)
         #Dissolve the combined soil layer by all soil columns
         try:
             combined_layer = processing.run("native:dissolve", {'INPUT':combined_layer,'FIELD':field_names,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
@@ -891,19 +1005,23 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.log_to_qtalsim_tab(f"Soil type vector layers were saved here: {gpkgOutputPath}", Qgis.Info)
 
+        self.log_to_qtalsim_tab(f"Processing bulk density layers...", Qgis.Info)
         #Add bulk density raster layers
         bdodLayers = []
+        gpkgOutputPathBdod = os.path.join(self.outputFolder, "bdod.gpkg")
         for layer_name, data_array in self.bdod_data.items():
             layer_name = 'bdod_' + layer_name
             
             #Convert numpy array to raster and add to project
-            bdod_raster_layer, layer_name = self.add_single_band_numpy_array_to_qgis(data_array, geotransform, projection, layer_name)
+            #bdod_raster_layer, layer_name = self.add_single_band_numpy_array_to_qgis(data_array, geotransform, projection, layer_name)
             layer_name = layer_name.replace(".tif", "") #remove .tif from layer_name
 
+            vector_layer, layer_name = self.convertArrayToVectorLayer(data_array, geotransform, projection, original_dataset, self.fieldNameBdodClass, gpkgOutputPathBdod, layer_name)
             #Convert BDOD-layer to vector layer
-            vector_layer = self.convertRasterToVectorLayer(bdod_raster_layer, self.fieldNameBdod)
+            #vector_layer = self.convertRasterToVectorLayer(bdod_raster_layer, self.fieldNameBdod)
             
             #Add a field holding the bdod class
+            '''
             bdod_class_field = QgsField(self.fieldNameBdodClass, QVariant.Int)
             vector_layer.dataProvider().addAttributes([bdod_class_field])
             vector_layer.updateFields()
@@ -912,7 +1030,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             vector_layer.startEditing()
             for feature in vector_layer.getFeatures():
                 bdod_value = feature[self.fieldNameBdod]
-                if bdod_value < 1.3:
+                if bdod_value >= 0 and bdod_value < 1.3:
                     feature[self.fieldNameBdodClass] = 1
                 elif bdod_value >= 1.3 and bdod_value < 1.55:
                     feature[self.fieldNameBdodClass] = 2
@@ -924,6 +1042,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     feature[self.fieldNameBdodClass] = 5
                 vector_layer.updateFeature(feature)
             vector_layer.commitChanges()
+            '''
             try:
                 vector_layer = processing.run("native:dissolve", {'INPUT':vector_layer,'FIELD':[self.fieldNameBdodClass],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
             except:
@@ -936,8 +1055,8 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
 
         #Export bulk density layers as geopackage
-        gpkgOutputPathBdod = os.path.join(self.outputFolder, "bdod.gpkg")
-        processing.run("native:package", {'LAYERS':bdodLayers,'OUTPUT':gpkgOutputPathBdod,'OVERWRITE':True,'SAVE_STYLES':True,'SAVE_METADATA':True,'SELECTED_FEATURES_ONLY':False,'EXPORT_RELATED_LAYERS':False})
+        #gpkgOutputPathBdod = os.path.join(self.outputFolder, "bdod.gpkg")
+        #processing.run("native:package", {'LAYERS':bdodLayers,'OUTPUT':gpkgOutputPathBdod,'OVERWRITE':True,'SAVE_STYLES':True,'SAVE_METADATA':True,'SELECTED_FEATURES_ONLY':False,'EXPORT_RELATED_LAYERS':False})
         
         bdod_layers_to_combine = []
         bdod_dissolve_fields = [] #stores the field names of bdod classes in final layer 
@@ -1027,7 +1146,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Delete the 'fid' columns to be able to save the combined layer with all soil types to a geopackage
         #Get the fields (attributes) from the combined layer
         fields = finalLayer.fields()
-
+        QgsProject.instance().addMapLayer(finalLayer, False)
         #Identify columns that are named 'fid' or start with 'fid' and the id columns
         fields_to_remove = [field.name() for field in fields if field.name().lower().startswith('fid') or field.name().lower().endswith('id')]
 
