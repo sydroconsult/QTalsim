@@ -1130,6 +1130,9 @@ class QTalsim:
             result = processing.run("native:dissolve", {'INPUT': self.ezgLayer, 'FIELD':[self.ezgUniqueIdentifier],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.ezgLayer = result['OUTPUT']
             
+            current_text = self.dlg.onEZG.text()
+            if "✓" not in current_text:  # Avoid duplicate checkmarks
+                self.dlg.onEZG.setText(f"{current_text} ✓")
             #self.safeDisconnect(self.dlg.comboboxEZGLayer.currentIndexChanged, self.on_ezg_changed)
             self.ezgLayer.setName("Sub-basins")
             QgsProject.instance().addMapLayer(self.ezgLayer)
@@ -1187,6 +1190,12 @@ class QTalsim:
             self.soilLayer = outputLayer
 
             self.fillSoilTable()
+            
+
+            #Add checkmark when process is finished
+            current_text = self.dlg.onSoil.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onSoil.setText(f"{current_text} ✓")
             self.soilLayer.setName("SoilLayer")
             QgsProject.instance().addMapLayer(self.soilLayer)
 
@@ -1399,6 +1408,12 @@ class QTalsim:
                 self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
 
             self.soilLayerIntermediate.dataProvider().reloadData()
+
+            #Add checkmark when process is finished
+            current_text = self.dlg.onConfirmSoilMapping.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onConfirmSoilMapping.setText(f"{current_text} ✓")
+
             self.soilLayerIntermediate.setName("SoilLayerEdited")
             QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
 
@@ -1496,6 +1511,10 @@ class QTalsim:
 
             self.soilLayerIntermediate.setName(layer_input_name)
 
+            #Add checkmark when process is finished
+            current_text = self.dlg.onOverlappingSoils.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onOverlappingSoils.setText(f"{current_text} ✓")
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
 
@@ -1521,7 +1540,11 @@ class QTalsim:
 
             layer_name = self.update_layer_name(layer_input_name, function='overlap')
             self.soilLayerIntermediate.setName(layer_name)
-
+            
+            #Add checkmark when process is finished
+            current_text = self.dlg.onSoilTypeDelete.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onSoilTypeDelete.setText(f"{current_text} ✓")
             QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
 
             self.log_to_qtalsim_tab(f"Deleting overlapping soil features finished.", Qgis.Info)
@@ -1550,6 +1573,11 @@ class QTalsim:
 
             layer_name = self.update_layer_name(layer_input_name, function='overlap')
             self.soilLayerIntermediate.setName(layer_name)
+
+            #Add checkmark when process is finished
+            current_text = self.dlg.onDeleteOverlappingSoilFeatures.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onDeleteOverlappingSoilFeatures.setText(f"{current_text} ✓")
             QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
             
             self.end_operation()
@@ -1569,7 +1597,12 @@ class QTalsim:
             self.log_to_qtalsim_tab("QTalsim is currently loading, checking for gaps in soil layer.", Qgis.Info)
             self.start_operation()
             self.soilGaps = self.checkGaps(self.soilLayerIntermediate, self.clippingEZG)
-        
+
+            #Add checkmark when process is finished
+            current_text = self.dlg.onCheckGapsSoil.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onCheckGapsSoil.setText(f"{current_text} ✓")
+
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
 
@@ -1614,6 +1647,10 @@ class QTalsim:
             self.log_to_qtalsim_tab(f"Filled gaps of layer {self.soilLayerIntermediate.name()}.", Qgis.Info) 
             QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
 
+            #Add checkmark when process is finished
+            current_text = self.dlg.onFillGapsSoil.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onFillGapsSoil.setText(f"{current_text} ✓")
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
 
@@ -1649,6 +1686,11 @@ class QTalsim:
                 QgsProject.instance().removeMapLayer(self.soilLayerIntermediate)
             self.soilTalsim.setName("Talsim Soil")
             QgsProject.instance().addMapLayer(self.soilTalsim)  
+
+            #Add checkmark when process is finished
+            current_text = self.dlg.onCreateSoilLayer.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onCreateSoilLayer.setText(f"{current_text} ✓")
 
             self.log_to_qtalsim_tab(f"Created Soil Layer with Talsim Parameters: {self.soilTalsim.name()}.", Qgis.Info) 
         
@@ -1717,6 +1759,11 @@ class QTalsim:
 
             self.landuseLayer.setName("LanduseLayer")
             QgsProject.instance().addMapLayer(self.landuseLayer)
+
+            #Add checkmark when process is finished
+            current_text = self.dlg.onLanduseLayer.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onLanduseLayer.setText(f"{current_text} ✓")
 
             self.log_to_qtalsim_tab(f"Successfully selected and clipped Landuse Layer: {self.landuseLayer.name()}.", Qgis.Info) 
         except Exception as e:
@@ -1896,6 +1943,11 @@ class QTalsim:
             self.landuseTalsim.setName("LanduseLayerEdited")
             QgsProject.instance().addMapLayer(self.landuseTalsim)
 
+            #Add checkmark when process is finished
+            current_text = self.dlg.onConfirmLanduseMapping.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onConfirmLanduseMapping.setText(f"{current_text} ✓")
+
             self.log_to_qtalsim_tab(f"Finished land use parameter mapping. Inspect results in this temporary layer: {self.landuseTalsim.name()}.", Qgis.Info) 
         
         except Exception as e:
@@ -2048,127 +2100,6 @@ class QTalsim:
         finally:
             self.end_operation()
 
-    def confirmLanduseClassification(self):
-        '''
-            Creates the Talsim Landuse Layer according to the Landuse Mapping.
-                The resulting layer can still have gaps and overlaps, these are removed in another step.
-                Eliminates land use polygons defined as too small (by user input). 
-        '''
-        try:
-            self.start_operation()
-            if self.landuseTalsim:
-                QgsProject.instance().removeMapLayer(self.landuseTalsim)
-            self.log_to_qtalsim_tab("Start Landuse Mapping", Qgis.Info)
-            self.landuseTalsim = QgsVectorLayer(f"Polygon?crs={self.landuseLayer.crs().authid()}", "Talsim Landuse", "memory")
-            feats = [feat for feat in self.landuseLayer.getFeatures()]
-
-            mem_layer_data = self.landuseTalsim.dataProvider()
-            attr = self.landuseLayer.dataProvider().fields().toList()
-            mem_layer_data.addAttributes(attr)
-            self.landuseTalsim.updateFields()
-            mem_layer_data.addFeatures(feats)
-
-            dtype_to_qvariant = {
-                'float64': QVariant.Double,
-                'int64': QVariant.Int,
-                'object': QVariant.String,   
-            }
-            #Add new fields
-            for parameter in self.selected_landuse_parameters: #Field names Talsim parameters
-                column_dtype = str(self.dfLanduseTalsim[parameter].dtype)
-                qvariant_type = dtype_to_qvariant.get(column_dtype, QVariant.String)
-                self.parameterFieldsLanduse = QgsField(parameter, qvariant_type) #add a Field with each parameter chosen
-                self.landuseTalsim.dataProvider().addAttributes([self.parameterFieldsLanduse])
-                self.landuseTalsim.updateFields()
-
-            new_field = QgsField('Talsim Landuse', QVariant.String) #Talsim Landnutzung
-            self.landuseTalsim.dataProvider().addAttributes([new_field])
-            self.landuseTalsim.updateFields()
-            
-            value_mapping = {}
-            # Create Value Mapping for the table
-            for row in range(self.dlg.tableLanduseMapping.rowCount()):
-                old_value = self.dlg.tableLanduseMapping.item(row, 0).text()
-                new_value = self.dlg.tableLanduseMapping.cellWidget(row, 1).currentText()
-                value_mapping[old_value] = new_value
-            
-            self.landuseTalsim.startEditing()
-            ids_to_delete = [] 
-            
-            #Logging variables
-            analysed_features = 0
-            count_features = self.landuseTalsim.featureCount()
-            last_logged_progress = 0
-
-            # Iterate through the features of the duplicate layer
-            for feature in self.landuseTalsim.getFeatures():
-                #Log Progress
-                analysed_features += 1
-                progress = (analysed_features/count_features)*100
-                if progress - last_logged_progress >= 10:
-                    self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
-                    last_logged_progress = progress
-
-                # Get the old value from the feature
-                old_value = str(feature[self.landuseField])
-                #str(old_value) if str(old_value).strip().upper() == 'NULL' else old_value
-                new_value = value_mapping.get(old_value, '')  #Lookup the corresponding new value from the value_mapping dictionary
-                if new_value == 'Delete Landuse':
-                    ids_to_delete.append(feature.id())
-                    continue #next iteration
-                feature['Talsim Landuse'] = new_value # Set the value for the new column
-                if len(self.selected_landuse_parameters) >= 1:
-                    row = self.dfLanduseTalsim.loc[self.dfLanduseTalsim['Name'] == new_value] #get all entries of csv of the current landuse
-                    try: 
-                        parameter_values_dict = row[self.selected_landuse_parameters].iloc[0].to_dict() #Get parameters
-                        for parameter in self.selected_landuse_parameters:
-                            parameter_value = parameter_values_dict.get(parameter, None)
-                            feature[parameter] = parameter_value #Fill features with the parameters as defined by land use mapping table
-                        self.landuseTalsim.updateFeature(feature)  # Update the feature in the new Talsim landuse layer
-                    except Exception as e:
-                        error_message = f"An error occurred: {str(e)}"
-                        self.log_to_qtalsim_tab(error_message, level=Qgis.Critical) 
-
-            #Delete features the user wants to delete
-            for fid in ids_to_delete:
-                self.landuseTalsim.deleteFeature(fid)
-            self.landuseTalsim.commitChanges()
-            self.landuseTalsim, _ = self.make_geometries_valid(self.landuseTalsim)
-
-            #Delete the polygons below the thresholds
-            if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
-                self.landuseTalsim = self.deletePolygonsBelowThreshold(self.landuseTalsim, self.selected_landuse_parameters, self.fieldLanduseID)
-            try:
-                resultDissolve = processing.run("native:dissolve", {'INPUT':self.landuseTalsim,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'})
-                self.landuseTalsim = resultDissolve['OUTPUT']
-            except:
-                self.landuseTalsim, _ = self.make_geometries_valid(self.landuseTalsim)
-                resultDissolve = processing.run("native:dissolve", {'INPUT':self.landuseTalsim,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'})
-                self.landuseTalsim = resultDissolve['OUTPUT']
-
-            all_fields = [field.name() for field in self.landuseTalsim.fields()]
-            fields_to_delete_indices = [self.landuseTalsim.fields().indexFromName(field)  for field in all_fields if field not in self.selected_landuse_parameters]
-            self.landuseTalsim.startEditing()
-            self.landuseTalsim.dataProvider().deleteAttributes(fields_to_delete_indices) #Delete fields as some field names (e.g. fid) can lead to errors
-            self.landuseTalsim.commitChanges()
-            self.landuseTalsim.updateFields()
-            self.landuseTalsim = processing.run("native:multiparttosingleparts", {
-                'INPUT': self.landuseTalsim,
-                'OUTPUT': 'TEMPORARY_OUTPUT'
-            })['OUTPUT']
-
-            self.landuseTalsim.setName("Talsim Landuse")
-            QgsProject.instance().addMapLayer(self.landuseTalsim)
-            self.dlg.onCreateLanduseLayer.setVisible(True)
-
-            self.log_to_qtalsim_tab(f"Finished landuse mapping. Inspect results in this layer: {self.landuseTalsim.name()}.", Qgis.Info) 
-
-        except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-
-        finally:
-            self.end_operation()
-
     def checkOverlappingLanduse(self):
         '''
             Checks for overlapping land use Features and fills the table to delete overlapping parts of features.
@@ -2244,6 +2175,12 @@ class QTalsim:
                     )
                 )
             self.landuseTalsim.setName(layer_input_name)
+
+            #Add checkmark when process is finished
+            current_text = self.dlg.onCheckOverlappingLanduse.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onCheckOverlappingLanduse.setText(f"{current_text} ✓")
+
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
 
@@ -2271,6 +2208,11 @@ class QTalsim:
             
             self.landuseTalsim.setName(layer_name)
             QgsProject.instance().addMapLayer(self.landuseTalsim)
+
+            #Add checkmark when process is finished
+            current_text = self.dlg.onLanduseTypeDelete.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onLanduseTypeDelete.setText(f"{current_text} ✓")
 
             self.log_to_qtalsim_tab(f"Deleting overlapping parts finished.", Qgis.Info)
         
@@ -2301,6 +2243,10 @@ class QTalsim:
 
             QgsProject.instance().addMapLayer(self.landuseTalsim)
 
+            #Add checkmark when process is finished
+            current_text = self.dlg.onDeleteOverlapsLanduse.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onDeleteOverlapsLanduse.setText(f"{current_text} ✓")
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
 
@@ -2316,6 +2262,10 @@ class QTalsim:
             self.start_operation()
             self.landuseGaps = self.checkGaps(self.landuseTalsim, self.clippingEZG)
 
+            #Add checkmark when process is finished
+            current_text = self.dlg.onLanduseTypeDelete.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onCheckGapsLanduse.setText(f"{current_text} ✓")
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
 
@@ -2355,6 +2305,11 @@ class QTalsim:
             
             QgsProject.instance().addMapLayer(self.landuseTalsim)
 
+            #Add checkmark when process is finished
+            current_text = self.dlg.onFillGapsLanduse.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onFillGapsLanduse.setText(f"{current_text} ✓")
+
             self.log_to_qtalsim_tab(f"Filled gaps of layer {self.landuseTalsim.name()}.", Qgis.Info) 
 
         except Exception as e:
@@ -2390,6 +2345,11 @@ class QTalsim:
                 QgsProject.instance().removeMapLayer(self.landuseLayer)
             self.landuseTalsim.setName("Talsim Landuse")
             QgsProject.instance().addMapLayer(self.landuseTalsim)
+
+            #Add checkmark when process is finished
+            current_text = self.dlg.onCreateLanduseLayer.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onCreateLanduseLayer.setText(f"{current_text} ✓")
 
             self.log_to_qtalsim_tab(f"Created Landuse Layer with Talsim Parameters: {self.landuseTalsim.name()}.", Qgis.Info)
 
@@ -2492,10 +2452,10 @@ class QTalsim:
             eflFieldList = []
             eflFieldList.append(self.ezgUniqueIdentifier) #ID of catchment area
             if isinstance(id_field, list):
-                # If id_field is a list, append each item to eflFieldList
+                #If id_field is a list, append each item to eflFieldList
                 eflFieldList.extend(id_field)
             else:
-                # If id_field is a single string, append it directly
+                #If id_field is a single string, append it directly
                 eflFieldList.append(id_field) #ID Soil/Landuse
             splitLayers = []
 
@@ -2541,6 +2501,7 @@ class QTalsim:
                     ezgArea = ezgAreas[ezg]
                     percentage = (summed_area / ezgArea) * 100
                     percentage_sums[attributes_key] = percentage
+
                 features_to_delete = []
                 for feature in tempLayersplit.getFeatures():
                     attributes_key = tuple(feature[field] for field in eflFieldList)
@@ -2556,7 +2517,6 @@ class QTalsim:
                                 ids_to_eliminate.append(feature.id()) #eliminate
                         if area == 0 and feature.id() not in ids_to_eliminate: #also eliminate features with area = 0
                             ids_to_eliminate.append(feature.id())
-
                 tempLayersplit.startEditing()
                 for feature_id in features_to_delete:
                     tempLayersplit.deleteFeature(feature_id)
@@ -3173,6 +3133,11 @@ class QTalsim:
             self.eflLayer.setName("EFL")
             QgsProject.instance().addMapLayer(self.eflLayer)
 
+            #Add checkmark when process is finished
+            current_text = self.dlg.onPerformIntersect.text()
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
+                self.dlg.onPerformIntersect.setText(f"{current_text} ✓")
+
             self.log_to_qtalsim_tab(f"Finished intersection of layers.", Qgis.Info)
         
         except Exception as e:
@@ -3515,7 +3480,12 @@ class QTalsim:
                     outputLnz.writelines(completeContentLnz)
 
                 self.log_to_qtalsim_tab(f"ASCII-files were saved to this folder: {self.outputFolder}",Qgis.Info)
-
+                
+                #Add checkmark when process is finished
+                current_text = self.dlg.onExportASCII.text()
+                if "✓" not in current_text:  #Avoid duplicate checkmarks
+                    self.dlg.onExportASCII.setText(f"{current_text} ✓")
+                    
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
 

@@ -202,7 +202,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.lfpFinalLayer.commitChanges()  # Commit changes
 
                 #Join the LFP length to sub-basin layer
-                self.subBasinLayerProcessed = processing.run("native:joinattributestable", {'INPUT': self.subBasinLayerProcessed,'FIELD':'Talsim_ID','INPUT_2': self.lfpFinalLayer,'FIELD_2':'BASINID','FIELDS_TO_COPY':[self.lengthFieldName],'METHOD':1,'DISCARD_NONMATCHING':False,'PREFIX':'','OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+                self.subBasinLayerProcessed = processing.run("native:joinattributestable", {'INPUT': self.subBasinLayerProcessed,'FIELD': self.subbasinUIField,'INPUT_2': self.lfpFinalLayer,'FIELD_2':'BASINID','FIELDS_TO_COPY':[self.lengthFieldName],'METHOD':1,'DISCARD_NONMATCHING':False,'PREFIX':'','OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
                 
             self.geopackage_path = os.path.join(self.outputFolder, f"Sub_basins_processed.gpkg") #Output-path
 
