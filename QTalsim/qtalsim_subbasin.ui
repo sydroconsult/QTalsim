@@ -225,7 +225,7 @@
        <item>
         <widget class="QLabel" name="labelImpervious">
          <property name="text">
-          <string>Optional: Select Imperviousness Layer</string>
+          <string>Optional: Select Imperviousness Layer [%]</string>
          </property>
         </widget>
        </item>

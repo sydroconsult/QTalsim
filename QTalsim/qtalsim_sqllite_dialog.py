@@ -11,7 +11,6 @@ import sys
 import processing
 import xml.etree.ElementTree as ET
 
-
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'qtalsim_sqllite.ui'))
 

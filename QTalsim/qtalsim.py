@@ -23,7 +23,7 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon, QCursor, QMovie
-from qgis.PyQt.QtWidgets import QMainWindow, QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton, QDockWidget, QMessageBox, QApplication, QDialog, QWidget
+from qgis.PyQt.QtWidgets import QMainWindow, QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton, QDockWidget, QMessageBox, QApplication, QDialog, QPushButton
 from qgis.PyQt.QtCore import QVariant, QTimer, pyqtSignal, QEvent, QObject
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -1112,11 +1112,40 @@ class QTalsim:
             self.ezgLayer = self.ezgLayerCombobox
             layerName = self.ezgLayer.name()
 
-            #delete overlapping features in the catchment area layer
+            self.ezgUniqueIdentifier = self.dlg.comboboxUICatchment.currentText()
+
+            #Check if the UI starts with an A
+            #Get unique values for the specified field
+            unique_values = set()
+            for feature in self.ezgLayer.getFeatures():
+                value = feature[self.ezgUniqueIdentifier]
+                if value is not None:
+                    unique_values.add(str(value))
+            
+            invalid_values = [value for value in unique_values if not value.startswith("A")]
+
+            if invalid_values:
+                self.end_operation()
+                #Show warning message and ask user if they want to continue
+                message = (
+                    f"The following unique identifiers do not start with 'A':\n"
+                    f"{', '.join(invalid_values)}\n\n"
+                    "Unique identifiers of sub-basins in Talsim must start with an A. Do you want to continue?"
+                )
+                reply = QMessageBox.warning(
+                    None,
+                    "Warning",
+                    message,
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                if reply == QMessageBox.No:
+                    return  #User chose not to continue
+                else:
+                    self.start_operation()
+            #Delete overlapping features in the catchment area layer
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': self.ezgLayer ,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
             self.last_logged_progress = 0
             self.ezgLayer, _ = self.editOverlappingFeatures(outputLayer)
-
 
             #Dissolve of catchment areas for better clipping performance
             result = processing.run("native:dissolve", {'INPUT': self.ezgLayer, 'FIELD':[],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
@@ -1126,17 +1155,25 @@ class QTalsim:
             self.clippingEZG = result_deleteholes['OUTPUT'] #delete holes within the dissolved catchment area layer for clipping
             #QgsProject.instance().addMapLayer(self.clippingEZG)
             
-            self.ezgUniqueIdentifier = self.dlg.comboboxUICatchment.currentText()
             result = processing.run("native:dissolve", {'INPUT': self.ezgLayer, 'FIELD':[self.ezgUniqueIdentifier],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.ezgLayer = result['OUTPUT']
             
             current_text = self.dlg.onEZG.text()
-            if "✓" not in current_text:  # Avoid duplicate checkmarks
+            if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onEZG.setText(f"{current_text} ✓")
+                current_text_groupbox = self.dlg.subBasinGroupBox.title()
+                self.dlg.subBasinGroupBox.setTitle(f"{current_text_groupbox} ✓")
+            
             #self.safeDisconnect(self.dlg.comboboxEZGLayer.currentIndexChanged, self.on_ezg_changed)
+
+            #Enable the collapsible group boxes
+            self.dlg.soilGroupBox.setEnabled(True)
+            self.dlg.landuseGroupBox.setEnabled(True)
+
             self.ezgLayer.setName("Sub-basins")
             QgsProject.instance().addMapLayer(self.ezgLayer)
             self.log_to_qtalsim_tab(f"Successfully selected and clipped sub-basin layer: {self.ezgLayer.name()}.", Qgis.Info) 
+
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
         finally:
@@ -1159,6 +1196,7 @@ class QTalsim:
             if self.clippingEZG is None:
                 selected_layer_soil = None
                 raise Exception("User has not selected a sub-basins layer.")
+            
             #Select Layer
             selected_layer_soil = self.dlg.comboboxSoilLayer.currentText()
             self.soilLayer = QgsProject.instance().mapLayersByName(selected_layer_soil)[0]
@@ -1189,8 +1227,7 @@ class QTalsim:
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': outputLayer ,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             self.soilLayer = outputLayer
 
-            self.fillSoilTable()
-            
+            self.fillSoilTable()            
 
             #Add checkmark when process is finished
             current_text = self.dlg.onSoil.text()
@@ -1309,7 +1346,7 @@ class QTalsim:
             value_mapping = {}
             new_fields = []
             self.soilIDNames = []
-            fields_wrong_datatype = [] #store those fields that have a wrong datatype 
+            fields_wrong_datatype = [] #Store those fields that have a wrong datatype 
             for row in range(self.dlg.tableSoilMapping.rowCount()): #Loop over all entries of the Soil Mapping Table
                 for i in range(0, self.number_soilLayers): 
                     old_field = self.dlg.tableSoilMapping.cellWidget(row, i+1).currentText() #Current Text of Combo-Box specified by user
@@ -1413,6 +1450,7 @@ class QTalsim:
             current_text = self.dlg.onConfirmSoilMapping.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onConfirmSoilMapping.setText(f"{current_text} ✓")
+                self.dlg.groupboxSoilOptional.setEnabled(True)
 
             self.soilLayerIntermediate.setName("SoilLayerEdited")
             QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
@@ -1466,8 +1504,7 @@ class QTalsim:
             analysed_features = 0
             last_logged_progress = 0
 
-            # Iterate through the features of the duplicate layer
-
+            #Iterate through the features of the duplicate layer
             for row, feature_pair in enumerate(self.overlapping_soil_features):
                 #Log Progress
                 analysed_features += 1
@@ -1691,7 +1728,11 @@ class QTalsim:
             current_text = self.dlg.onCreateSoilLayer.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onCreateSoilLayer.setText(f"{current_text} ✓")
+                current_text_groupbox = self.dlg.soilGroupBox.title()
+                self.dlg.soilGroupBox.setTitle(f"{current_text_groupbox} ✓")
 
+            if self.landuseTalsim:
+                self.dlg.groupboxIntersect.setEnabled(True)
             self.log_to_qtalsim_tab(f"Created Soil Layer with Talsim Parameters: {self.soilTalsim.name()}.", Qgis.Info) 
         
         except Exception as e:
@@ -1865,7 +1906,7 @@ class QTalsim:
             fieldType = self.dfLanduseParametersTalsim.loc[:,'Type'] #Get the texture types
             value_mapping = {}
             new_fields = []
-            fields_wrong_datatype = [] #store those fields that have a wrong datatype 
+            fields_wrong_datatype = [] #Store those fields that have a wrong datatype 
             for row in range(self.dlg.tableLanduseMapping.rowCount()): #Loop over all entries of the Land use Mapping Table
                 old_field = self.dlg.tableLanduseMapping.cellWidget(row, 1).currentText() #Current Text of Combo-Box specified by user
                 
@@ -1890,7 +1931,7 @@ class QTalsim:
                         self.log_to_qtalsim_tab(f'You entered {old_field} for Talsim parameter {new_field}. Your field has type {QVariant.typeToName(type_old)}, when it should have type {QVariant.typeToName(type)}.', Qgis.Warning)
                         fields_wrong_datatype.append(old_field)
                     
-            self.landuseTalsim.dataProvider().addAttributes(new_fields) #create new fields with the talsim parameters
+            self.landuseTalsim.dataProvider().addAttributes(new_fields) #Create new fields with the talsim parameters
             self.landuseTalsim.updateFields()
 
             #Populate landuse parameter fields in land use layer
@@ -1947,152 +1988,9 @@ class QTalsim:
             current_text = self.dlg.onConfirmLanduseMapping.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onConfirmLanduseMapping.setText(f"{current_text} ✓")
+                self.dlg.groupboxLanduseOptional.setEnabled(True)
 
             self.log_to_qtalsim_tab(f"Finished land use parameter mapping. Inspect results in this temporary layer: {self.landuseTalsim.name()}.", Qgis.Info) 
-        
-        except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-
-        finally:
-            self.end_operation()
-
-    def openLanduseTalsimCSV(self):
-        '''
-            Load CSV-File containing the Talsim Landuse Names and Parameters
-        '''
-        try:
-            self.start_operation()
-            options = QFileDialog.Options()
-            options |= QFileDialog.ReadOnly
-            self.file_path = None
-            self.file_path, _ = QFileDialog.getOpenFileName(self.dlg, "Open CSV File", "", "CSV Files (*.csv);;All Files (*)", options=options)
-            if self.file_path:
-                self.dlg.csvPath.setText(self.file_path)
-        except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-
-        finally:
-            self.end_operation()
-
-    def updateCsvDelimiter(self):
-        '''
-            Connected with delimiters of CSV-user-upload
-        '''
-        try:
-            # Load the CSV file into a pandas DataFrame
-            if self.dlg.radioButtonComma.isChecked():
-                self.delimiter = ','
-            elif self.dlg.radioButtonSemicolon.isChecked():
-                self.delimiter = ';'
-            elif self.dlg.radioButtonTabulator.isChecked():
-                self.delimiter = '\t'
-            elif self.dlg.radioButtonSpace.isChecked():
-                self.delimiter= ' '
-            elif self.dlg.radioButtonOtherDel.isChecked():
-                # Get the custom delimiter from the QLineEdit
-                self.delimiter = self.dlg.textOther.text()
-
-            #Importing the column types
-            current_path = os.path.dirname(os.path.abspath(__file__))
-            pathLanduseParameters = os.path.join(current_path, "talsim_parameter", "landuseParameter.csv")
-            dfLanduseParameters = pd.read_csv(pathLanduseParameters, delimiter=';', na_filter=False) 
-
-            #Importing the user's landuse csv file
-            self.dfLanduseTalsim = pd.read_csv(self.file_path, delimiter=self.delimiter, na_filter=False) 
-            
-            column_types = dict(zip(dfLanduseParameters['LandUse'], dfLanduseParameters['Type']))
-
-            # Function to convert columns to the correct dtype
-            def convert_column(df, column_name, column_type):
-                try:
-                    if column_type == 'float':
-                        df[column_name] = pd.to_numeric(df[column_name].astype(str).str.replace(',', '.').str.replace(' ', ''), errors='coerce')
-                    elif column_type == 'int':
-                        df[column_name] = pd.to_numeric(df[column_name].astype(str).str.replace(',', '.').str.replace(' ', ''), errors='coerce').astype('Int64')
-                    elif column_type == 'string':
-                        df[column_name] = df[column_name].astype(str)
-                except Exception as e:
-                    self.log_to_qtalsim_tab(f"{e}", Qgis.Info)
-
-            #Convert each column to the specified dtype
-            for column, column_type in column_types.items():
-                if column in self.dfLanduseTalsim.columns:  #Check if the column exists in dfLanduseTalsim
-                    convert_column(self.dfLanduseTalsim, column, column_type)
-
-            self.selected_landuse_parameters = [header for header in self.dfLanduseTalsim.columns.values]
-            self.log_to_qtalsim_tab(f"Landuse Parameters: {self.selected_landuse_parameters}", Qgis.Info)
-        except Exception as e:
-            self.log_to_qtalsim_tab(f"Error: {e}", Qgis.Warning)
-
-    def landuseAssigning(self):
-        '''
-            Selects Land use type field.   
-        '''
-        try:
-            self.start_operation()
-            self.landuseField = self.dlg.comboboxLanduseFields.currentText()
-            field_index = self.landuseFields.indexFromName(self.landuseField)
-        
-            # Check if the field index is valid
-            if field_index >= 0:
-                field_values = [feature.attributes()[field_index] for feature in self.landuseLayer.getFeatures()]
-                self.unique_values_landuse = set(field_values)
-            
-            self.log_to_qtalsim_tab(f'Land use field confirmed: {self.landuseField}.', Qgis.Info)
-
-        except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-
-        finally:
-            self.end_operation()
-
-    def fillLanduseTable2(self):
-        '''
-            Fills the Land use Table with data of the csv-File and Land use Input Layer.
-                The User can then assign the Landuses to Talsim Land uses.
-        '''
-        try:
-            self.start_operation()
-            #Create Table
-            self.dlg.tableLanduseMapping.setRowCount(len(self.unique_values_landuse))
-            self.dlg.tableLanduseMapping.setColumnCount(2)
-            self.dlg.tableLanduseMapping.setHorizontalHeaderLabels(['Land use Types Input Layer', 'Talsim Fields'])
-            
-            # Set the size of the table columns
-            self.dlg.tableLanduseMapping.setColumnWidth(0, 300)
-            self.dlg.tableLanduseMapping.setColumnWidth(1, 300)
-
-            #Get Landuse Data from csv-file
-            uniqueTalsimLanduse = self.dfLanduseTalsim['Name'].unique()
-
-            #Function to get the name of the landuse (talsim landuse csv) when in the user's input there is a field with the same name as in key-column (talsim landuse csv)
-            def get_name_from_key(key):
-                row = self.dfLanduseTalsim[self.dfLanduseTalsim['Name'] == key]
-                if not row.empty: 
-                    return row.iloc[0]['Name']
-                else:
-                    return "No matching Talsim land use found."
-                
-            #Fill data
-            for row, data in enumerate(self.unique_values_landuse):  # Loop through all rows
-                item = QTableWidgetItem(str(data))
-                self.dlg.tableLanduseMapping.setItem(row, 0, item)
-                
-                combo_box = QComboBox()
-
-                # Get the 'Name' value based on 'Key' or use the original data
-                name_value = get_name_from_key(data)
-                
-                # Add the 'Name' value and original data as items to the combo box
-                combo_box.addItem(str(name_value))
-                combo_box.addItem('Delete Landuse')
-                combo_box.addItems([str(landuse) for landuse in uniqueTalsimLanduse])
-                completer = QCompleter([combo_box.itemText(i) for i in range(combo_box.count())]) #needed so you can search for objects in the combo_box
-                combo_box.setCompleter(completer)
-                self.dlg.tableLanduseMapping.setCellWidget(row, 1, combo_box)
-                #item = QTableWidgetItem(name_value)
-                #self.dlg.tableLanduseMapping.setItem(row, 1, item)
-            #self.dlg.onLanduseConfirm2.setVisible(True)
         
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
@@ -2350,6 +2248,11 @@ class QTalsim:
             current_text = self.dlg.onCreateLanduseLayer.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onCreateLanduseLayer.setText(f"{current_text} ✓")
+                current_text_groupbox = self.dlg.landuseGroupBox.title()
+                self.dlg.landuseGroupBox.setTitle(f"{current_text_groupbox} ✓")
+
+            if self.soilTalsim:
+                self.dlg.groupboxIntersect.setEnabled(True)
 
             self.log_to_qtalsim_tab(f"Created Landuse Layer with Talsim Parameters: {self.landuseTalsim.name()}.", Qgis.Info)
 
@@ -3133,10 +3036,14 @@ class QTalsim:
             self.eflLayer.setName("EFL")
             QgsProject.instance().addMapLayer(self.eflLayer)
 
+            self.dlg.finalButtonBox.button(QDialogButtonBox.Ok).setEnabled(True)
             #Add checkmark when process is finished
             current_text = self.dlg.onPerformIntersect.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onPerformIntersect.setText(f"{current_text} ✓")
+                current_text_groupbox = self.dlg.groupboxIntersect.title()
+                self.dlg.groupboxIntersect.setTitle(f"{current_text_groupbox} ✓")
+
 
             self.log_to_qtalsim_tab(f"Finished intersection of layers.", Qgis.Info)
         
@@ -3485,7 +3392,7 @@ class QTalsim:
                 current_text = self.dlg.onExportASCII.text()
                 if "✓" not in current_text:  #Avoid duplicate checkmarks
                     self.dlg.onExportASCII.setText(f"{current_text} ✓")
-                    
+
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
 
@@ -3533,6 +3440,27 @@ class QTalsim:
         '''
         self.initialize_parameters()
         self.dialog_status = 'Reset'
+        push_buttons = self.dlg.findChildren(QPushButton)
+        for button in push_buttons:
+            #Remove ticks from buttons
+            current_text = button.text()
+            if current_text.endswith("✓"):  #Check if "✓" is at the end
+                #Remove the last character ("✓") and update the button's text
+                button.setText(current_text[:-1])
+
+        #Clear Boxes
+        self.dlg.comboboxUICatchment.clear()
+        self.dlg.tableSoilMapping.clear()        
+        self.dlg.tableSoilTypeDelete.clear()
+        self.dlg.tableLanduseMapping.clear()
+
+        self.dlg.checkboxIntersectMinSizeArea.setChecked(False)
+        self.dlg.spinboxIntersectMinSizeArea.setValue(self.dlg.spinboxIntersectMinSizeArea.minimum())
+        self.dlg.checkboxIntersectShareofArea.setChecked(False)
+        self.dlg.spinboxIntersectShareofArea.setValue(self.dlg.spinboxIntersectShareofArea.minimum())
+        
+        self.dlg.outputPath.clear()
+
         self.run()
         self.dialog_status = None
 
@@ -3575,11 +3503,6 @@ class QTalsim:
             #self.iface.mainWindow().setWindowTitle("HRU Calculation")
 
         #Define the group boxes and their custom messages
-        '''self.group_boxes = {
-            self.dlg.soilGroupBox: "Soil information displayed.",
-            self.dlg.landuseGroupBox: "Land use group selected.",
-            self.dlg.groupboxIntersect: "Intersect group accessed."
-        }'''
         current_path = os.path.dirname(os.path.abspath(__file__))
         path = os.path.join(current_path, "talsim_parameter", "textGroupBoxesHRU.csv") 
         self.group_boxes = self.load_group_boxes_from_csv(path)
@@ -3604,6 +3527,7 @@ class QTalsim:
             self.dlg.onCreateSoilLayer.setVisible(False)
             #self.dlg.onLanduseConfirm2.setVisible(False)
             self.dlg.onCreateLanduseLayer.setVisible(False)
+            self.dlg.finalButtonBox.button(QDialogButtonBox.Ok).setEnabled(False)
 
         #Translating the buttons to English for consistency
         if self.dlg.finalButtonBox:
@@ -3622,17 +3546,6 @@ class QTalsim:
         self.fillPolygonsCombobox()
 
         self.feedback = self.CustomFeedback(self.log_to_qtalsim_tab)
-        
-        #Clear Boxes
-        self.dlg.comboboxUICatchment.clear()
-        self.dlg.tableSoilMapping.clear()        
-        self.dlg.tableSoilTypeDelete.clear()
-        self.dlg.tableLanduseMapping.clear()
-
-        self.dlg.checkboxIntersectMinSizeArea.setChecked(False)
-        self.dlg.spinboxIntersectMinSizeArea.setValue(self.dlg.spinboxIntersectMinSizeArea.minimum())
-        self.dlg.checkboxIntersectShareofArea.setChecked(False)
-        self.dlg.spinboxIntersectShareofArea.setValue(self.dlg.spinboxIntersectShareofArea.minimum())
         
         #EZG
         self.connectButtontoFunction(self.dlg.onEZG, self.selectEZG)
@@ -3660,14 +3573,15 @@ class QTalsim:
         self.connectButtontoFunction(self.dlg.onDeleteOverlapsLanduse, self.deleteOverlappingLanduseFeatures)
         self.connectButtontoFunction(self.dlg.onCheckGapsLanduse, self.checkGapsLanduse)
 
-      
+        
         self.dlg.comboboxModeEliminateLanduse.clear()
         self.dlg.comboboxModeEliminateLanduse.addItems(['Largest Area', 'Smallest Area','Largest Common Boundary'])  
         
         self.connectButtontoFunction(self.dlg.onFillGapsLanduse, self.fillGapsLanduse)
         self.connectButtontoFunction(self.dlg.onCreateLanduseLayer, self.createLanduseLayer) 
-       
+        
         #Intersect
+        #self.dlg.groupboxIntersect.setVisible(False)
         self.connectButtontoFunction(self.dlg.onPerformIntersect, self.performIntersect) 
 
         QgsProject.instance().layersAdded.connect(self.layersAddedHandler)
@@ -3677,7 +3591,7 @@ class QTalsim:
         self.dlg.comboboxEliminateModes.addItems(['Largest Area', 'Smallest Area','Largest Common Boundary'])
 
         #Outputfile
-        self.dlg.outputPath.clear()
+        
         self.connectButtontoFunction(self.dlg.onOutputFolder, self.selectOutputFolder) 
         self.connectButtontoFunction(self.dlg.onExportASCII, self.saveASCII)
         # show the dialog

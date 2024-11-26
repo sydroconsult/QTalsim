@@ -1,15 +1,16 @@
 
 import os
 from qgis.PyQt import uic, QtWidgets
-from qgis.PyQt.QtWidgets import  QFileDialog, QDialog, QDialogButtonBox
+from qgis.PyQt.QtWidgets import  QFileDialog, QDialog, QDialogButtonBox,QMessageBox
 from qgis.PyQt.QtCore import QVariant, QTimer
-from qgis.core import QgsProject, Qgis, QgsCoordinateReferenceSystem, QgsRasterLayer, QgsVectorLayer, QgsField, edit, QgsLayerTreeLayer, QgsCategorizedSymbolRenderer, QgsVectorFileWriter,QgsWkbTypes, QgsGeometry, QgsFeature, QgsProviderRegistry, QgsDataSourceUri
+from qgis.core import QgsProject, Qgis, QgsCoordinateReferenceSystem, QgsRasterLayer, QgsVectorLayer, QgsField, edit, QgsLayerTreeLayer, QgsCategorizedSymbolRenderer, QgsVectorFileWriter,QgsWkbTypes, QgsGeometry, QgsFeature, QgsDataSourceUri
 from qgis.gui import QgsProjectionSelectionDialog
 from osgeo import gdal, osr, ogr
 import processing
 import numpy as np
 import webbrowser
 import re
+import shutil
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -265,17 +266,17 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             geom = feature.geometry()
             if not geom.isGeosValid():
                 fixed_geom = geom.makeValid()
-                # Check if the fixed geometry is valid and of the correct type
+                #Check if the fixed geometry is valid and of the correct type
                 if fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
                     feature.setGeometry(fixed_geom)
                     layer.updateFeature(feature)
                 else:
-                    # Attempt to fix the geometry to be a MultiPolygon
+                    #Attempt to fix the geometry to be a MultiPolygon
                     if fixed_geom.wkbType() == QgsWkbTypes.Polygon:
                         fixed_geom = QgsGeometry.fromMultiPolygonXY([fixed_geom.asPolygon()])
                     elif fixed_geom.wkbType() == QgsWkbTypes.LineString or fixed_geom.wkbType() == QgsWkbTypes.MultiLineString:
                         fixed_geom = QgsGeometry.fromPolygonXY([fixed_geom.asPolyline()])
-                    # Set the fixed geometry if it's valid
+                    #Set the fixed geometry if it's valid
                     if fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
                         feature.setGeometry(fixed_geom)
                         layer.updateFeature(feature)
@@ -308,11 +309,68 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         if self.outputFolder:
             self.outputPath.setText(self.outputFolder)
 
+            #Expected folders and files
+            expected_subfolders = ["proj", "orig"]
+            expected_files = ["soil_types.gpkg", "bdod.gpkg"]
+
+            subfolders_present = all(os.path.isdir(os.path.join(self.outputFolder, subfolder)) for subfolder in expected_subfolders)
+            files_present = all(os.path.isfile(os.path.join(self.outputFolder, file)) for file in expected_files)
+            self.onDownloadData.setVisible(True)
+
+            if subfolders_present or files_present: #Check if subfolders/files are present
+                existing_subfolders = [subfolder for subfolder in expected_subfolders if os.path.isdir(os.path.join(self.outputFolder, subfolder))]
+                existing_files = [file for file in expected_files if os.path.isfile(os.path.join(self.outputFolder, file))]
+
+                #Format the message for the existing items
+                message = "The selected folder contains the following items:\n"
+                if existing_subfolders:
+                    message += f"Subfolders: {', '.join(existing_subfolders)}\n"
+                if existing_files:
+                    message += f"Data Files: {', '.join(existing_files)}\n"
+                message += "Do you want to use this data for further processing?"
+
+                reply = QMessageBox.question(
+                    self,
+                    "Data Found",
+                    message,
+                    QMessageBox.Yes | QMessageBox.No,
+                )
+                
+                if reply == QMessageBox.Yes:
+                    self.log_to_qtalsim_tab("Proceeding with the existing data for further processing. "
+                                            "Please select a CRS and start the process by clicking 'Calculate Soil Types'.", Qgis.Info)
+                    self.onDownloadData.setVisible(False)
+
+                else: #If user does not want to keep the data, data is deleted
+                    self.log_to_qtalsim_tab("User chose not to use the existing data.", Qgis.Info)
+                    self.onDownloadData.setVisible(True)
+                    try:
+                        #Specify the paths to delete
+                        paths_to_delete = expected_subfolders + expected_files
+                        deleted_items = []
+
+                        for item in paths_to_delete:
+                            item_path = os.path.join(self.outputFolder, item)
+                            if os.path.isdir(item_path):
+                                shutil.rmtree(item_path) #Recursively delete directories
+                                deleted_items.append(item)
+                            elif os.path.isfile(item_path):
+                                os.remove(item_path) #Delete files
+                                deleted_items.append(item)
+
+                        if deleted_items:
+                            self.log_to_qtalsim_tab(f"Successfully deleted the following items: {', '.join(deleted_items)}", Qgis.Info)
+                        else:
+                            self.log_to_qtalsim_tab("No items were deleted. Nothing matched the expected data.", Qgis.Warning)
+
+                    except Exception as e:
+                        self.log_to_qtalsim_tab(f"Failed to delete some or all items in the folder. Error: {str(e)}", Qgis.Critical)
+
     def selectCrs(self): 
         '''
             Saves CRS selected by user
         '''
-        # Create the CRS selection dialog
+        #Create the CRS selection dialog
         dialog = QgsProjectionSelectionDialog()
         
         #Display the dialog and check if the user pressed OK
@@ -332,7 +390,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
     
     def downloadData(self):
         '''
-            Downloads ISRIC soil data (clay, silt, sand share and bulk density value.)
+            Downloads ISRIC soil data (clay, silt, sand share and bulk density value).
         '''
         try:
             self.start_operation()
@@ -361,7 +419,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                         'OUTPUT': 'memory:'  # Store the reprojected layer in memory
                     }
 
-                    # Reproject the layer
+                    #Reproject the layer
                     reprojectedLayerResult = processing.run("native:reprojectlayer", params)
                     self.layerBoundingBox = reprojectedLayerResult['OUTPUT']   
                 
@@ -369,19 +427,19 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 elif isinstance(self.layerBoundingBox, QgsRasterLayer): 
                     params = {
                         'INPUT': self.layerBoundingBox,
-                        'TARGET_CRS': homolosine_crs,  # Use the CRS object for Homolosine
-                        'RESAMPLING': 0,  # Choose the resampling method (0=nearest neighbor, 1=bilinear, etc.)
-                        'NODATA': None,  # Handle NoData values if needed
-                        'TARGET_RESOLUTION': None,  # Set if you want to specify a resolution
+                        'TARGET_CRS': homolosine_crs,  #Use the CRS object for Homolosine
+                        'RESAMPLING': 0,  #Choose the resampling method (0=nearest neighbor, 1=bilinear, etc.)
+                        'NODATA': None,  #Handle NoData values if needed
+                        'TARGET_RESOLUTION': None,  #Set if you want to specify a resolution
                         'OPTIONS': '',
-                        'DATA_TYPE': 0,  # Keep the data type (0=Byte, 1=Int16, etc.)
-                        'TARGET_EXTENT': None,  # Use None to keep the same extent
-                        'TARGET_EXTENT_CRS': None,  # If extent is specified, its CRS should be provided
+                        'DATA_TYPE': 0,  #Keep the data type (0=Byte, 1=Int16, etc.)
+                        'TARGET_EXTENT': None,  #Use None to keep the same extent
+                        'TARGET_EXTENT_CRS': None,  #If extent is specified, its CRS should be provided
                         'MULTITHREADING': False,
-                        'OUTPUT': 'TEMPORARY_OUTPUT' # Store the reprojected raster in memory
+                        'OUTPUT': 'TEMPORARY_OUTPUT' #Store the reprojected raster in memory
                     }
 
-                    # Reproject the raster layer
+                    #Reproject the raster layer
                     reprojectedLayerResult = processing.run("gdal:warpreproject", params)
                     self.layerBoundingBox = QgsRasterLayer(reprojectedLayerResult['OUTPUT'], selected_layer_name + '_reprojected')
                 QgsProject.instance().addMapLayer(self.layerBoundingBox, False)
@@ -400,8 +458,8 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             path_out = os.path.join(self.outputFolder, 'orig')
             self.path_proj = os.path.join(self.outputFolder, 'proj')
 
-            # Datasets to process
-            # name : path_to_vrt
+            #Datasets to process
+            #name : path_to_vrt
             url = "https://files.isric.org/soilgrids/latest/data/"
             datasets = {
                 "bdod_0-5cm_mean": "bdod/bdod_0-5cm_mean.vrt",
@@ -492,10 +550,10 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
             #Check which files exist
             if os.path.exists(file_path) and os.path.exists(file_path_bdod):
-                self.log_to_qtalsim_tab(f"The files {file_name_soiltypes} and {file_name_bdod} exist. Using the files to continue the conversion.", Qgis.Info)
+                self.log_to_qtalsim_tab(f"The files {file_name_soiltypes} and {file_name_bdod} exist. Using these files to continue the conversion.", Qgis.Info)
                 
                 #Soil-Types
-                provider_metadata = QgsProviderRegistry.instance().providerMetadata('ogr')
+                #provider_metadata = QgsProviderRegistry.instance().providerMetadata('ogr')
 
                 #Create a data source URI for the GeoPackage
                 gpkg_layer = QgsVectorLayer(file_path, "GeoPackage", "ogr")
@@ -504,7 +562,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 layer_names = [s.split('!!::!!')[1] for s in sublayers]  #Extract layer names
                 soil_horizons = []
                 for name in layer_names:
-                    soil_horizon = name.split('soiltype_')[-1]   #Extract soil horizon
+                    soil_horizon = name.split('soiltype_')[-1] #Extract soil horizon
                     soil_horizon += '_mean.tif'
                     soil_horizons.append(soil_horizon)
                     self.layer_data[soil_horizon] = None
@@ -528,9 +586,9 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                         self.bdod_layers_to_combine.append(vector_layer)
 
             elif os.path.exists(file_path): #bdod does not exist
-                self.log_to_qtalsim_tab(f"The file {file_name_soiltypes} exists. Using the files to continue the conversion.", Qgis.Info)
+                self.log_to_qtalsim_tab(f"The file {file_name_soiltypes} exists. Using this file to continue the conversion.", Qgis.Info)
                 
-                provider_metadata = QgsProviderRegistry.instance().providerMetadata('ogr')
+                #provider_metadata = QgsProviderRegistry.instance().providerMetadata('ogr')
 
                 #Create a data source URI for the GeoPackage
                 gpkg_layer = QgsVectorLayer(file_path, "GeoPackage", "ogr")
@@ -688,10 +746,10 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         
         return False
     
-    def polygonize_and_combine(self, arrays, array_names, talsim_soilids, geotransform, projection, original_dataset, output_gpkg, combined_layer_name):
-        """
-        Polygonize multiple arrays and combine them into a single vector layer with additional attributes.
-        """
+    def polygonize_and_combine(self, arrays, array_names, geotransform, projection, output_gpkg, combined_layer_name):
+        '''
+            Polygonize multiple arrays and combine them into a single vector layer with additional attributes.
+        '''
         self.log_to_qtalsim_tab("Combining soil type layers to one layer...", Qgis.Info)
 
         nodata_value = -9999
@@ -709,9 +767,9 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 if combination not in unique_combinations:
                     unique_index = len(unique_combinations) + 1
                     unique_combinations[combination] = unique_index
-                    reverse_lookup.append(combination)  # Reverse mapping: index -> combination
+                    reverse_lookup.append(combination)  #Reverse mapping: index -> combination
                 reference_array[i, j] = unique_combinations[combination]
-        print(reference_array)
+
         #Step 2: Polygonize the reference array
         driver = gdal.GetDriverByName('MEM')
         raster = driver.Create('', cols, rows, 1, gdal.GDT_Int32)
@@ -744,20 +802,21 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             layer_name = layer_name.replace("_mean", "")
             combined_layer.CreateField(ogr.FieldDefn(f"{layer_name}_soil_type", ogr.OFTString))
             combined_layer.CreateField(ogr.FieldDefn(f"{layer_name}_layer_thickness", ogr.OFTReal))
-        print(array_names)
+
         combined_layer.CreateField(ogr.FieldDefn(f"DN", ogr.OFTInteger))
         field_index = combined_layer.GetLayerDefn().GetFieldIndex("DN")
+        
         #Polygonize
         err = gdal.Polygonize(band, None, combined_layer, field_index, [], callback=None)
         if err != 0:
             raise RuntimeError(f"Polygonization failed.")
-        print("starting with last loop")
+
         #Step 3: Add attributes to the polygons
         #combined_layer_defn = combined_layer.GetLayerDefn()
         id_to_soil_name = {v: k for k, v in self.talsim_soilids.items()}
 
         for feature in combined_layer:
-            # Get the unique index directly from the polygon's attribute
+            #Get the unique index directly from the polygon's attribute
             unique_index = feature.GetField("DN")  
             if unique_index is None or unique_index == nodata_value:
                 continue
@@ -766,7 +825,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             combination = reverse_lookup[unique_index - 1]
 
             if all(value is None for value in combination):
-                combined_layer.DeleteFeature(feature.GetFID())  # Remove the feature
+                combined_layer.DeleteFeature(feature.GetFID())  #Remove the feature
                 continue
             
             #Assign attributes based on the combination
@@ -792,13 +851,14 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Clean up
         combined_layer = None
         gpkg_ds = None
+
         #Step 4: Load the GeoPackage layer into QGIS
         result_layer = QgsVectorLayer(f"{output_gpkg}|layername={combined_layer_name}", combined_layer_name, "ogr")
         if not result_layer.isValid():
             raise RuntimeError(f"Failed to load combined layer '{combined_layer_name}' into QGIS.")
         
         field_names = []
-        #Iterate over all fields in the layer
+        #Iterate over all fields in the layer and append fields for final output
         for field in result_layer.fields():
             if field.name().endswith("soil_type") or field.name().endswith("layer_thickness"):
                 field_names.append(field.name())
@@ -806,18 +866,39 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Remove field "DN" (only relevant for internal processing)
         field_name_to_remove = "DN"
         field_index = result_layer.fields().indexOf(field_name_to_remove)
+        
         #Check if the field exists
         if field_index != -1:
-            #Start editing the layer
             result_layer.startEditing()
             result_layer.deleteAttribute(field_index)
-            #Commit changes
             result_layer.commitChanges()
 
+        try:
+            dissolve_params = {
+                    'INPUT': result_layer,
+                    'FIELD': field_names,  #Dissolve all features; add fields to dissolve by specific attributes
+                    'OUTPUT': 'TEMPORARY_OUTPUT',
+                    'SEPARATE_DISJOINT': False
+            }
+            result_layer = processing.run("qgis:dissolve", dissolve_params)['OUTPUT']
+
+        except:
+            result_layer, _ = self.make_geometries_valid(result_layer)
+            dissolve_params = {
+                    'INPUT': result_layer,
+                    'FIELD': field_names,  #Dissolve all features; add fields to dissolve by specific attributes
+                    'OUTPUT': 'TEMPORARY_OUTPUT',
+                    'SEPARATE_DISJOINT': False
+            }
+            result_layer = processing.run("qgis:dissolve", dissolve_params)['OUTPUT']
+        
         QgsProject.instance().addMapLayer(result_layer)
         return result_layer, field_names
     
     def convertArrayToVectorLayer(self, array, geotransform, projection, original_dataset, field_name, output_gpkg, layer_name):
+        '''
+            If user wants to output every soil type layer, this is used. Also used for BDOD.
+        '''
         nodata_value = -9999 #Qgis interprets this as nodata
         #Get dimensions
         rows, cols = array.shape
@@ -826,6 +907,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         driver = gdal.GetDriverByName('MEM')
         dataset = driver.Create('', cols, rows, 1, gdal.GDT_Float32)
         
+        #Convert bdod values to bdod classes
         if field_name != 'talsim_soilid':
             class_boundaries = [0, 1.3, 1.55, 1.75, 1.95, np.inf]
             class_values = [1, 2, 3, 4, 5]
@@ -839,6 +921,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     (array >= lower_bound) & (array < upper_bound)
                 ] = class_values[i]
             array = classified_array
+
         #Set geotransform and projection
         dataset.SetGeoTransform(geotransform)
         dataset.SetProjection(projection)
@@ -918,17 +1001,19 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
             Finds the correct soil type for every clay/silt/sand combination. 
         '''
-        self.polyX = []   # Polygon X-Werte
-        self.polyY = []   # Polygon Y-Werte
-        self.count = None # Anzahl Polygon-Koordinaten
+        self.polyX = []   #Polygon X-values
+        self.polyY = []   #Polygon Y-values
+        self.count = None #Count polygon coordinates
 
         gpkgOutputPath = os.path.join(self.outputFolder, "soil_types.gpkg")
+
         #Geotransform and projection are taken from the project input dataset
         input_file_path = os.path.join(self.path_proj, 'clay_0-5cm_mean.tif')  
         original_dataset = gdal.Open(input_file_path)
         geotransform = original_dataset.GetGeoTransform()
         projection = original_dataset.GetProjection()
         array_dict = {}
+
         #Loop over soil-layers
         for layer_name, data_array in self.layer_data.items():
             if data_array is None:
@@ -991,9 +1076,8 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
             #Convert the boa array to a vector layer
             layer_name = layer_name.replace(".tif", "")
-            if not self.checkboxSaveHorizons.isChecked():
+            if not self.checkboxSaveHorizons.isChecked(): #if user does not want to save the soil type layer for every soil type
                 array_dict[layer_name] = boa_array
-                #combined_layer = self.polygonize_and_combine()
             else:
                 result_layer, layer_name = self.convertArrayToVectorLayer(boa_array, geotransform, projection, original_dataset, 'talsim_soilid', gpkgOutputPath, layer_name)
 
@@ -1029,6 +1113,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 
                 result_layer.setName(layer_name)
                 self.soilTypeLayers.append(result_layer)
+
         if self.checkboxSaveHorizons.isChecked():
             #Export soil type layers as geopackage
             self.layers_to_combine = []
@@ -1137,7 +1222,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.log_to_qtalsim_tab(f"Soil type vector layers were saved here: {gpkgOutputPath}", Qgis.Info)
         
         else: #if the user does not need every soil type layer
-            combined_soil_type_layer, field_names = self.polygonize_and_combine(list(array_dict.values()), list(array_dict.keys()), self.talsim_soilids, geotransform, projection, original_dataset, gpkgOutputPath, 'Soil Types Combined')
+            combined_soil_type_layer, field_names = self.polygonize_and_combine(list(array_dict.values()), list(array_dict.keys()), geotransform, projection, gpkgOutputPath, 'Soil Types Combined')
 
         self.log_to_qtalsim_tab(f"Processing bulk density layers...", Qgis.Info)
 

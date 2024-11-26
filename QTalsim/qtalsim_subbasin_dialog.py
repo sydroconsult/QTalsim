@@ -178,6 +178,41 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.log_to_qtalsim_tab("Please select a DEM layer to process the sub-basins.", Qgis.Critical)
 
             self.calculateHeightandAreaSubBasins()
+            
+            #Convert the subbasinUIField to string (needed for join to LFP)
+            self.subBasinLayerProcessed.startEditing()
+
+            #Get the original field index
+            original_field_name = self.subbasinUIField
+            original_field_index = self.subBasinLayerProcessed.fields().indexOf(original_field_name)
+      
+            #Add a new string field
+            new_field_name = f"{original_field_name}_temp"
+            self.subBasinLayerProcessed.dataProvider().addAttributes([QgsField(new_field_name, QVariant.String)])
+            self.subBasinLayerProcessed.updateFields()
+
+            #Get the new field index
+            new_field_index = self.subBasinLayerProcessed.fields().indexOf(new_field_name)
+
+            #Copy values from the original field to the new field as strings
+            for feature in self.subBasinLayerProcessed.getFeatures():
+                original_value = feature[original_field_name]
+                string_value = str(original_value) if original_value is not None else None
+                feature.setAttribute(new_field_index, string_value)
+                self.subBasinLayerProcessed.updateFeature(feature)
+
+            #Delete the original field
+            self.subBasinLayerProcessed.deleteAttribute(original_field_index)
+
+            self.subBasinLayerProcessed.updateFields()
+
+            #Rename the new field to match the original field name
+            new_field_index = self.subBasinLayerProcessed.fields().indexOf(new_field_name)  #Re-check the index
+            self.subBasinLayerProcessed.renameAttribute(new_field_index, original_field_name)
+
+            #Commit the changes
+            self.subBasinLayerProcessed.commitChanges()
+
 
             #Calculate mean imperviousness for each sub-basin
             selected_layer_name = self.comboboxImperviousness.currentText() #Get the selected layer name
@@ -246,7 +281,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Calculate the area of every sub-basin
         with edit(self.subBasinLayerProcessed):
             for feature in self.subBasinLayerProcessed.getFeatures():
-                # Calculate the area for each feature and update the 'Area' field with the calculated value
+                #Calculate the area for each feature and update the 'Area' field with the calculated value
                 area_sqm = feature.geometry().area() #area in squaremeter
                 area_hectares = area_sqm / 10000 #calculate area in hectares (.EZG-file needs hectares as input)
                 feature[self.areaFieldName] = area_hectares

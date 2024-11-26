@@ -32,6 +32,7 @@ Select Layers
    -  Select the field that contains the unique identifier for the sub-basins.
    -  Select the DEM layer (raster layer) and the water network layer (line layer).
    -  Optional: Select a layer containing impervious areas (`Example data set <https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862>`__). 
+      - Values should be expressed as percentages
 
 Output
 ------
