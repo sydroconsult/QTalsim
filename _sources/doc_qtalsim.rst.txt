@@ -14,6 +14,7 @@ HRU calculation
    -  Sub-basin layer
    -  Soil layer
    -  Land use layer
+   -  Optional: DEM layer
 
    **Output:**
 

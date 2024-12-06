@@ -5,11 +5,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Getting Started with HRUs &#8212; QTalsim 1.6.0 documentation</title>
+    <title>Getting Started with HRUs &#8212; QTalsim 1.6.2 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
     <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
     
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=50a25ae7"></script>
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=c3225494"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
     
@@ -30,7 +30,7 @@
         <li class="right" >
           <a href="doc_qtalsim.html" title="HRU calculation"
              accesskey="P">previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.2 documentation</a> &#187;</li>
           <li class="nav-item nav-item-1"><a href="doc_qtalsim.html" accesskey="U">HRU calculation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Getting Started with HRUs</a></li> 
       </ul>
@@ -46,8 +46,8 @@
 <section id="requirements-for-input-layers">
 <span id="getting-started"></span><h2>Requirements for Input Layers<a class="headerlink" href="#requirements-for-input-layers" title="Permalink to this heading">¶</a></h2>
 <blockquote>
-<div><p id="id1">All three input layers must be polygon layers and included in the
-current QGIS project.</p>
+<div><p id="id1">All three necessary input layers must be polygon layers and included in the
+current QGIS project. Additionally a raster DEM layer can be used as input to calculate the slope.</p>
 <ol class="arabic">
 <li><p>Sub-basin layer</p>
 <p>This layer should contain the sub-basins as well as a field for
@@ -61,6 +61,9 @@ field specifying the names of the soil types of one soil layer.</p>
 <p>This layer should contain all land use areas within the study
 area, and it must contain a field specifying the names of the land
 use types.</p>
+</li>
+<li><p>Optional: DEM Layer</p>
+<p>The DEM layer is optional, and if a DEM layer is uploaded, the slope for each HRU will be calculated.</p>
 </li>
 </ol>
 <p>Continue to the next section for detailed step-by-step instructions: <a class="reference external" href="https://sydroconsult.github.io/QTalsim/hrus_step_by_step.html">Step-by-Step Guide</a></p>
@@ -128,7 +131,7 @@ use types.</p>
         <li class="right" >
           <a href="doc_qtalsim.html" title="HRU calculation"
              >previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.2 documentation</a> &#187;</li>
           <li class="nav-item nav-item-1"><a href="doc_qtalsim.html" >HRU calculation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Getting Started with HRUs</a></li> 
       </ul>
