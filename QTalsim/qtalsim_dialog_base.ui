@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1235</width>
-    <height>523</height>
+    <width>1231</width>
+    <height>514</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -59,9 +59,9 @@
          <property name="geometry">
           <rect>
            <x>0</x>
-           <y>0</y>
-           <width>902</width>
-           <height>447</height>
+           <y>-16</y>
+           <width>877</width>
+           <height>418</height>
           </rect>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout">
@@ -552,7 +552,14 @@
               </layout>
              </item>
              <item>
-              <widget class="QTableWidget" name="tableLanduseMapping"/>
+              <widget class="QTableWidget" name="tableLanduseMapping">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>200</height>
+                </size>
+               </property>
+              </widget>
              </item>
              <item>
               <widget class="QPushButton" name="onConfirmLanduseMapping">
@@ -759,6 +766,13 @@
           </item>
          </layout>
         </widget>
+       </widget>
+      </item>
+      <item>
+       <widget class="QProgressBar" name="progressBar">
+        <property name="value">
+         <number>0</number>
+        </property>
        </widget>
       </item>
       <item>

@@ -340,6 +340,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.log_to_qtalsim_tab("Proceeding with the existing data for further processing. "
                                             "Please select a CRS and start the process by clicking 'Calculate Soil Types'.", Qgis.Info)
                     self.onDownloadData.setVisible(False)
+                    self.onCalculateSoilTypes.setEnabled(True) #enable calculation of soil types
 
                 else: #If user does not want to keep the data, data is deleted
                     self.log_to_qtalsim_tab("User chose not to use the existing data.", Qgis.Info)
@@ -524,7 +525,8 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 except Exception as e:
                     self.log_to_qtalsim_tab(f"Error processing {name}: {str(e)}", Qgis.Critical)
                     continue
-
+            
+            self.onCalculateSoilTypes.setEnabled(True) #enable calculation of soil types
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
 
@@ -805,7 +807,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         combined_layer.CreateField(ogr.FieldDefn(f"DN", ogr.OFTInteger))
         field_index = combined_layer.GetLayerDefn().GetFieldIndex("DN")
-        
+
         #Polygonize
         err = gdal.Polygonize(band, None, combined_layer, field_index, [], callback=None)
         if err != 0:

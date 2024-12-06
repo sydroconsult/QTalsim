@@ -126,10 +126,16 @@
          <property name="text">
           <string>Save layer for every soil horizon</string>
          </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
        <item>
         <widget class="QPushButton" name="onCalculateSoilTypes">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
          <property name="toolTip">
           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Calculates the soil type of every cell using the clay, silt and sand share and recalculates the bulk density from cg/cm³ to kg/dm³. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>

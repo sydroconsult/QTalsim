@@ -23,7 +23,7 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon, QCursor, QMovie
-from qgis.PyQt.QtWidgets import QMainWindow, QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton, QDockWidget, QMessageBox, QApplication, QDialog, QPushButton
+from qgis.PyQt.QtWidgets import QMainWindow, QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton, QDockWidget, QMessageBox, QApplication, QDialog, QPushButton, QGroupBox
 from qgis.PyQt.QtCore import QVariant, QTimer, pyqtSignal, QEvent, QObject
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -99,6 +99,7 @@ class QTalsim:
         self.selected_layer_ezg = None
         self.ezgLayer = None
         self.clippingEZG = None
+        self.soilTalsim = None
         self.soilLayer = None
         self.soilFieldNames = []
         self.soilLayerIntermediate = None
@@ -325,7 +326,6 @@ class QTalsim:
     def end_operation(self):
         QApplication.restoreOverrideCursor()  # Restore the default cursor
 
-
     def update_text_overview(self, text):
         #Set the text in the QTextBrowser
         self.dlg.textOverview.clear()
@@ -468,6 +468,7 @@ class QTalsim:
             if progress - last_logged_progress >= 10:
                 self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
                 last_logged_progress = progress
+                #self.dlg.progressbar.setValue(int(last_logged_progress))
 
             for cid in candidate_ids:
                 if cid == fid or (fid, cid) in checked_ids or (cid, fid) in checked_ids:
@@ -485,6 +486,7 @@ class QTalsim:
                 checked_ids.add((fid, cid))
                 checked_ids.add((cid, fid))
 
+        #self.dlg.progressbar.setValue(100)
         if len(overlapping_features) >= 1:
             self.log_to_qtalsim_tab(f"{len(overlapping_features)} overlaps were detected. The following features overlap: {overlapping_features}", level=Qgis.Info)
             
@@ -567,6 +569,7 @@ class QTalsim:
             if progress - last_logged_progress >= 10:
                 self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
                 last_logged_progress = progress
+                #self.dlg.progressbar.setValue(int(last_logged_progress))
 
             for fid in candidate_ids:
                 if fid == feature_id or fid not in feature_dict:
@@ -594,8 +597,6 @@ class QTalsim:
                             feature_dict[feature_id].setGeometry(snapped_geometry)
                             feature_geom = snapped_geometry
                             changes_made = True
-                            #else:
-                            #    self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
 
                         elif feature_geom.within(other_geom):
                             new_geom = other_geom.difference(feature_geom)
@@ -605,8 +606,6 @@ class QTalsim:
                             geometry_updates[other_feature.id()] = snapped_geometry
                             feature_dict[other_feature.id()].setGeometry(snapped_geometry)
                             changes_made = True
-                            #else:
-                            #    self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
 
                         elif feature_geom.area() >= other_geom.area():
                             new_geom = feature_geom.difference(other_geom)
@@ -622,13 +621,7 @@ class QTalsim:
                             feature_dict[feature_id].setGeometry(snapped_geometry)
                             feature_geom = snapped_geometry
                             changes_made = True
-                            #else:
-                            #    self.log_to_qtalsim_tab(f"Editing the overlap of feature IDs {feature_id} and {fid} was unsuccessful, as this step would result in invalid geometries. Please try again or edit the overlap manually.", Qgis.Warning)
-                        
-                        #elif new_geom == feature_geom:  #Duplicates
-                        #    geometry_updates[other_feature.id()] = "delete_feature"
-                        #    self.log_to_qtalsim_tab(f"Features {feature_id} and {other_feature.id()} are duplicates. {other_feature.id()} is deleted.", Qgis.Warning)
-                    
+
                         else:
                             new_geom = other_geom.difference(feature_geom)
                             snapped_geometry = apply_snap_geometry(new_geom, snap_tolerance)
@@ -670,9 +663,8 @@ class QTalsim:
                 self.log_to_qtalsim_tab(f"The following features were deleted due to invalid geometries: {deleted_features}", Qgis.Warning)
         if last_logged_progress <= 99:
             self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
-
+            #self.dlg.progressbar.setValue(0)
         return layer, changes_made
-
 
     def clipLayer(self, layer, clipping_layer):
         '''
@@ -681,27 +673,22 @@ class QTalsim:
         '''
         #Check Geometry
         outputLayer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-    
-        #Clip valid geometry
-        def simplify_geometries(layer, tolerance):
-            return processing.run("native:simplifygeometries", {
-                'INPUT': layer,
-                'TOLERANCE': tolerance,
-                'OUTPUT': 'memory:'
-            },feedback=None)['OUTPUT']
-
-        #Simplifying geometries as problems arose without simplifying for large layers/layers with complex geometries
-        #outputLayer = simplify_geometries(outputLayer, tolerance=0.01)
-        #clipping_layer = simplify_geometries(clipping_layer, tolerance=0.01)
-
         outputLayer, _ = self.make_geometries_valid(outputLayer)
-        outputLayer = processing.run("native:fixgeometries", {'INPUT': outputLayer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
-        resultClipping = processing.run("native:clip", {
-                'INPUT': outputLayer,
-                'OVERLAY': clipping_layer,
-                'OUTPUT': 'TEMPORARY_OUTPUT'
-        }, feedback=None)
-
+        try:
+            resultClipping = processing.run("native:clip", {
+                    'INPUT': outputLayer,
+                    'OVERLAY': clipping_layer,
+                    'OUTPUT': 'TEMPORARY_OUTPUT'
+            }, feedback=None)
+        except:
+            outputLayer = processing.run("native:fixgeometries", {'INPUT': outputLayer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
+            clipping_layer = processing.run("native:fixgeometries", {'INPUT': clipping_layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
+            resultClipping = processing.run("native:clip", {
+                    'INPUT': outputLayer,
+                    'OVERLAY': clipping_layer,
+                    'OUTPUT': 'TEMPORARY_OUTPUT'
+            }, feedback=None)
+        
         resultClippingLayer = resultClipping['OUTPUT']
         
         #After clipping, problems with multipart polygons can arise
@@ -1109,6 +1096,8 @@ class QTalsim:
         '''
         try:
             self.start_operation()
+            self.log_to_qtalsim_tab(f"Selecting sub-basin layer...", Qgis.Info)
+            #self.dlg.progressbar.setValue(0)
             self.ezgLayer = self.ezgLayerCombobox
             layerName = self.ezgLayer.name()
 
@@ -1142,29 +1131,35 @@ class QTalsim:
                     return  #User chose not to continue
                 else:
                     self.start_operation()
+            #self.dlg.progressbar.setValue(10)
+            self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
             #Delete overlapping features in the catchment area layer
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': self.ezgLayer ,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
             self.last_logged_progress = 0
+            self.log_to_qtalsim_tab(f"Editing overlapping features...", Qgis.Info)
             self.ezgLayer, _ = self.editOverlappingFeatures(outputLayer)
-
+            self.log_to_qtalsim_tab(f"Finished calculation of ", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Progress: 50.00% done", Qgis.Info)
             #Dissolve of catchment areas for better clipping performance
             result = processing.run("native:dissolve", {'INPUT': self.ezgLayer, 'FIELD':[],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             outputLayer = result['OUTPUT']
-            
+            self.log_to_qtalsim_tab(f"Progress: 60.00% done", Qgis.Info)
+            #self.dlg.progressbar.setValue(60)
             result_deleteholes = processing.run("native:deleteholes", {'INPUT':outputLayer,'MIN_AREA':0,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
             self.clippingEZG = result_deleteholes['OUTPUT'] #delete holes within the dissolved catchment area layer for clipping
             #QgsProject.instance().addMapLayer(self.clippingEZG)
-            
+            #self.dlg.progressbar.setValue(70)
+            self.log_to_qtalsim_tab(f"Progress: 70.00% done", Qgis.Info)
             result = processing.run("native:dissolve", {'INPUT': self.ezgLayer, 'FIELD':[self.ezgUniqueIdentifier],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.ezgLayer = result['OUTPUT']
-            
+            #self.dlg.progressbar.setValue(90)
+            self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             current_text = self.dlg.onEZG.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onEZG.setText(f"{current_text} ✓")
                 current_text_groupbox = self.dlg.subBasinGroupBox.title()
                 self.dlg.subBasinGroupBox.setTitle(f"{current_text_groupbox} ✓")
-            
-            #self.safeDisconnect(self.dlg.comboboxEZGLayer.currentIndexChanged, self.on_ezg_changed)
+            self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
 
             #Enable the collapsible group boxes
             self.dlg.soilGroupBox.setEnabled(True)
@@ -1172,10 +1167,12 @@ class QTalsim:
 
             self.ezgLayer.setName("Sub-basins")
             QgsProject.instance().addMapLayer(self.ezgLayer)
+            #self.dlg.progressbar.setValue(0)
             self.log_to_qtalsim_tab(f"Successfully selected and clipped sub-basin layer: {self.ezgLayer.name()}.", Qgis.Info) 
 
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+            #self.dlg.progressbar.setValue(0)
         finally:
             self.end_operation()
 
@@ -1192,6 +1189,7 @@ class QTalsim:
         '''
         try:
             self.start_operation()
+            #self.dlg.progressbar.setValue(0)
             self.log_to_qtalsim_tab(f"Starting the clipping process of the Soil Layer.", Qgis.Info) 
             if self.clippingEZG is None:
                 selected_layer_soil = None
@@ -1201,45 +1199,50 @@ class QTalsim:
             selected_layer_soil = self.dlg.comboboxSoilLayer.currentText()
             self.soilLayer = QgsProject.instance().mapLayersByName(selected_layer_soil)[0]
             
-            # Create field with the feature-id
+            #Create field with the feature-id
             self.soilFieldInputID = 'fid_qta'
             existing_field_names = [field.name() for field in self.soilLayer.fields()]
             if self.soilFieldInputID in existing_field_names:
                 self.log_to_qtalsim_tab(f"Please rename field {self.soilFieldInputID} of layer {selected_layer_soil} or delete the field.", Qgis.Critical)
                 return
-            # Start editing the layer
-            self.soilLayer.startEditing()
+            #self.dlg.progressbar.setValue(10)
+            self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
 
-            # Add a new integer field called 'ID'
+            self.soilLayer.startEditing()
+            #Add a new integer field called 'ID'
             field = QgsField(self.soilFieldInputID, QVariant.Int)
             self.soilLayer.dataProvider().addAttributes([field])
             self.soilLayer.updateFields()
 
-            # Assign ID values to each feature
+            #Assign ID values to each feature
             for i, feature in enumerate(self.soilLayer.getFeatures()):
                 self.soilLayer.changeAttributeValue(feature.id(), self.soilLayer.fields().indexFromName(self.soilFieldInputID), i + 1)
-
-            # Commit changes
+            #self.dlg.progressbar.setValue(25)
+            self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)
             self.soilLayer.commitChanges()
 
             #Clip Layer
             outputLayer = self.clipLayer(self.soilLayer, self.clippingEZG)
+            self.log_to_qtalsim_tab(f"Progress: 80.00% done", Qgis.Info)
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': outputLayer ,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             self.soilLayer = outputLayer
 
             self.fillSoilTable()            
-
+            #self.dlg.progressbar.setValue(90)
+            self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             #Add checkmark when process is finished
             current_text = self.dlg.onSoil.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onSoil.setText(f"{current_text} ✓")
             self.soilLayer.setName("SoilLayer")
             QgsProject.instance().addMapLayer(self.soilLayer)
-
+            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
             self.log_to_qtalsim_tab(f"Successfully selected and clipped Soil Layer: {self.soilLayer.name()}.", Qgis.Info) 
 
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+            #self.dlg.progressbar.setValue(0)
 
         finally:
             if selected_layer_soil:
@@ -1279,14 +1282,23 @@ class QTalsim:
             self.dlg.tableSoilMapping.setColumnWidth(4, 200)
             self.dlg.tableSoilMapping.setColumnWidth(5, 200)
             self.dlg.tableSoilMapping.setColumnWidth(6, 200)
+            #self.dlg.progressbar.setValue(30)
 
             #Get Data from csv-file
             soilTextures = self.dfsoilParametersTalsim.loc[:,'SoilTexture']
             soilTexturesUnit = self.dfsoilParametersTalsim.loc[:,'TextureUnit']
             self.number_soilLayers = 6
 
+            num_rows = self.dfsoilParametersTalsim.shape[0]
+            analysed_rows = 0
+            last_logged_progress = 30
+            
             #Fill data
             for row, data in enumerate(soilTextures):
+                analysed_rows += 1
+                progress = (analysed_rows / num_rows) * 100 + 30 #30 is starting value
+                if progress - last_logged_progress >= 10:
+                    last_logged_progress = progress
                 item = QTableWidgetItem(str(data)) #add soil
                 unit = soilTexturesUnit[row] #get unit
                 if unit != '-':
@@ -1308,11 +1320,12 @@ class QTalsim:
                     combo_box.addItems([str(field) for field in fieldsSoil])
                     i += 1
                     self.dlg.tableSoilMapping.setCellWidget(row, i, combo_box)
-
+            #self.dlg.progressbar.setValue(40)
             self.dlg.onCreateSoilLayer.setVisible(True)
         
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+            #self.dlg.progressbar.setValue(0)
 
         finally:
             self.end_operation()
@@ -1326,6 +1339,7 @@ class QTalsim:
         try:
             self.start_operation()
             self.log_to_qtalsim_tab(f"Starting Soil Mapping.", Qgis.Info) 
+            #self.dlg.progressbar.setValue(0)
             self.soilLayerIntermediate = None
 
             #Create Layer
@@ -1347,6 +1361,9 @@ class QTalsim:
             new_fields = []
             self.soilIDNames = []
             fields_wrong_datatype = [] #Store those fields that have a wrong datatype 
+            #self.dlg.progressbar.setValue(10)
+            self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
+
             for row in range(self.dlg.tableSoilMapping.rowCount()): #Loop over all entries of the Soil Mapping Table
                 for i in range(0, self.number_soilLayers): 
                     old_field = self.dlg.tableSoilMapping.cellWidget(row, i+1).currentText() #Current Text of Combo-Box specified by user
@@ -1373,6 +1390,8 @@ class QTalsim:
                             fields_wrong_datatype.append(old_field)
                         #if new_field == 'Name' and old_field is 'Parameter not available':
             
+            #self.dlg.progressbar.setValue(20)
+            
             #Get the number of soilLayers added by the user
             self.number_soilLayers = 0 
             #Iterate over the columns of the names
@@ -1391,12 +1410,29 @@ class QTalsim:
 
             self.soilLayerIntermediate.dataProvider().addAttributes(new_fields) #create new fields with the talsim parameters
             self.soilLayerIntermediate.updateFields()
-            
+            self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)
+            total_features = self.soilLayerIntermediate.featureCount()
+            analysed_features = 0
+            last_logged_progress = 20
+            start_progress = 20
+            if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
+                end_progress = 50
+            else:
+                end_progress = 80
+            progress_range = end_progress - last_logged_progress
+
             #Populate soil parameter fields in soil layer
             self.soilLayerIntermediate.startEditing()
             try: 
                 i = 1 #Add an ID for internal processing
                 for feature in self.soilLayerIntermediate.getFeatures():
+                    analysed_features += 1
+                    relative_progress = (analysed_features / total_features) * progress_range
+                    progress = start_progress + relative_progress
+                    if relative_progress - last_logged_progress >= 5:
+                        last_logged_progress = progress
+                        #self.dlg.progressbar.setValue(int(progress))
+                        self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info) 
                     for field_name in self.soilIDNames: #Set an ID for each soil layer
                         feature.setAttribute(field_name, i) 
                     i += 1 #increment ID
@@ -1431,7 +1467,8 @@ class QTalsim:
             
             if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
                 self.soilLayerIntermediate = self.deletePolygonsBelowThreshold(self.soilLayerIntermediate, self.soilFieldNames, self.soilIDNames)
-            
+            #self.dlg.progressbar.setValue(90)
+            self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             try:   
                 #Only keep relevant fields
                 all_fields = [field.name() for field in self.soilLayerIntermediate.fields()]
@@ -1451,14 +1488,17 @@ class QTalsim:
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onConfirmSoilMapping.setText(f"{current_text} ✓")
                 self.dlg.groupboxSoilOptional.setEnabled(True)
-
+            
             self.soilLayerIntermediate.setName("SoilLayerEdited")
             QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
-
+            
+            self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
+            #self.dlg.progressbar.setValue(0)
             self.log_to_qtalsim_tab(f"Finished soil parameter mapping. Inspect results in this temporary layer: {self.soilLayerIntermediate.name()}.", Qgis.Info) 
         
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+            #self.dlg.progressbar.setValue(0)
 
         finally:
             self.end_operation()
@@ -1554,6 +1594,7 @@ class QTalsim:
                 self.dlg.onOverlappingSoils.setText(f"{current_text} ✓")
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+            #self.dlg.progressbar.setValue(0)
 
         finally:
             self.end_operation()
@@ -1570,8 +1611,11 @@ class QTalsim:
             for radio_button in self.radio_buttons_soil:
                 radio_button.setChecked(False)
             self.soilLayerIntermediate = self.deleteOverlappingFeatures(self.soilLayerIntermediate, self.dlg.tableSoilTypeDelete, self.overlapping_soil_features)
+            #self.dlg.progressbar.setValue(50)
+            self.log_to_qtalsim_tab(f"Progress: 50.00% done", Qgis.Info)
             self.checkOverlappingSoil()
-
+            #self.dlg.progressbar.setValue(90)
+            self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             if not layer_input_name.startswith("SoilLayerEdited"):
                 layer_input_name = "SoilLayerEdited"
 
@@ -1583,11 +1627,14 @@ class QTalsim:
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onSoilTypeDelete.setText(f"{current_text} ✓")
             QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
+            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
 
             self.log_to_qtalsim_tab(f"Deleting overlapping soil features finished.", Qgis.Info)
 
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+            #self.dlg.progressbar.setValue(0)
 
         finally:
             self.end_operation()
@@ -1602,7 +1649,7 @@ class QTalsim:
             changes_made = True            
             layer_input_name = self.soilLayerIntermediate.name()
             self.last_logged_progress = 0
-
+            
             self.soilLayerIntermediate, changes_made = self.editOverlappingFeatures(self.soilLayerIntermediate)
             
             if not layer_input_name.startswith("SoilLayerEdited"):
@@ -1701,6 +1748,7 @@ class QTalsim:
         '''
         try:
             self.start_operation()
+            #self.dlg.progressbar.setValue(0)
             #Dissolve the layer using the talsim soil parameters
             try:
                 resultDissolve = processing.run("native:dissolve", {'INPUT':self.soilLayerIntermediate,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
@@ -1710,12 +1758,17 @@ class QTalsim:
                 resultDissolve = processing.run("native:dissolve", {'INPUT':self.soilLayerIntermediate,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
                 self.soilTalsim = resultDissolve['OUTPUT']
             
+            #self.dlg.progressbar.setValue(50)
+            self.log_to_qtalsim_tab(f"Progress: 50.00% done", Qgis.Info)
+
             all_fields = [field.name() for field in self.soilTalsim.fields()]
             fields_to_delete_indices = [self.soilTalsim.fields().indexFromName(field)  for field in all_fields if field not in self.soilFieldNames]
             self.soilTalsim.startEditing()
             self.soilTalsim.dataProvider().deleteAttributes(fields_to_delete_indices)
             self.soilTalsim.commitChanges()
             self.soilTalsim.updateFields()
+            #self.dlg.progressbar.setValue(90)
+            self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             if self.soilLayer:
                 QgsProject.instance().removeMapLayer(self.soilLayer)
 
@@ -1723,20 +1776,23 @@ class QTalsim:
                 QgsProject.instance().removeMapLayer(self.soilLayerIntermediate)
             self.soilTalsim.setName("Talsim Soil")
             QgsProject.instance().addMapLayer(self.soilTalsim)  
-
+            
             #Add checkmark when process is finished
             current_text = self.dlg.onCreateSoilLayer.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onCreateSoilLayer.setText(f"{current_text} ✓")
                 current_text_groupbox = self.dlg.soilGroupBox.title()
                 self.dlg.soilGroupBox.setTitle(f"{current_text_groupbox} ✓")
-
+            self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
             if self.landuseTalsim:
                 self.dlg.groupboxIntersect.setEnabled(True)
+                self.dlg.groupboxIntersect.setChecked(True)
+            #self.dlg.progressbar.setValue(0)
             self.log_to_qtalsim_tab(f"Created Soil Layer with Talsim Parameters: {self.soilTalsim.name()}.", Qgis.Info) 
         
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+            #self.dlg.progressbar.setValue(0)
 
         finally:
             self.end_operation()
@@ -1750,8 +1806,8 @@ class QTalsim:
         '''
         try:
             self.start_operation()
-            self.log_to_qtalsim_tab(f"QTalsim is currently loading, starting the clipping process of the Landuse Layer.", Qgis.Info)
-
+            self.log_to_qtalsim_tab(f"QTalsim is currently loading, starting the clipping process of the land use layer.", Qgis.Info)
+            
             if self.landuseLayer:
                 QgsProject.instance().removeMapLayer(self.landuseLayer)
             if self.clippingEZG is None:
@@ -1759,45 +1815,43 @@ class QTalsim:
                 raise Exception("User has not selected a sub-basins layer.")
             selected_layer_name = self.dlg.comboboxLanduseLayer.currentText()
             self.landuseLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
-            #self.dlg.comboboxLanduseFields.setVisible(True)
             
-            # Create field with the feature-id
+            #Create field with the feature-id
             self.landuseFieldInputID = 'fid_qta' 
             existing_field_names = [field.name() for field in self.landuseLayer.fields()]
             if self.landuseFieldInputID in existing_field_names:
                 self.log_to_qtalsim_tab(f"Please rename field {self.landuseFieldInputID} of layer {selected_layer_name} or delete the field.", Qgis.Critical)
                 return
 
-            # Start editing the layer
+            #Start editing the layer
             self.landuseLayer.startEditing()
 
-            # Add a new integer field called 'ID'
+            #Add a new integer field called 'ID'
             field = QgsField(self.landuseFieldInputID, QVariant.Int)
             self.landuseLayer.dataProvider().addAttributes([field])
             self.landuseLayer.updateFields()
 
-            # Assign ID values to each feature
+            #Assign ID values to each feature
             for i, feature in enumerate(self.landuseLayer.getFeatures()):
                 self.landuseLayer.changeAttributeValue(feature.id(), self.landuseLayer.fields().indexFromName(self.landuseFieldInputID), i + 1)
 
-            # Commit changes
+            #Commit changes
             self.landuseLayer.commitChanges()
-
+            #self.dlg.progressbar.setValue(10)
+            self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
             number_of_features = self.landuseLayer.featureCount()
             #Clip Layer
             outputLayer = self.clipLayer(self.landuseLayer, self.clippingEZG)
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': outputLayer ,'OUTPUT':'TEMPORARY_OUTPUT'},feedback=self.feedback)['OUTPUT']
             self.landuseLayer = outputLayer
-
-            # Get the fields of the selected layer
+            #self.dlg.progressbar.setValue(50)
+            self.log_to_qtalsim_tab(f"Progress: 50.00% done", Qgis.Info)
+            #Get the fields of the selected layer
             self.landuseFields = self.landuseLayer.fields()
-
-            # Populate comboboxLanduseFields with field names
-            #self.dlg.comboboxLanduseFields.clear()
-            #self.dlg.comboboxLanduseFields.addItems([field.name() for field in self.landuseFields])
             
             self.fillLanduseTable()
-
+            #self.dlg.progressbar.setValue(90)
+            self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             self.landuseLayer.setName("LanduseLayer")
             QgsProject.instance().addMapLayer(self.landuseLayer)
 
@@ -1806,9 +1860,12 @@ class QTalsim:
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onLanduseLayer.setText(f"{current_text} ✓")
 
-            self.log_to_qtalsim_tab(f"Successfully selected and clipped Landuse Layer: {self.landuseLayer.name()}.", Qgis.Info) 
+            self.log_to_qtalsim_tab(f"Successfully selected and clipped land use layer: {self.landuseLayer.name()}.", Qgis.Info) 
+            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+            #self.dlg.progressbar.setValue(0)
 
         finally:
             if selected_layer_name:
@@ -1901,7 +1958,7 @@ class QTalsim:
             mem_layer_data.addAttributes(attr)
             self.landuseTalsim.updateFields()
             mem_layer_data.addFeatures(feats)
-
+              
             #Get the mapping of the talsim land use parameter and the corresponding parameters defined by the user
             fieldType = self.dfLanduseParametersTalsim.loc[:,'Type'] #Get the texture types
             value_mapping = {}
@@ -1930,14 +1987,32 @@ class QTalsim:
                     if type_old != type:
                         self.log_to_qtalsim_tab(f'You entered {old_field} for Talsim parameter {new_field}. Your field has type {QVariant.typeToName(type_old)}, when it should have type {QVariant.typeToName(type)}.', Qgis.Warning)
                         fields_wrong_datatype.append(old_field)
-                    
+            #self.dlg.progressbar.setValue(20)      
+            
             self.landuseTalsim.dataProvider().addAttributes(new_fields) #Create new fields with the talsim parameters
             self.landuseTalsim.updateFields()
 
             #Populate landuse parameter fields in land use layer
+            total_features = self.landuseTalsim.featureCount()
+            self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)  
+            analysed_features = 0
+            last_logged_progress = 20
+            start_progress = 20
+            if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
+                end_progress = 50
+            else:
+                end_progress = 80
+            progress_range = end_progress - last_logged_progress
             self.landuseTalsim.startEditing()
             try:
                 for feature in self.landuseTalsim.getFeatures():
+                    analysed_features += 1
+                    relative_progress = (analysed_features / total_features) * progress_range
+                    progress = start_progress + relative_progress
+                    if relative_progress - last_logged_progress >= 5:
+                        last_logged_progress = progress
+                        #self.dlg.progressbar.setValue(int(progress))
+                        self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
                     for old_field, new_field in value_mapping.items():
                         if old_field == 'Parameter not available':
                             feature[new_field] = None 
@@ -1969,7 +2044,8 @@ class QTalsim:
 
             if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
                 self.landuseTalsim = self.deletePolygonsBelowThreshold(self.landuseTalsim, self.selected_landuse_parameters, self.fieldLanduseID)
-
+            #self.dlg.progressbar.setValue(90)   
+            self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             try:   
                 #Only keep relevant fields
                 all_fields = [field.name() for field in self.landuseTalsim.fields()]
@@ -1991,10 +2067,11 @@ class QTalsim:
                 self.dlg.groupboxLanduseOptional.setEnabled(True)
 
             self.log_to_qtalsim_tab(f"Finished land use parameter mapping. Inspect results in this temporary layer: {self.landuseTalsim.name()}.", Qgis.Info) 
-        
+            #self.dlg.progressbar.setValue(0) 
+            self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-
+            #self.dlg.progressbar.setValue(0) 
         finally:
             self.end_operation()
 
@@ -2007,6 +2084,8 @@ class QTalsim:
             layer_input_name = self.landuseTalsim.name()
             self.log_to_qtalsim_tab(f"QTalsim is currently loading, checking for overlapping features.", Qgis.Info)
             self.landuseTalsim, self.overlapping_landuse_features = self.checkOverlappingFeatures(self.landuseTalsim)
+            #self.dlg.progressbar.setValue(30)
+            self.log_to_qtalsim_tab(f"Progress: 30% done", Qgis.Info)
             #Create unique combinations of the overlapping features
             unique_combinations_set = set()
             for feature_pair in self.overlapping_landuse_features:
@@ -2014,7 +2093,8 @@ class QTalsim:
                 feature_pair_tuple = tuple(sorted(feature_pair))
                 unique_combinations_set.add(feature_pair_tuple)
             self.overlapping_landuse_features = [list(pair) for pair in unique_combinations_set]
-
+            #self.dlg.progressbar.setValue(40)
+            self.log_to_qtalsim_tab(f"Progress: 40% done", Qgis.Info)
             self.dlg.tableLanduseDelete.clear()
 
             self.dlg.tableLanduseDelete.setRowCount(len(self.overlapping_landuse_features))
@@ -2033,7 +2113,7 @@ class QTalsim:
 
             count_features = len(self.overlapping_landuse_features)
             analysed_features = 0
-            last_logged_progress = 0
+            last_logged_progress = 50
 
             # Iterate through the features of the duplicate layer
             for row, feature_pair in enumerate(self.overlapping_landuse_features):
@@ -2042,6 +2122,7 @@ class QTalsim:
                 if progress - last_logged_progress >= 10:
                     self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
                     last_logged_progress = progress
+                    #self.dlg.progressbar.setValue(progress)
 
                 feature_id1, feature_id2 = feature_pair
                 feature1 = self.landuseTalsim.getFeature(feature_id1)
@@ -2122,7 +2203,7 @@ class QTalsim:
 
     def deleteOverlappingLanduseFeatures(self):
         '''
-            Deletes all overlapping features of landuse layer. Multiple runs necessary because removing overlapping features 
+            Deletes all overlapping features of land use layer. Multiple runs necessary because removing overlapping features 
             can result in more overlapping features.
         '''
         try:
@@ -2218,8 +2299,8 @@ class QTalsim:
 
     def createLanduseLayer(self):
         '''
-            Creates the Talsim Landuse Layer that is used for intersecting.
-                Dissolves the Talsim Landuse Layer.
+            Creates the Talsim land use Layer that is used for intersecting.
+                Dissolves the Talsim land use layer.
         '''
         try:
             self.start_operation()
@@ -2253,8 +2334,9 @@ class QTalsim:
 
             if self.soilTalsim:
                 self.dlg.groupboxIntersect.setEnabled(True)
+                self.dlg.groupboxIntersect.setChecked(True)
 
-            self.log_to_qtalsim_tab(f"Created Landuse Layer with Talsim Parameters: {self.landuseTalsim.name()}.", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Created land use layer with Talsim Parameters: {self.landuseTalsim.name()}.", Qgis.Info)
 
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
@@ -2456,7 +2538,7 @@ class QTalsim:
         #Get DEM Layer
         selected_layer_name = self.dlg.comboboxDEMLayer.currentText()
         self.demLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
-
+        
         #Calculate Slope Layer
         slope_layer_path = processing.run("native:slope", {'INPUT':self.demLayer, 'Z_FACTOR':1,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
         self.slopeLayer = QgsRasterLayer(slope_layer_path, 'Slope Layer')
@@ -2544,8 +2626,9 @@ class QTalsim:
 
             #Calculate and store area of every catchment area
             intersectedLayer, _ = self.make_geometries_valid(intersectedLayer)
-           
-           #Get the area of each sub-basin
+            #self.dlg.progressbar.setValue(10)
+            self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
+            #Get the area of each sub-basin
             ezgAreas = {}
             for feature in ezgLayer1.getFeatures():
                 ezgAreas[feature[self.ezgUniqueIdentifier]] = feature.geometry().area()
@@ -2564,7 +2647,8 @@ class QTalsim:
             
             self.log_to_qtalsim_tab("Deleting overlapping features...", Qgis.Info)
             intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayer, ezgDissolved) #necessary because also wanted gaps (of sub-basins-layer) are filled when performing 'Fill Gaps'
-            
+            #self.dlg.progressbar.setValue(15)
+            self.log_to_qtalsim_tab(f"Progress: 15.00% done", Qgis.Info)
             intersectedDissolvedLayer, _ = self.editOverlappingFeatures(intersectedDissolvedLayer)
         
             all_fields = [field.name() for field in intersectedDissolvedLayer.fields()]
@@ -2594,7 +2678,8 @@ class QTalsim:
                     'OUTPUT': 'TEMPORARY_OUTPUT'
                 }, feedback=None)
             outputDirSplit = resultSplit['OUTPUT']
-
+            #self.dlg.progressbar.setValue(20)
+            self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)
             #Logging variables:
             if 'memory:' in outputDirSplit:  # If using in-memory output
                 count_all_layers = len([layer for layer in QgsProject.instance().mapLayers().values() if layer.name().startswith(self.ezgUniqueIdentifier)])
@@ -2692,7 +2777,8 @@ class QTalsim:
                 #tempLayerSplitEliminated = processing.run("native:fixgeometries", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
                 tempLayerSplitEliminated, _ = self.make_geometries_valid(tempLayerSplitEliminated)
                 splitLayers.append(tempLayerSplitEliminated)
-            
+            #self.dlg.progressbar.setValue(30)
+            self.log_to_qtalsim_tab(f"Progress: 30.00% done", Qgis.Info)
             #Merge all of the split layers
             resultMerge = processing.run("native:mergevectorlayers", {'LAYERS':splitLayers,'CRS':intersectedDissolvedLayer.crs(),'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             #QgsProject.instance().addMapLayer(resultMerge)
@@ -2746,6 +2832,8 @@ class QTalsim:
                 if i not in dissolve_fields_indices:
                     self.finalLayer.deleteAttribute(i)
             self.finalLayer.commitChanges()
+            #self.dlg.progressbar.setValue(40)
+            self.log_to_qtalsim_tab(f"Progress: 40.00% done", Qgis.Info)
 
             '''
                 Create .LNZ
@@ -2777,6 +2865,8 @@ class QTalsim:
             self.landuseFinal.commitChanges()
 
             QgsProject.instance().addMapLayer(self.landuseFinal) 
+            #self.dlg.progressbar.setValue(50)
+            self.log_to_qtalsim_tab(f"Progress: 50.00% done", Qgis.Info)
 
             '''
                 Create .BOA - SoilTexture
@@ -2847,6 +2937,8 @@ class QTalsim:
 
             self.soilTextureFinal.commitChanges()  
             QgsProject.instance().addMapLayer(self.soilTextureFinal)
+            #self.dlg.progressbar.setValue(65)
+            self.log_to_qtalsim_tab(f"Progress: 65.00% done", Qgis.Info)
 
             '''
                 BOD
@@ -2915,6 +3007,8 @@ class QTalsim:
 
             self.soilTypeFinal.setName("BOD")
             QgsProject.instance().addMapLayer(self.soilTypeFinal)
+            #self.dlg.progressbar.setValue(75)
+            self.log_to_qtalsim_tab(f"Progress: 75.00% done", Qgis.Info)
 
             '''
                 Create .EFL
@@ -2922,6 +3016,11 @@ class QTalsim:
             #Join the soil id (BOD) to the EFL-layer
             self.finalLayer = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
+            
+            #self.finalLayer
+            processing.run("native:createspatialindex", {'INPUT': self.finalLayer})
+            processing.run("native:createspatialindex", {'INPUT': self.soilTypeFinal})
+
             #Define the parameters for the spatial join
             params = {
                 'INPUT': self.finalLayer,  
@@ -2949,7 +3048,7 @@ class QTalsim:
             #Delete features without geometry
             features_to_delete = []
             for feature in self.finalLayer.getFeatures():
-                # Check if all attribute values are 'NULL'
+                #Check if all attribute values are 'NULL'
                 if feature.geometry().isEmpty() or feature.geometry() is None or feature.geometry().area() == 0 or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' or str(feature[self.hruSoilTypeId]).strip().upper() == 'NULL' or str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
                     features_to_delete.append(feature.id())
             if len(features_to_delete) > 0:
@@ -2966,12 +3065,15 @@ class QTalsim:
                 area = feature.geometry().area()
                 ezg = feature[self.ezgUniqueIdentifier]
                 sum_areas[ezg] += area
+
             for key in ezgAreas:
                 if key in sum_areas:
                     if round(ezgAreas[key], -2) != round(sum_areas[key], -2):
                         self.log_to_qtalsim_tab(f'Sub-basin with Unique-Identifier {key} has a different area {ezgAreas[key]} than the sum of all features in this sub-basin {sum_areas[key]}.', Qgis.Warning)
-     
+            #self.dlg.progressbar.setValue(85)
+            self.log_to_qtalsim_tab(f"Progress: 85.00% done", Qgis.Info)
             eflFieldList.append(self.hruSoilTypeId)
+
             eflFieldList = [item for item in eflFieldList if item not in self.soilIDNames]
             try:
                 #Dissolve the final Layer
@@ -2986,6 +3088,7 @@ class QTalsim:
 
             #Add Fields
             if self.dlg.comboboxDEMLayer.currentText() != "Optional: Upload DEM Layer":
+                self.log_to_qtalsim_tab(f"Calculating Slope...", Qgis.Info)
                 self.eflLayer = self.calculateSlopeHRUs(self.eflLayer)    
             else:
                 self.eflLayer.startEditing()
@@ -2999,7 +3102,8 @@ class QTalsim:
             eflLayerDP.addAttributes([QgsField(self.fieldNameAreaEFL, QVariant.Double)])
             self.eflLayer.commitChanges()
             self.eflLayer.updateFields()
-            
+            #self.dlg.progressbar.setValue(90)
+            self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             #Add data
             self.eflLayer.startEditing()
             for feature in self.eflLayer.getFeatures():
@@ -3015,7 +3119,8 @@ class QTalsim:
                     self.log_to_qtalsim_tab(f"Feature {feature.id()} is not deleted, eventhough it's percentage is below {self.dlg.spinboxIntersectShareofArea.value()} %.", Qgis.Warning)
                 
             self.eflLayer.commitChanges()
-
+            #self.dlg.progressbar.setValue(95)
+            self.log_to_qtalsim_tab(f"Progress: 95.00% done", Qgis.Info)
             eflFieldList.append(self.fieldNameAreaEFL) #Area of Elementarfläche
             self.eflLayer.startEditing()
             dissolve_fields_indices = [self.eflLayer.fields().indexFromName(field) for field in eflFieldList]
@@ -3035,6 +3140,8 @@ class QTalsim:
             #Add the updated eflLayer to the map
             self.eflLayer.setName("EFL")
             QgsProject.instance().addMapLayer(self.eflLayer)
+            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
 
             self.dlg.finalButtonBox.button(QDialogButtonBox.Ok).setEnabled(True)
             #Add checkmark when process is finished
@@ -3049,7 +3156,7 @@ class QTalsim:
         
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-
+            #self.dlg.progressbar.setValue(0)
         finally:
             self.end_operation()
 
@@ -3447,6 +3554,22 @@ class QTalsim:
             if current_text.endswith("✓"):  #Check if "✓" is at the end
                 #Remove the last character ("✓") and update the button's text
                 button.setText(current_text[:-1])
+        
+        #Remove ticks from group boxes
+        group_boxes = self.dlg.findChildren(QGroupBox)
+        #Iterate through each group box and get its title
+        for group_box in group_boxes:
+            groupbox_title = group_box.title()
+            if groupbox_title.endswith("✓"):
+                group_box.setTitle(current_text[:-1])
+
+        #Disable group boxes
+        self.dlg.groupboxIntersect.setEnabled(False)
+        self.dlg.groupboxIntersect.setChecked(False)
+        self.dlg.groupboxLanduseOptional.setEnabled(False)
+        self.dlg.soilGroupBox.setEnabled(False)
+        self.dlg.landuseGroupBox.setEnabled(False)
+        self.dlg.groupboxSoilOptional.setEnabled(False)
 
         #Clear Boxes
         self.dlg.comboboxUICatchment.clear()
@@ -3528,6 +3651,7 @@ class QTalsim:
             #self.dlg.onLanduseConfirm2.setVisible(False)
             self.dlg.onCreateLanduseLayer.setVisible(False)
             self.dlg.finalButtonBox.button(QDialogButtonBox.Ok).setEnabled(False)
+            self.dlg.progressBar.setVisible(False)
 
         #Translating the buttons to English for consistency
         if self.dlg.finalButtonBox:

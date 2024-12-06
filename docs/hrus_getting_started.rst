@@ -8,8 +8,8 @@ Requirements for Input Layers
    .. _requirements-for-input-layers:
 
 
-   All three input layers must be polygon layers and included in the
-   current QGIS project.
+   All three necessary input layers must be polygon layers and included in the
+   current QGIS project. Additionally a raster DEM layer can be used as input to calculate the slope. 
 
    #. Sub-basin layer
 
@@ -26,6 +26,10 @@ Requirements for Input Layers
       This layer should contain all land use areas within the study
       area, and it must contain a field specifying the names of the land
       use types. 
+
+   #. Optional: DEM Layer
+
+      The DEM layer is optional, and if a DEM layer is uploaded, the slope for each HRU will be calculated.
 
 
    Continue to the next section for detailed step-by-step instructions: `Step-by-Step Guide <https://sydroconsult.github.io/QTalsim/hrus_step_by_step.html>`__ 

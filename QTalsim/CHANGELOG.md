@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.6.2] - 2024-12-06
+- Enhancement
+  - ISRIC Soil Type Converter
+    - Enhance Performance
+    - Added possibility to continue with previous conversion, if QGIS crashes
+    - Added possibility to run plugin without saving all layers 
+
+  - HRU Calculation
+    - Dynamic text explanations depending on where user clicks
+    - Improve overview of different calculation steps
+    - Added warning if user inputs sub-basin UI that does not start with an A
+   
+
+- Fixes
+  - HRU-Calculation
+    - Sub-basins layer can now holdiIslands within lakes e.g.
+    - Maximum size of polygons/HRUs is not 
+  - Connect to Talsim DB
+    - Fixes bug when opening this feature
+  - Sub-basins preprocessing
+    - Unique identifier field can have any name and field type now
+ 
+
 ## [1.6.1] - 2024-10-31
 - Enhancement
   - ISRIC Soil Type Converter: Order field names in final layer by soil horizon/layer
