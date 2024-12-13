@@ -4,19 +4,18 @@
 - Enhancement
   - ISRIC Soil Type Converter
     - Enhance Performance
-    - Added possibility to continue with previous conversion, if QGIS crashes
-    - Added possibility to run plugin without saving all layers 
+    - Added possibility to resume from a previous conversion
+    - Added option to run plugin without saving all layers
 
   - HRU Calculation
-    - Dynamic text explanations depending on where user clicks
-    - Improve overview of different calculation steps
-    - Added warning if user inputs sub-basin UI that does not start with an A
-   
+    - Dynamic text explanations now update based on user clicks
+    - Improved the overview of different calculation steps for better clarity
+    - Added a warning for sub-basin UI inputs that do not start with an "A"
 
 - Fixes
   - HRU-Calculation
-    - Sub-basins layer can now holdiIslands within lakes e.g.
-    - Maximum size of polygons/HRUs is not 
+    - Sub-basins layer with complex geometries can now be handled (e.g., support for features with nested or multipart geometries)
+    - Maximum size of polygons/HRUs is no longer restricted
   - Connect to Talsim DB
     - Fixes bug when opening this feature
   - Sub-basins preprocessing

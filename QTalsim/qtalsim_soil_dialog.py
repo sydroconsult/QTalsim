@@ -3,7 +3,7 @@ import os
 from qgis.PyQt import uic, QtWidgets
 from qgis.PyQt.QtWidgets import  QFileDialog, QDialog, QDialogButtonBox,QMessageBox
 from qgis.PyQt.QtCore import QVariant, QTimer
-from qgis.core import QgsProject, Qgis, QgsCoordinateReferenceSystem, QgsRasterLayer, QgsVectorLayer, QgsField, edit, QgsLayerTreeLayer, QgsCategorizedSymbolRenderer, QgsVectorFileWriter,QgsWkbTypes, QgsGeometry, QgsFeature, QgsDataSourceUri
+from qgis.core import QgsProject, Qgis, QgsCoordinateReferenceSystem, QgsRasterLayer, QgsVectorLayer, QgsField, edit, QgsLayerTreeLayer, QgsCategorizedSymbolRenderer, QgsVectorFileWriter,QgsWkbTypes, QgsGeometry, QgsFeature, QgsDataSourceUri, QgsFeatureRequest
 from qgis.gui import QgsProjectionSelectionDialog
 from osgeo import gdal, osr, ogr
 import processing
@@ -1097,8 +1097,9 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.log_to_qtalsim_tab(f"Further processing layer {layer_name}...", Qgis.Info)
 
                 #Populate the "soil_type" field based on talsim_soilid
+                request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
                 with edit(result_layer):
-                    for feature in result_layer.getFeatures():
+                    for feature in result_layer.getFeatures(request):
                         talsim_soilid = feature['talsim_soilid'] 
                         soil_type = get_soil_type_by_id(int(talsim_soilid))
                         feature[self.fieldNameSoilType] = soil_type
@@ -1253,9 +1254,6 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
 
         #Export bulk density layers as geopackage
-        #gpkgOutputPathBdod = os.path.join(self.outputFolder, "bdod.gpkg")
-        #processing.run("native:package", {'LAYERS':bdodLayers,'OUTPUT':gpkgOutputPathBdod,'OVERWRITE':True,'SAVE_STYLES':True,'SAVE_METADATA':True,'SELECTED_FEATURES_ONLY':False,'EXPORT_RELATED_LAYERS':False})
-        
         bdod_dissolve_fields = [] #stores the field names of bdod classes in final layer 
         for layer in bdodLayers:
             layer_name = layer.name()  # Get the layer name
@@ -1310,6 +1308,15 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Combine Soil types and BDOD
         #2.: Combine the layers to one soil type layer, holding the different soil layers in different columns
         try:
+            for i, layer in enumerate(self.bdod_layers_to_combine + [combined_soil_type_layer]):
+                singleparts_layer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                processing.run("native:createspatialindex", {'INPUT': singleparts_layer})
+                    
+                if i < len(self.bdod_layers_to_combine):  
+                    self.bdod_layers_to_combine[i] = singleparts_layer
+                else:
+                    combined_soil_type_layer = singleparts_layer
+
             params = {
                 'INPUT': combined_soil_type_layer,
                 'OVERLAYS' : self.bdod_layers_to_combine[0:],  #Input layers as a list
@@ -1317,7 +1324,6 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 'OUTPUT':'TEMPORARY_OUTPUT'
             }
 
-            #Run the multiple intersection tool
             finalLayer = processing.run("qgis:multiintersection", params)['OUTPUT']
         except:
             for i, layer in enumerate(self.bdod_layers_to_combine):
@@ -1330,7 +1336,6 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 'OUTPUT':'TEMPORARY_OUTPUT'
             }
 
-            #Run the multiple intersection tool
             finalLayer = processing.run("qgis:multiintersection", params)['OUTPUT']
 
         dissolve_list = bdod_dissolve_fields + field_names

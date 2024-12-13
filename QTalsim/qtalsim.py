@@ -780,8 +780,7 @@ class QTalsim:
         gapsLayer.updateFields()
 
         gapsLayer.startEditing()
-
-        # Set this new attribute for all features in gapsLayer
+        #Set this new attribute for all features in gapsLayer
         for feature in gapsLayer.getFeatures():
             feature['gapFeature'] = 1  # Set identifier
             gapsLayer.updateFeature(feature)
@@ -806,7 +805,7 @@ class QTalsim:
             layer.renameAttribute(field_index, 'old_fid')
             layer.commitChanges()
 
-        #Necessary step because dissolve cannot handle GeometryCollectiosns & Linestrings:
+        #Necessary step because dissolve cannot handle GeometryCollections & Linestrings:
         layer, _ = self.make_geometries_valid(layer)
 
         layer = processing.run("native:multiparttosingleparts", {
@@ -815,7 +814,8 @@ class QTalsim:
         },feedback=None)['OUTPUT']
 
         #Find Gaps between layer and extent
-        union_geom = QgsGeometry.unaryUnion([feature.geometry() for feature in layer.getFeatures()])
+        geom_request = QgsFeatureRequest().setNoAttributes()
+        union_geom = QgsGeometry.unaryUnion([feature.geometry() for feature in layer.getFeatures(geom_request)])
         union_geom_extent = QgsGeometry.unaryUnion([feature.geometry() for feature in extent.getFeatures()])
         holes = union_geom_extent.difference(union_geom)
         
@@ -905,9 +905,14 @@ class QTalsim:
         merged_layer = result_merge['OUTPUT']
 
         #Select the gaps in the merged_layer 
-        for feature in merged_layer.getFeatures():
-            if feature['gapFeature'] == 1:
-                merged_layer.select(feature.id())
+        request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(
+                ['gapFeature'], merged_layer.fields()
+        )
+        feature_ids_to_select = [feature.id() for feature in merged_layer.getFeatures(request) if feature['gapFeature'] == 1]
+
+        #Select all gap features 
+        if feature_ids_to_select:
+            merged_layer.selectByIds(feature_ids_to_select)
 
         #Eliminate with the user's input mode
         result_eliminate = processing.run("qgis:eliminateselectedpolygons", {
@@ -924,15 +929,12 @@ class QTalsim:
                 'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
 
-        features_to_delete = []
-        for feature in layer_without_gaps.getFeatures():
-            if feature['gapFeature'] == 1:
-                features_to_delete.append(feature.id())                    
-
-        layer_without_gaps.startEditing()
-        for feature_id in features_to_delete:
-            layer_without_gaps.deleteFeature(feature_id)
-        layer_without_gaps.commitChanges()
+        request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(['gapFeature'], layer_without_gaps.fields())
+        features_to_delete = [feature.id() for feature in layer_without_gaps.getFeatures(request) if feature['gapFeature'] == 1]
+        if features_to_delete:
+            layer_without_gaps.startEditing()
+            layer_without_gaps.deleteFeatures(features_to_delete)
+            layer_without_gaps.commitChanges()
         
         return layer_without_gaps
     
@@ -1422,10 +1424,11 @@ class QTalsim:
             progress_range = end_progress - last_logged_progress
 
             #Populate soil parameter fields in soil layer
+            request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
             self.soilLayerIntermediate.startEditing()
             try: 
                 i = 1 #Add an ID for internal processing
-                for feature in self.soilLayerIntermediate.getFeatures():
+                for feature in self.soilLayerIntermediate.getFeatures(request):
                     analysed_features += 1
                     relative_progress = (analysed_features / total_features) * progress_range
                     progress = start_progress + relative_progress
@@ -1831,8 +1834,12 @@ class QTalsim:
             self.landuseLayer.dataProvider().addAttributes([field])
             self.landuseLayer.updateFields()
 
+            request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(
+                [self.landuseFieldInputID], self.landuseLayer.fields()
+            )
+
             #Assign ID values to each feature
-            for i, feature in enumerate(self.landuseLayer.getFeatures()):
+            for i, feature in enumerate(self.landuseLayer.getFeatures(request)): 
                 self.landuseLayer.changeAttributeValue(feature.id(), self.landuseLayer.fields().indexFromName(self.landuseFieldInputID), i + 1)
 
             #Commit changes
@@ -2003,9 +2010,11 @@ class QTalsim:
             else:
                 end_progress = 80
             progress_range = end_progress - last_logged_progress
+
+            request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
             self.landuseTalsim.startEditing()
             try:
-                for feature in self.landuseTalsim.getFeatures():
+                for feature in self.landuseTalsim.getFeatures(request): 
                     analysed_features += 1
                     relative_progress = (analysed_features / total_features) * progress_range
                     progress = start_progress + relative_progress
@@ -2574,11 +2583,11 @@ class QTalsim:
         try:
             self.start_operation()
             if self.ezgLayer is None:
-                self.log_to_qtalsim_tab("EZG Layer does not exist.", Qgis.Critical)
+                self.log_to_qtalsim_tab("Sub-basins Layer does not exist.", Qgis.Critical)
                 raise Exception("Sub-basins Layer does not exist.")
             elif self.landuseTalsim is None:
-                self.log_to_qtalsim_tab("Land Use Talsim Layer does not exist.", Qgis.Critical)
-                raise Exception("Land Use Talsim Layer does not exist.")
+                self.log_to_qtalsim_tab("Land use Talsim Layer does not exist.", Qgis.Critical)
+                raise Exception("Land use Talsim Layer does not exist.")
             elif self.soilTalsim is None:
                 self.log_to_qtalsim_tab("Soil Talsim Layer does not exist.", Qgis.Critical)
                 raise Exception("Soil Talsim Layer does not exist.")
@@ -2652,7 +2661,7 @@ class QTalsim:
             intersectedDissolvedLayer, _ = self.editOverlappingFeatures(intersectedDissolvedLayer)
         
             all_fields = [field.name() for field in intersectedDissolvedLayer.fields()]
-            fields_to_delete_indices = [intersectedDissolvedLayer.fields().indexFromName(field)  for field in all_fields if field not in dissolve_list]
+            fields_to_delete_indices = [intersectedDissolvedLayer.fields().indexFromName(field) for field in all_fields if field not in dissolve_list]
             intersectedDissolvedLayer.startEditing()
             intersectedDissolvedLayer.dataProvider().deleteAttributes(fields_to_delete_indices)
             intersectedDissolvedLayer.commitChanges()
@@ -3016,25 +3025,41 @@ class QTalsim:
             #Join the soil id (BOD) to the EFL-layer
             self.finalLayer = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
-            
-            #self.finalLayer
+            soilTypeFinalSingleParts = processing.run("native:multiparttosingleparts", {'INPUT': self.soilTypeFinal,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             processing.run("native:createspatialindex", {'INPUT': self.finalLayer})
-            processing.run("native:createspatialindex", {'INPUT': self.soilTypeFinal})
+            processing.run("native:createspatialindex", {'INPUT': soilTypeFinalSingleParts})
+            
+            try:
+                #Define the parameters for the spatial join
+                params = {
+                    'INPUT': self.finalLayer,  
+                    'JOIN': soilTypeFinalSingleParts,  
+                    'PREDICATE': [0],  
+                    'JOIN_FIELDS': ['ID'],  
+                    'METHOD': 2,  
+                    'DISCARD_NONMATCHING': False,  
+                    'OUTPUT': 'memory:'  
+                }
 
-            #Define the parameters for the spatial join
-            params = {
-                'INPUT': self.finalLayer,  
-                'JOIN': self.soilTypeFinal,  
-                'PREDICATE': [0],  
-                'JOIN_FIELDS': ['ID'],  
-                'METHOD': 2,  
-                'DISCARD_NONMATCHING': False,  
-                'OUTPUT': 'memory:'  
-            }
+                #Run the spatial join
+                result = processing.run('native:joinattributesbylocation', params)
+            except:
+                soilTypeFinalSingleParts, _ = self.make_geometries_valid(soilTypeFinalSingleParts)
+                self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
+                #Define the parameters for the spatial join
+                params = {
+                    'INPUT': self.finalLayer,  
+                    'JOIN': soilTypeFinalSingleParts,  
+                    'PREDICATE': [0],  
+                    'JOIN_FIELDS': ['ID'],  
+                    'METHOD': 2,  
+                    'DISCARD_NONMATCHING': False,  
+                    'OUTPUT': 'memory:'  
+                }
 
-            #Run the spatial join
-            result = processing.run('native:joinattributesbylocation', params)
-
+                #Run the spatial join
+                result = processing.run('native:joinattributesbylocation', params)
+            
             #Get the resulting layer (joined output)
             self.finalLayer = result['OUTPUT']
 
@@ -3651,7 +3676,7 @@ class QTalsim:
             #self.dlg.onLanduseConfirm2.setVisible(False)
             self.dlg.onCreateLanduseLayer.setVisible(False)
             self.dlg.finalButtonBox.button(QDialogButtonBox.Ok).setEnabled(False)
-            self.dlg.progressBar.setVisible(False)
+        self.dlg.progressBar.setVisible(False)
 
         #Translating the buttons to English for consistency
         if self.dlg.finalButtonBox:
@@ -3696,7 +3721,6 @@ class QTalsim:
         self.connectButtontoFunction(self.dlg.onCheckOverlappingLanduse, self.checkOverlappingLanduse)
         self.connectButtontoFunction(self.dlg.onDeleteOverlapsLanduse, self.deleteOverlappingLanduseFeatures)
         self.connectButtontoFunction(self.dlg.onCheckGapsLanduse, self.checkGapsLanduse)
-
         
         self.dlg.comboboxModeEliminateLanduse.clear()
         self.dlg.comboboxModeEliminateLanduse.addItems(['Largest Area', 'Smallest Area','Largest Common Boundary'])  
