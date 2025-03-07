@@ -454,7 +454,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
             #Bounding-Box:
             bb = (min_x, max_y, max_x, min_y)
-
+           
             #Output paths
             path_out = os.path.join(self.outputFolder, 'orig')
             self.path_proj = os.path.join(self.outputFolder, 'proj')

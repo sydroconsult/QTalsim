@@ -683,6 +683,18 @@ class QTalsim:
         except:
             outputLayer = processing.run("native:fixgeometries", {'INPUT': outputLayer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
             clipping_layer = processing.run("native:fixgeometries", {'INPUT': clipping_layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
+            has_multipart = False
+            for feature in outputLayer.getFeatures():
+                geom = feature.geometry()
+                if geom.isMultipart():
+                    has_multipart = True
+                    self.log_to_qtalsim_tab("Mulitpart features.",Qgis.Info)
+                    break
+                    
+            if has_multipart:
+                outputLayer = processing.run("native:multiparttosingleparts", {'INPUT': outputLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                outputLayer, _ = self.make_geometries_valid(outputLayer)
+
             resultClipping = processing.run("native:clip", {
                     'INPUT': outputLayer,
                     'OVERLAY': clipping_layer,
@@ -1140,7 +1152,6 @@ class QTalsim:
             self.last_logged_progress = 0
             self.log_to_qtalsim_tab(f"Editing overlapping features...", Qgis.Info)
             self.ezgLayer, _ = self.editOverlappingFeatures(outputLayer)
-            self.log_to_qtalsim_tab(f"Finished calculation of ", Qgis.Info)
             self.log_to_qtalsim_tab(f"Progress: 50.00% done", Qgis.Info)
             #Dissolve of catchment areas for better clipping performance
             result = processing.run("native:dissolve", {'INPUT': self.ezgLayer, 'FIELD':[],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
@@ -2651,12 +2662,16 @@ class QTalsim:
             intersectedDissolvedLayer = resultDissolve['OUTPUT']
             
             #Intersecting layers can result in further overlaps/gaps --> fill gaps, edit overlaps 
-            intersectedDissolvedLayer = self.fillGaps(intersectedDissolvedLayer, self.clippingEZG, 0)
+            intersectedDissolvedLayerFilledGaps = self.fillGaps(intersectedDissolvedLayer, self.clippingEZG, 0)
             ezgDissolved = processing.run("native:dissolve", {'INPUT': self.ezgLayer,'FIELD': [],'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             
             self.log_to_qtalsim_tab(f"Progress: 15.00% done", Qgis.Info)
             self.log_to_qtalsim_tab("Deleting overlapping features...", Qgis.Info)
-            intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayer, ezgDissolved) #necessary because also wanted gaps (of sub-basins-layer) are filled when performing 'Fill Gaps'
+            try:
+                intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayerFilledGaps, ezgDissolved) #necessary because also wanted gaps (of sub-basins-layer) are filled when performing 'Fill Gaps'
+            except:
+                pass
+                
             #self.dlg.progressbar.setValue(15)
             intersectedDissolvedLayer, _ = self.editOverlappingFeatures(intersectedDissolvedLayer)
         
