@@ -205,6 +205,9 @@
         </widget>
        </item>
        <item>
+        <widget class="QComboBox" name="comboboxOutputFormat"/>
+       </item>
+       <item>
         <widget class="QPushButton" name="onAsciiOutput">
          <property name="text">
           <string>ASCII-Output</string>

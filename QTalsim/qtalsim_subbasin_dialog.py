@@ -8,6 +8,8 @@ import webbrowser
 import gc #Garbage collection
 import time
 import sys
+import shutil
+import sqlite3
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'qtalsim_subbasin.ui'))
@@ -43,8 +45,8 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.lengthFieldName = 'Length'
         self.imperviousFieldName = 'Imp_mean'
         self.areaFieldName = 'Area'
-        self.filename = None
         self.no_feedback = NoFeedback()
+        self.subbasinUIField = None
 
         #Main Functions
         self.connectButtontoFunction = self.mainPlugin.connectButtontoFunction
@@ -123,6 +125,10 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.polygonLayers, self.rasterLayers = self.getAllLayers(QgsProject.instance().layerTreeRoot())
         self.lineLayers = self.getAllLineLayers(QgsProject.instance().layerTreeRoot())
 
+        #Output Format
+        self.comboboxOutputFormat.clear() #clear combobox from previous runs
+        self.comboboxOutputFormat.addItems(["SQLite-Export (Talsim NG5)","ASCII-Export (Talsim NG4)"])
+
         #Sub-basins layer
         self.comboboxSubBasinLayer.clear() #clear combobox EZG from previous runs
         self.comboboxSubBasinLayer.addItem(self.noLayerSelected)
@@ -168,7 +174,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
         try:
             self.start_operation()
-
+            self.log_to_qtalsim_tab(f"Processing the sub-basins layer.", Qgis.Info)
             #Select DEM Layer
             if self.DEMLayer is None:
                 selected_layer_name = self.comboboxDEMLayer.currentText()
@@ -177,12 +183,15 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 else:
                     self.log_to_qtalsim_tab("Please select a DEM layer to process the sub-basins.", Qgis.Critical)
 
+            self.log_to_qtalsim_tab(f"Calculating the max- and min-height and area of each sub-basin...", Qgis.Info)
             self.calculateHeightandAreaSubBasins()
             
             #Convert the subbasinUIField to string (needed for join to LFP)
             self.subBasinLayerProcessed.startEditing()
 
             #Get the original field index
+            if not self.subbasinUIField:
+                self.subbasinUIField = self.comboboxUISubBasin.currentText()
             original_field_name = self.subbasinUIField
             original_field_index = self.subBasinLayerProcessed.fields().indexOf(original_field_name)
       
@@ -218,6 +227,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             selected_layer_name = self.comboboxImperviousness.currentText() #Get the selected layer name
             
             if selected_layer_name is not None and selected_layer_name != self.noLayerSelected: #imperviousness is optional
+                self.log_to_qtalsim_tab(f"Calculating mean imperviousness for each sub-basin...", Qgis.Info)
                 self.imperviousnessLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
                 self.subBasinLayerProcessed = self.calculateImperviousness(self.subBasinLayerProcessed, self.imperviousnessLayer)
             else: #add the field with null-values
@@ -238,11 +248,16 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 #Join the LFP length to sub-basin layer
                 self.subBasinLayerProcessed = processing.run("native:joinattributestable", {'INPUT': self.subBasinLayerProcessed,'FIELD': self.subbasinUIField,'INPUT_2': self.lfpFinalLayer,'FIELD_2':'BASINID','FIELDS_TO_COPY':[self.lengthFieldName],'METHOD':1,'DISCARD_NONMATCHING':False,'PREFIX':'','OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
-                
+            
+            self.log_to_qtalsim_tab(f"Exporting the layer...", Qgis.Info)
             self.geopackage_path = os.path.join(self.outputFolder, f"Sub_basins_processed.gpkg") #Output-path
 
-            if self.filename is not None:
+            self.outputFormat = self.comboboxOutputFormat.currentText()
+            if self.outputFormat == "SQLite-Export (Talsim NG5)":
+                self.DBExport()
+            elif self.outputFormat == "ASCII-Export (Talsim NG4)":
                 self.asciiExport()
+            
 
             #Export sub-basins-layer to geopackage
             params = {
@@ -681,6 +696,98 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.log_to_qtalsim_tab(f".EZG-filename: {self.filename}.EZG", Qgis.Info)
 
+    def DBExport(self):
+        try:
+            self.subbasinUIField = self.comboboxUISubBasin.currentText()
+            self.DBPath = os.path.join(self.outputFolder, "QTalsim.db")
+            current_path = os.path.dirname(os.path.abspath(__file__))
+            source_db = os.path.join(current_path, "DB", "QTalsim.db") 
+            shutil.copy(source_db, self.DBPath)
+
+            #Insert new scenario
+            conn = sqlite3.connect(self.DBPath)
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                INSERT INTO Scenario (ScenarioGroupId, DateCreated, Name, Description, ActiveSimulationId, IsUpdateActive, OperationalInfo)
+                VALUES (?, datetime('now'), ?, ?, ?, ?, ?)
+            """, (1, "QTalsim", "Output of QTalsim", None, 0, None))
+
+            conn.commit()
+            conn.close()
+
+            conn = sqlite3.connect(self.DBPath)
+            cursor = conn.cursor()
+            #Insert ScenarioGroup
+            cursor.execute("""
+                SELECT ScenarioGroupId, Description, Name FROM Scenario 
+                ORDER BY DateCreated DESC LIMIT 1
+            """)
+            scenario_group_id, description, name = cursor.fetchone()
+
+            # Insert data into ScenarioGroup with current date
+            cursor.execute("""
+                INSERT INTO ScenarioGroup (Id, Description, Name, DateCreated)
+                VALUES (?, ?, ?, datetime('now'))
+            """, (scenario_group_id, description, name))
+
+            conn.commit()
+            conn.close()
+            #Insert SystemElement table
+            conn = sqlite3.connect(self.DBPath)
+            cursor = conn.cursor()
+
+            #Retrieve the last inserted ScenarioId
+            cursor.execute("SELECT Id FROM Scenario ORDER BY DateCreated DESC LIMIT 1")
+            scenario = cursor.fetchone()
+            
+            scenario_id = scenario[0]  #ScenarioId for new records
+            fields = [field.name() for field in self.subBasinLayerProcessed.fields()]
+            for feature in self.subBasinLayerProcessed.getFeatures():
+                element_identifier = feature[self.subbasinUIField]  # ElementIdentifier & Name
+                geometry = feature.geometry()
+
+                #Calculate the centroid (Latitude & Longitude)
+                centroid = geometry.centroid().asPoint()
+                latitude, longitude = centroid.y(), centroid.x()
+
+                #Convert to WKT MultiPolygon
+                wkt_multipolygon = geometry.asWkt()
+
+                #Insert into SystemElement table
+                cursor.execute("""
+                    INSERT INTO SystemElement (
+                        ScenarioId, ElementIdentifier, Name, ElementType, ElementTypeCharacter,
+                        Latitude, Longitude
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (scenario_id, element_identifier, element_identifier, 2, "A", 
+                    latitude, longitude)) #wkt_multipolygon
+
+                # Get the created SystemElementId
+                system_element_id = cursor.lastrowid
+
+                # Extract SubBasin fields (only those explicitly mentioned)
+                area = feature[self.areaFieldName] if self.areaFieldName in fields else None
+                imperviousness = feature[self.imperviousFieldName] if self.imperviousFieldName in fields else None
+                max_height = feature['Height_max'] if 'Height_max' in fields else None
+                min_height = feature['Height_min'] if 'Height_min' in fields else None
+
+                # Flow Length check
+                length = feature[self.lengthFieldName] if self.lengthFieldName in fields else None
+
+                # Insert into SubBasin table
+                cursor.execute("""
+                    INSERT INTO SubBasin (
+                        SystemElementId, Area, FlowLength, Imperviousness, MaxHeight, MinHeight
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (system_element_id, area, length, imperviousness, max_height, min_height))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            
     def asciiExport(self):
         '''
             If the user selects asciiExport, an EZG-file is exported to the output-folder and the specified filename
@@ -765,7 +872,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     definition_line = templateEzgContent[-1].strip()
                 field_lengths = parse_definition_linev1(definition_line)
 
-                outputPathEzg = os.path.join(self.outputFolder, f"{self.filename}.EZG")
+                outputPathEzg = os.path.join(self.outputFolder, f"QTalsim.EZG")
 
                 data = []                    
 

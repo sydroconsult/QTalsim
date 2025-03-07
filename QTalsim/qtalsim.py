@@ -42,6 +42,7 @@ import numpy as np
 from collections import defaultdict
 import re
 import csv
+import sqlite3
 
 
 class QTalsim:
@@ -143,6 +144,8 @@ class QTalsim:
         self.soilTextureFinal = None
         self.soilTypeFinal = None
         self.outputFolder = None
+
+        self.file_path_db = None
 
         self.geopackage_path = None
 
@@ -688,7 +691,6 @@ class QTalsim:
                 geom = feature.geometry()
                 if geom.isMultipart():
                     has_multipart = True
-                    self.log_to_qtalsim_tab("Mulitpart features.",Qgis.Info)
                     break
                     
             if has_multipart:
@@ -3183,6 +3185,7 @@ class QTalsim:
             #self.dlg.progressbar.setValue(0)
             self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
 
+            self.dlg.finalButtonBox.button(QDialogButtonBox.Save).setEnabled(True)
             self.dlg.finalButtonBox.button(QDialogButtonBox.Ok).setEnabled(True)
             #Add checkmark when process is finished
             current_text = self.dlg.onPerformIntersect.text()
@@ -3203,9 +3206,9 @@ class QTalsim:
     def selectOutputFolder(self):
         '''
             Function to select the output folder. 
-        '''
+        ''' 
         self.outputFolder = None
-        self.outputFolder = QFileDialog.getExistingDirectory(self.dlg, "Select Folder","") #, options=options
+        self.outputFolder = QFileDialog.getExistingDirectory(self.dlg, "Select Folder","")
         if self.outputFolder:
             self.dlg.outputPath.setText(self.outputFolder)
 
@@ -3545,6 +3548,243 @@ class QTalsim:
 
         finally:
             self.end_operation()
+    
+    def selectInputDB(self):
+        '''
+            Function to select the Talsim DB. 
+        ''' 
+        options = QFileDialog.Options()
+        options |= QFileDialog.ReadOnly
+        self.file_path_db, _ = QFileDialog.getOpenFileName(self.dlg, "Select Talsim Database", "", "Databases (*.db);;All Files (*)", options=options)
+        if self.file_path_db:
+            self.dlg.inputDBPath.setText(self.file_path_db)
+
+    def DBExport(self):
+        '''
+            Function that inserts landuse, soiltexture, soiltype and hydrological response units to existing database.
+        '''
+        if not self.file_path_db:
+            self.log_to_qtalsim_tab("Please select a Talsim Database first.", Qgis.Warning)
+            return
+
+        conn = sqlite3.connect(self.file_path_db)
+        cur = conn.cursor()
+
+        cur.execute("SELECT Id FROM Scenario ORDER BY DateCreated DESC LIMIT 1")
+        scenario = cur.fetchone()
+
+        scenario_id = scenario[0]
+
+        def get_feature_value(feature, field_name):
+            return feature[field_name] if field_name in feature.fields().names() else None
+
+        clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
+        orderby = QgsFeatureRequest.OrderBy([clause])
+
+        request = QgsFeatureRequest()
+        request.setOrderBy(orderby)
+
+        features = self.soilTypeFinal.getFeatures(request)
+
+        for feature in features:
+            cur.execute("""
+                INSERT INTO SoilType (
+                    Id, LayerThickness1, SoilTextureId1, LayerThickness2, SoilTextureId2, 
+                    LayerThickness3, SoilTextureId3, LayerThickness4, SoilTextureId4, 
+                    LayerThickness5, SoilTextureId5, LayerThickness6, SoilTextureId6, ScenarioId
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                int(feature["Id"]), 
+                float(get_feature_value(feature, f"soillayer1_{self.soilTypeThickness}")),
+                int(get_feature_value(feature, 'soillayer1_id_boa')),
+                float(get_feature_value(feature, f"soillayer2_{self.soilTypeThickness}")),
+                int(get_feature_value(feature, 'soillayer2_id_boa')),
+                float(get_feature_value(feature, f"soillayer3_{self.soilTypeThickness}")),
+                int(get_feature_value(feature, 'soillayer3_id_boa')),
+                float(get_feature_value(feature, f"soillayer4_{self.soilTypeThickness}")),
+                int(get_feature_value(feature, 'soillayer4_id_boa')),
+                float(get_feature_value(feature, f"soillayer5_{self.soilTypeThickness}")),
+                int(get_feature_value(feature, 'soillayer5_id_boa')),
+                float(get_feature_value(feature, f"soillayer6_{self.soilTypeThickness}")),
+                int(get_feature_value(feature, 'soillayer6_id_boa')),
+                scenario_id
+            ))
+
+        conn.commit()
+        conn.close()
+
+        '''
+            SoilTexture
+        '''
+        conn = sqlite3.connect(self.file_path_db)
+        cur = conn.cursor()
+
+        clause = QgsFeatureRequest.OrderByClause('ID_Soil', ascending=True)
+        orderby = QgsFeatureRequest.OrderBy([clause])
+        request = QgsFeatureRequest()
+        request.setOrderBy(orderby)
+
+        # Retrieve sorted features
+        features = self.soilTextureFinal.getFeatures(request)
+
+        # Loop through features and insert directly
+        for feature in features:
+            cur.execute("""
+                INSERT INTO SoilTexture (
+                    Id, BulkDensityClass, FieldCapacity, KfValue, MaxCapillaryScution, 
+                    MaxInfiltration, Name, ScenarioId, SoilName, TotalPoreVolume, WiltingPoint
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                int(feature["ID_Soil"]), 
+                int(feature["BulkDensityClass"]), 
+                float(feature["FieldCapacity"]), 
+                float(feature["KfValue"]), 
+                float(feature["MaxCapillarySuction"]), 
+                float(feature["MaxInfiltration"]), 
+                str(feature[self.nameSoil]), 
+                scenario_id,  #Use the latest ScenarioId
+                None,  #SoilName (leave empty)
+                float(feature["TotalPoreVolume"]), 
+                float(feature["WiltingPoint"])
+            ))
+
+        conn.commit()
+        conn.close()
+
+        '''
+            LNZ
+        '''
+
+        conn = sqlite3.connect(self.file_path_db)
+        cur = conn.cursor()
+
+        clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
+        orderby = QgsFeatureRequest.OrderBy([clause])
+        request = QgsFeatureRequest()
+        request.setOrderBy(orderby)
+
+        # Retrieve sorted features
+        features = self.landuseFinal.getFeatures(request)
+
+        for feature in features:
+            cur.execute("""
+                INSERT INTO Landuse (
+                    Id, BulkDensityChange, Description, KcCoeffAnnualPatternId, KyYieldAnnualPatternId,
+                    LeafAreaIndex, LeafAreaIndexAnnualPatternId, PlantCoverage, PlantCoverageAnnualPatternId, 
+                    RootDepth, RootDepthMonthlyPatternId, RoughnessCoefficient, ScenarioId, pTAW
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                int(feature["Id"]),
+                int(feature["BulkDensityChange"]) if "BulkDensityChange" in feature.fields().names() else None,
+                str(feature["Name"]) if "Name" in feature.fields().names() else None,  # Description is Name
+                int(feature["KcCoeffAnnualPatternId"]) if "KcCoeffAnnualPatternId" in feature.fields().names() else None,
+                int(feature["KyYieldAnnualPatternId"]) if "KyYieldAnnualPatternId" in feature.fields().names() else None,
+                float(feature["LeafAreaIndex"]) if "LeafAreaIndex" in feature.fields().names() else None,
+                int(feature["LeafAreaIndexAnnualPatternId"]) if "LeafAreaIndexAnnualPatternId" in feature.fields().names() else None,
+                float(feature["PlantCoverage"]) if "PlantCoverage" in feature.fields().names() else None,
+                int(feature["PlantCoverageAnnualPatternId"]) if "PlantCoverageAnnualPatternId" in feature.fields().names() else None,
+                float(feature["RootDepth"]) if "RootDepth" in feature.fields().names() else None,
+                int(feature["RootDepthMonthlyPatternId"]) if "RootDepthMonthlyPatternId" in feature.fields().names() else None,
+                float(feature["RoughnessCoefficient"]) if "RoughnessCoefficient" in feature.fields().names() else None,
+                scenario_id,  #Use the latest ScenarioId
+                float(feature["pTAW"]) if "pTAW" in feature.fields().names() else None
+            ))
+
+        conn.commit()
+        conn.close()
+
+        '''
+            EFL
+        '''
+        conn = sqlite3.connect(self.file_path_db)
+        cur = conn.cursor()
+
+        # Define sorting order (ascending by subBasinUI)
+        clause = QgsFeatureRequest.OrderByClause(self.subBasinUI, ascending=True)
+        orderby = QgsFeatureRequest.OrderBy([clause])
+        request = QgsFeatureRequest()
+        request.setOrderBy(orderby)
+
+        #Retrieve sorted features
+        features = self.eflLayer.getFeatures(request)
+
+        #Loop through features and insert directly
+        for feature in features:
+            
+            #Get the SystemElementId from the SystemElement table
+            subBasinUI = feature[self.subBasinUI]
+            systemElementId = cur.execute("SELECT Id FROM SystemElement WHERE ElementIdentifier = ?", (subBasinUI,))
+
+            #Insert into the HydrologicalResponseUnit table
+            cur.execute("""
+                INSERT INTO HydrologicalResponseUnit (
+                    LandUseId, PercentageShare, Slope, SoilTypeId, SystemElementId
+                )
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                int(feature[self.hruLandUseId]) if self.hruLandUseId in feature.fields().names() else None,
+                float(feature[self.fieldNameAreaEFL]) if self.fieldNameAreaEFL in feature.fields().names() else None,
+                float(feature[self.slopeFieldName]) if self.slopeFieldName in feature.fields().names() else None,
+                int(feature[self.hruSoilTypeId]) if self.hruSoilTypeId in feature.fields().names() else None,
+                systemElementId  
+            ))
+
+        conn.commit()
+        conn.close()
+
+    def saveFiles(self):
+        '''
+            Saves all layers to files
+        '''
+        try:
+            geopackage_name, ok = QInputDialog.getText(None, "GeoPackage Name", "Enter the name of the GeoPackage:")
+
+            self.start_operation()
+            self.outputFormat = self.dlg.comboboxOutputFormat.currentText()
+            if self.outputFormat == "SQLite-Export (Talsim NG5)":
+                self.DBExport()
+            elif self.outputFormat == "ASCII-Export (Talsim NG4)":
+                self.saveASCII()
+
+            #Save Geopackage
+            self.geopackage_path = os.path.join(self.outputFolder, f"{geopackage_name}.gpkg")
+            self.log_to_qtalsim_tab(f"Saving the layers to {self.outputFolder}.", Qgis.Info)
+            def create_gpkg_save_layer(layer, gpkg_path, layer_name):
+                params = {
+                    'INPUT': layer,
+                    'OUTPUT': gpkg_path,
+                    'LAYER_NAME': layer_name,
+                    'OVERWRITE': True,
+                }
+                processing.run("native:savefeatures", params)
+                
+            def add_layers_to_gpkg(layer, gpkg_path, layer_name):    
+                params = {'INPUT': layer,
+                        'OPTIONS': f'-update -nln {layer_name} -nlt MULTIPOLYGON', #added -nlt MULTIPOLYGON
+                        'OUTPUT': gpkg_path}
+                processing.run("gdal:convertformat", params)
+            
+            gpkg_path = self.geopackage_path
+            if os.path.exists(gpkg_path): 
+                try:
+                    os.remove(gpkg_path)
+                except Exception as e:
+                    self.log_to_qtalsim_tab(f"Failed to delete existing GeoPackage: {e}",Qgis.Critical)
+            create_gpkg_save_layer(self.eflLayer, gpkg_path,'hru') 
+            add_layers_to_gpkg(self.landuseFinal, gpkg_path, 'landuse')
+            add_layers_to_gpkg(self.soilTextureFinal, gpkg_path, 'soiltexture') 
+            add_layers_to_gpkg(self.soilTypeFinal, gpkg_path, 'soiltype') 
+            self.log_to_qtalsim_tab(f"File was saved to this folder: {self.outputFolder}", Qgis.Info)
+
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"Error: {e}", Qgis.Critical)
+
+        finally:
+            self.end_operation() 
+
 
     def connectButtontoFunction(self, button, function):
         '''
@@ -3691,15 +3931,20 @@ class QTalsim:
             #self.dlg.onLanduseConfirm2.setVisible(False)
             self.dlg.onCreateLanduseLayer.setVisible(False)
             self.dlg.finalButtonBox.button(QDialogButtonBox.Ok).setEnabled(False)
+            self.dlg.finalButtonBox.button(QDialogButtonBox.Save).setEnabled(False)
         self.dlg.progressBar.setVisible(False)
 
         #Translating the buttons to English for consistency
         if self.dlg.finalButtonBox:
             #Set button texts in English
             self.dlg.finalButtonBox.button(QDialogButtonBox.Ok).setText('OK')
+            self.dlg.finalButtonBox.button(QDialogButtonBox.Save).setText('Save')
             self.dlg.finalButtonBox.button(QDialogButtonBox.Cancel).setText('Cancel')
             self.dlg.finalButtonBox.button(QDialogButtonBox.Reset).setText('Reset')
             self.dlg.finalButtonBox.button(QDialogButtonBox.Help).setText('Help')
+
+        #Reload Function
+        self.connectButtontoFunction(self.dlg.finalButtonBox.button(QDialogButtonBox.Save), self.saveFiles) #write function
 
         #Reload Function
         self.connectButtontoFunction(self.dlg.finalButtonBox.button(QDialogButtonBox.Reset), self.reloadPlugin)
@@ -3754,8 +3999,12 @@ class QTalsim:
         self.dlg.comboboxEliminateModes.addItems(['Largest Area', 'Smallest Area','Largest Common Boundary'])
 
         #Outputfile
-        
+        #Output Format
+        self.dlg.comboboxOutputFormat.clear() #clear combobox from previous runs
+        self.dlg.comboboxOutputFormat.addItems(["SQLite-Export (Talsim NG5)", "ASCII-Export (Talsim NG4)"])
+
         self.connectButtontoFunction(self.dlg.onOutputFolder, self.selectOutputFolder) 
+        self.connectButtontoFunction(self.dlg.onInputDB, self.selectInputDB) 
         self.connectButtontoFunction(self.dlg.onExportASCII, self.saveASCII)
         # show the dialog
         self.dlg.show()
