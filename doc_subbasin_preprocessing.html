@@ -58,7 +58,14 @@
 <p>To use this plugin’s functionality, SAGA GIS and WhiteboxTools must be installed.</p>
 <ul class="simple">
 <li><p>SAGA GIS: Ensure that the “Processing Saga NextGen Provider” plugin is installed via the Plugin Manager in QGIS.</p></li>
-<li><p>WhiteboxTools: Install the “WhiteboxTools for QGIS” plugin, and make sure the environment path is set correctly. For further guidance, you can watch this instructional <a class="reference external" href="https://www.youtube.com/watch?v=xJXDBsNbcTg">video</a> produced by Whitebox.</p></li>
+<li><p>WhiteboxTools: Install the “WhiteboxTools for QGIS” plugin, and make sure the environment path is set correctly.</p>
+<ul>
+<li><p>Install the “WhiteboxTools for QGIS” plugin.</p></li>
+<li><p>Download and install <a class="reference external" href="https://www.whiteboxgeo.com/download-whiteboxtools/">WhiteboxTools Open Core</a> and remember the path where you installed it.</p></li>
+<li><p>In QGIS go to Settings - Options - Processing - Providers - WhiteboxTools executable and insert the path to the binary of your download (e.g. C:/Users/Test/WhiteboxTools_win_amd64/WBT/whitebox_tools.exe).</p></li>
+<li><p>For further guidance, you can watch this instructional <a class="reference external" href="https://www.youtube.com/watch?v=xJXDBsNbcTg">video</a> produced by Whitebox.</p></li>
+</ul>
+</li>
 </ul>
 </div></blockquote>
 </section>
@@ -74,8 +81,11 @@
 <li><p>Choose the correct polygon layer for the sub-basin layer.</p></li>
 <li><p>Select the field that contains the unique identifier for the sub-basins.</p></li>
 <li><p>Select the DEM layer (raster layer) and the water network layer (line layer).</p></li>
-<li><p>Optional: Select a layer containing impervious areas (<a class="reference external" href="https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862">Example data set</a>).
-- Values should be expressed as percentages</p></li>
+<li><p>Optional: Select a layer containing impervious areas (<a class="reference external" href="https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862">Example data set</a>).</p>
+<ul>
+<li><p>Values should be expressed as percentages</p></li>
+</ul>
+</li>
 </ul>
 </div></blockquote>
 </section>
