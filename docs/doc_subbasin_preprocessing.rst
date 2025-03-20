@@ -18,7 +18,12 @@ Prerequisites
    To use this plugin's functionality, SAGA GIS and WhiteboxTools must be installed.
 
    -  SAGA GIS: Ensure that the "Processing Saga NextGen Provider" plugin is installed via the Plugin Manager in QGIS.
-   -  WhiteboxTools: Install the "WhiteboxTools for QGIS" plugin, and make sure the environment path is set correctly. For further guidance, you can watch this instructional `video <https://www.youtube.com/watch?v=xJXDBsNbcTg>`__ produced by Whitebox.
+   -  WhiteboxTools: Install the "WhiteboxTools for QGIS" plugin, and make sure the environment path is set correctly. 
+
+      -  Install the "WhiteboxTools for QGIS" plugin.
+      -  Download and install `WhiteboxTools Open Core <https://www.whiteboxgeo.com/download-whiteboxtools/>`__ and remember the path where you installed it.
+      -  In QGIS go to Settings - Options - Processing - Providers - WhiteboxTools executable and insert the path to the binary of your download (e.g. C:/Users/Test/WhiteboxTools_win_amd64/WBT/whitebox_tools.exe).
+      -  For further guidance, you can watch this instructional `video <https://www.youtube.com/watch?v=xJXDBsNbcTg>`__ produced by Whitebox. 
 
 Executing the Plugin
 ^^^^^^^^^^^^^^^^^^^^
@@ -32,7 +37,8 @@ Select Layers
    -  Select the field that contains the unique identifier for the sub-basins.
    -  Select the DEM layer (raster layer) and the water network layer (line layer).
    -  Optional: Select a layer containing impervious areas (`Example data set <https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862>`__). 
-      - Values should be expressed as percentages
+      
+      -  Values should be expressed as percentages
 
 Output
 ------

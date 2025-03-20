@@ -5,10 +5,10 @@ from qgis.PyQt import uic, QtWidgets
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'qtalsim_landuse.ui'))
 
-class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
+class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, iface, mainPluginInstance, parent=None):
         """Constructor."""
-        super(SoilPreprocessingDialog, self).__init__(parent)
+        super(LanduseAssignmentDialog, self).__init__(parent)
         self.iface = iface
         # Set up the user interface from Designer through FORM_CLASS.
         # After self.setupUi() you can access any designer object by doing
@@ -19,3 +19,6 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.mainPlugin = mainPluginInstance
         self.initialize_parameters()
+    
+    def initialize_parameters(self):
+        pass

@@ -1,7 +1,7 @@
 import os
 from qgis.PyQt import uic, QtWidgets
 from qgis.PyQt.QtWidgets import  QFileDialog, QDialogButtonBox, QInputDialog
-from qgis.core import QgsProject, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsMapLayer, QgsWkbTypes, QgsRasterLayer, QgsVectorLayer, QgsRasterBandStats, QgsField, QgsVectorFileWriter, edit, Qgis, QgsProcessingFeedback, QgsProcessingException
+from qgis.core import QgsProject, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsMapLayer, QgsWkbTypes, QgsRasterLayer, QgsVectorLayer, QgsRasterBandStats, QgsField, QgsVectorFileWriter, edit, Qgis, QgsProcessingFeedback, QgsProcessingException, QgsCoordinateReferenceSystem, QgsCoordinateTransform
 from qgis.PyQt.QtCore import pyqtSignal, QVariant
 import processing
 import webbrowser
@@ -741,16 +741,25 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             cursor.execute("SELECT Id FROM Scenario ORDER BY DateCreated DESC LIMIT 1")
             scenario = cursor.fetchone()
             
+            target_crs = QgsCoordinateReferenceSystem("EPSG:4326") #Transform sub-basin's geometry to WGS84 for Talsim
+            source_crs = self.subBasinLayerProcessed.crs()
+
+            #Set up the transformation
+            transform = QgsCoordinateTransform(source_crs, target_crs, QgsProject.instance())
+
             scenario_id = scenario[0]  #ScenarioId for new records
             fields = [field.name() for field in self.subBasinLayerProcessed.fields()]
             for feature in self.subBasinLayerProcessed.getFeatures():
-                element_identifier = feature[self.subbasinUIField]  # ElementIdentifier & Name
+                element_identifier = feature[self.subbasinUIField][1:] if isinstance(feature[self.subbasinUIField], str) and feature[self.subbasinUIField] else None # ElementIdentifier & Name
                 geometry = feature.geometry()
-
+                
+                #Transform geometry to EPSG:4326
+                geometry.transform(transform)
+                
                 #Calculate the centroid (Latitude & Longitude)
                 centroid = geometry.centroid().asPoint()
                 latitude, longitude = centroid.y(), centroid.x()
-
+                
                 #Convert to WKT MultiPolygon
                 wkt_multipolygon = geometry.asWkt()
 
@@ -758,18 +767,18 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 cursor.execute("""
                     INSERT INTO SystemElement (
                         ScenarioId, ElementIdentifier, Name, ElementType, ElementTypeCharacter,
-                        Latitude, Longitude
+                        Latitude, Longitude, Geometry
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (scenario_id, element_identifier, element_identifier, 2, "A", 
-                    latitude, longitude)) #wkt_multipolygon
+                    latitude, longitude, wkt_multipolygon))
 
                 # Get the created SystemElementId
                 system_element_id = cursor.lastrowid
 
                 # Extract SubBasin fields (only those explicitly mentioned)
                 area = feature[self.areaFieldName] if self.areaFieldName in fields else None
-                imperviousness = feature[self.imperviousFieldName] if self.imperviousFieldName in fields else None
+                imperviousness = feature[self.imperviousFieldName]/100 if self.imperviousFieldName in fields else None
                 max_height = feature['Height_max'] if 'Height_max' in fields else None
                 min_height = feature['Height_min'] if 'Height_min' in fields else None
 
@@ -779,10 +788,10 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 # Insert into SubBasin table
                 cursor.execute("""
                     INSERT INTO SubBasin (
-                        SystemElementId, Area, FlowLength, Imperviousness, MaxHeight, MinHeight
+                        SystemElementId, Area, FlowLength, Imperviousness, MaxHeight, MinHeight, CalculationMethod
                     )
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (system_element_id, area, length, imperviousness, max_height, min_height))
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (system_element_id, area, length, imperviousness, max_height, min_height, 3))
             conn.commit()
             conn.close()
         except Exception as e:

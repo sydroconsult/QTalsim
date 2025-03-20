@@ -32,6 +32,7 @@ from .qtalsim_dialog import QTalsimDialog
 from .qtalsim_sqllite_dialog import SQLConnectDialog
 from .qtalsim_subbasin_dialog import SubBasinPreprocessingDialog
 from .qtalsim_soil_dialog import SoilPreprocessingDialog
+from .qtalsim_landuse_dialog import LanduseAssignmentDialog
 import os.path
 from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsRasterLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest, QgsMapLayer, QgsFields, QgsTask, QgsTaskManager, QgsApplication, QgsExpression
 from qgis.analysis import QgsGeometrySnapper
@@ -278,6 +279,7 @@ class QTalsim:
         self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_sql_connect_dock, parent=self.iface.mainWindow(), add_to_toolbar=True)
         self.add_action(icon_path, text=self.tr(u'Sub-basin preprocessing'), callback=self.open_sub_basin_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
         self.add_action(icon_path, text=self.tr(u'ISRIC Soil Type Converter'), callback=self.open_soil_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        self.add_action(icon_path, text=self.tr(u'Land Use Assignment'), callback=self.open_landuse_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
         
         self.first_start = True
         self.initialize_parameters()
@@ -2036,8 +2038,10 @@ class QTalsim:
                         #self.dlg.progressbar.setValue(int(progress))
                         self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
                     for old_field, new_field in value_mapping.items():
-                        if old_field == 'Parameter not available':
+                        if old_field == 'Parameter not available' and not str(new_field).startswith('pTAW'):
                             feature[new_field] = None 
+                        elif old_field == 'Parameter not available' and str(new_field).startswith('pTAW'):
+                            feature[new_field] = 0.5
                         elif old_field == 'Feature IDs of Land use Layer':
                             feature[new_field] = int(feature[self.landuseFieldInputID])
                         else:
@@ -3000,7 +3004,7 @@ class QTalsim:
                         if str(feature[f'{self.soilDescription}_soillayer{i}']).strip().upper() != 'NULL':
                             value = feature[f'{self.soilDescription}_soillayer{i}']
                             if value:
-                                descriptionSoilLayersList = [].append(str(value))
+                                descriptionSoilLayersList.append(str(value))
                                 
                 if isinstance(descriptionSoilLayersList, (list, tuple)):
                     descriptionSoilLayers = ', '.join(map(str, descriptionSoilLayersList))
@@ -3508,17 +3512,7 @@ class QTalsim:
 
                     # Append the data
                     data.append(layer_data)
-                '''
-                for feature in self.landuseFinal.getFeatures(): 
-                    #hier weitermachen - die anderen Features ohne Werte auch noch hinzufügen 
-                    layer_data = {"ID" : feature["Id"], "RootDepth" : feature["RootDepth"], "PlantCoverage" : feature["PlantCoverage"],
-                                "PlantCoverageAnnualPatternId" : feature["PlantCoverageAnnualPatternId"], 
-                                "LeafAreaIndex" : feature["LeafAreaIndex"], "LeafAreaIndexAnnualPatternId" : feature["LeafAreaIndexAnnualPatternId"], 
-                                "KcCoeffAnnualPatternId" : feature["KcCoeffAnnualPatternId"], 'KyYieldAnnualPatternId' : feature["KyYieldAnnualPatternId"], 
-                                "Imp" : 0, "RoughnessCoefficient" : feature["RoughnessCoefficient"], "BulkDensityChange" : feature["BulkDensityChange"],
-                                "pTAW": feature["pTAW"], "Name": feature["Name"]}
-                    data.append(layer_data)
-                '''
+                    
                 formatted_data = []
                 inter_field_characters = parse_inter_field_charactersv1(definition_line)  
                 for row in data:
@@ -3567,16 +3561,81 @@ class QTalsim:
             self.log_to_qtalsim_tab("Please select a Talsim Database first.", Qgis.Warning)
             return
 
+        def check_and_delete_existing_data():
+            #Checks if tables contain data and asks for user confirmation to delete them.
+            #Connect to SQLite database
+            conn = sqlite3.connect(self.file_path_db)
+            cur = conn.cursor()
+
+            #Define the tables to check
+            tables = ["SoilType", "SoilTexture", "Landuse", "HydrologicalResponseUnit"]
+
+            #Check if any of the tables have data
+            tables_with_data = []
+            for table in tables:
+                cur.execute(f"SELECT COUNT(*) FROM {table}")
+                count = cur.fetchone()[0]
+                if count > 0:
+                    tables_with_data.append(table)
+
+            #If no data exists, return and proceed normally
+            if not tables_with_data:
+                conn.close()
+                return True  #No data, safe to continue
+
+            #Show a popup asking for confirmation
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setWindowTitle("Existing Data Found")
+            msg.setText("There are existing entries in the following tables:\n\n" +
+                        "\n".join(tables_with_data) +
+                        "\n\nYou can only continue if all entries are deleted.")
+            msg.setInformativeText("Would you like to delete all entries in these tables?")
+            msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg.setDefaultButton(QMessageBox.No)
+
+            #Show the popup and get user response
+            response = msg.exec_()
+
+            if response == QMessageBox.No:
+                conn.close()
+                return False 
+
+            #If user confirms, delete all records from the tables
+            for table in tables_with_data:
+                cur.execute(f"DELETE FROM {table}")
+            
+            conn.commit()
+            conn.close()
+            
+            #Show a confirmation message
+            QMessageBox.information(None, "Data Deleted", "All data in the selected tables has been deleted.")
+
+            return True 
+
+        def safe_cast(value, to_type):
+            #Safely cast value to a given type (int or float), returning None if invalid.
+            if value is None or (isinstance(value, QVariant) and value.isNull()):
+                return None 
+            try:
+                return to_type(value)
+            except (ValueError, TypeError):
+                return None
+
+        def get_feature_value(feature, field_name, to_type=str):
+            #Returns the safely cast feature value if field exists, otherwise None.
+            return safe_cast(feature[field_name], to_type) if field_name in feature.fields().names() else None
+
+        check_and_delete_existing_data() #Check if there is data in the relevant tables
+
+        #Connect to DB
         conn = sqlite3.connect(self.file_path_db)
         cur = conn.cursor()
 
-        cur.execute("SELECT Id FROM Scenario ORDER BY DateCreated DESC LIMIT 1")
+        cur.execute("SELECT Id FROM Scenario ORDER BY DateCreated DESC LIMIT 1") #Get the latest Scenario-ID
         scenario = cur.fetchone()
 
         scenario_id = scenario[0]
-
-        def get_feature_value(feature, field_name):
-            return feature[field_name] if field_name in feature.fields().names() else None
 
         clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
         orderby = QgsFeatureRequest.OrderBy([clause])
@@ -3589,25 +3648,26 @@ class QTalsim:
         for feature in features:
             cur.execute("""
                 INSERT INTO SoilType (
-                    Id, LayerThickness1, SoilTextureId1, LayerThickness2, SoilTextureId2, 
+                    Id, Name, LayerThickness1, SoilTextureId1, LayerThickness2, SoilTextureId2, 
                     LayerThickness3, SoilTextureId3, LayerThickness4, SoilTextureId4, 
                     LayerThickness5, SoilTextureId5, LayerThickness6, SoilTextureId6, ScenarioId
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                int(feature["Id"]), 
-                float(get_feature_value(feature, f"soillayer1_{self.soilTypeThickness}")),
-                int(get_feature_value(feature, 'soillayer1_id_boa')),
-                float(get_feature_value(feature, f"soillayer2_{self.soilTypeThickness}")),
-                int(get_feature_value(feature, 'soillayer2_id_boa')),
-                float(get_feature_value(feature, f"soillayer3_{self.soilTypeThickness}")),
-                int(get_feature_value(feature, 'soillayer3_id_boa')),
-                float(get_feature_value(feature, f"soillayer4_{self.soilTypeThickness}")),
-                int(get_feature_value(feature, 'soillayer4_id_boa')),
-                float(get_feature_value(feature, f"soillayer5_{self.soilTypeThickness}")),
-                int(get_feature_value(feature, 'soillayer5_id_boa')),
-                float(get_feature_value(feature, f"soillayer6_{self.soilTypeThickness}")),
-                int(get_feature_value(feature, 'soillayer6_id_boa')),
+                get_feature_value(feature, "Id", int),
+                get_feature_value(feature, "Description", str), 
+                get_feature_value(feature, f"soillayer1_{self.soilTypeThickness}", float),
+                get_feature_value(feature, "soillayer1_id_boa", int),
+                get_feature_value(feature, f"soillayer2_{self.soilTypeThickness}", float),
+                get_feature_value(feature, "soillayer2_id_boa", int),
+                get_feature_value(feature, f"soillayer3_{self.soilTypeThickness}", float),
+                get_feature_value(feature, "soillayer3_id_boa", int),
+                get_feature_value(feature, f"soillayer4_{self.soilTypeThickness}", float),
+                get_feature_value(feature, "soillayer4_id_boa", int),
+                get_feature_value(feature, f"soillayer5_{self.soilTypeThickness}", float),
+                get_feature_value(feature, "soillayer5_id_boa", int),
+                get_feature_value(feature, f"soillayer6_{self.soilTypeThickness}", float),
+                get_feature_value(feature, "soillayer6_id_boa", int),
                 scenario_id
             ))
 
@@ -3632,22 +3692,21 @@ class QTalsim:
         for feature in features:
             cur.execute("""
                 INSERT INTO SoilTexture (
-                    Id, BulkDensityClass, FieldCapacity, KfValue, MaxCapillaryScution, 
-                    MaxInfiltration, Name, ScenarioId, SoilName, TotalPoreVolume, WiltingPoint
+                    Id, BulkDensityClass, FieldCapacity, KfValue, MaxCapillarySuction,
+                    MaxInfiltration, Name, ScenarioId, TotalPoreVolume, WiltingPoint
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                int(feature["ID_Soil"]), 
-                int(feature["BulkDensityClass"]), 
-                float(feature["FieldCapacity"]), 
-                float(feature["KfValue"]), 
-                float(feature["MaxCapillarySuction"]), 
-                float(feature["MaxInfiltration"]), 
-                str(feature[self.nameSoil]), 
+                get_feature_value(feature, "ID_Soil", int),
+                get_feature_value(feature, "BulkDensityClass", int),
+                get_feature_value(feature, "FieldCapacity", float),
+                get_feature_value(feature, "KfValue", float),
+                get_feature_value(feature, "MaxCapillarySuction", float),
+                get_feature_value(feature, "MaxInfiltration", float),
+                get_feature_value(feature, self.nameSoil, str), 
                 scenario_id,  #Use the latest ScenarioId
-                None,  #SoilName (leave empty)
-                float(feature["TotalPoreVolume"]), 
-                float(feature["WiltingPoint"])
+                get_feature_value(feature, "TotalPoreVolume", float),
+                get_feature_value(feature, "WiltingPoint", float)
             ))
 
         conn.commit()
@@ -3671,26 +3730,26 @@ class QTalsim:
         for feature in features:
             cur.execute("""
                 INSERT INTO Landuse (
-                    Id, BulkDensityChange, Description, KcCoeffAnnualPatternId, KyYieldAnnualPatternId,
+                    Id, BulkDensityChange, Name, KcCoeffAnnualPatternId, KyYieldAnnualPatternId,
                     LeafAreaIndex, LeafAreaIndexAnnualPatternId, PlantCoverage, PlantCoverageAnnualPatternId, 
-                    RootDepth, RootDepthMonthlyPatternId, RoughnessCoefficient, ScenarioId, pTAW
+                    RootDepth, RootDepthAnnualPatternId, RoughnessCoefficient, ScenarioId, pTAW
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                int(feature["Id"]),
-                int(feature["BulkDensityChange"]) if "BulkDensityChange" in feature.fields().names() else None,
-                str(feature["Name"]) if "Name" in feature.fields().names() else None,  # Description is Name
-                int(feature["KcCoeffAnnualPatternId"]) if "KcCoeffAnnualPatternId" in feature.fields().names() else None,
-                int(feature["KyYieldAnnualPatternId"]) if "KyYieldAnnualPatternId" in feature.fields().names() else None,
-                float(feature["LeafAreaIndex"]) if "LeafAreaIndex" in feature.fields().names() else None,
-                int(feature["LeafAreaIndexAnnualPatternId"]) if "LeafAreaIndexAnnualPatternId" in feature.fields().names() else None,
-                float(feature["PlantCoverage"]) if "PlantCoverage" in feature.fields().names() else None,
-                int(feature["PlantCoverageAnnualPatternId"]) if "PlantCoverageAnnualPatternId" in feature.fields().names() else None,
-                float(feature["RootDepth"]) if "RootDepth" in feature.fields().names() else None,
-                int(feature["RootDepthMonthlyPatternId"]) if "RootDepthMonthlyPatternId" in feature.fields().names() else None,
-                float(feature["RoughnessCoefficient"]) if "RoughnessCoefficient" in feature.fields().names() else None,
-                scenario_id,  #Use the latest ScenarioId
-                float(feature["pTAW"]) if "pTAW" in feature.fields().names() else None
+                safe_cast(feature["Id"], int), 
+                get_feature_value(feature, "BulkDensityChange", int),
+                get_feature_value(feature, "Name", str),  
+                get_feature_value(feature, "KcCoeffAnnualPatternId", int),
+                get_feature_value(feature, "KyYieldAnnualPatternId", int),
+                get_feature_value(feature, "LeafAreaIndex", float),
+                get_feature_value(feature, "LeafAreaIndexAnnualPatternId", int),
+                get_feature_value(feature, "PlantCoverage", float),
+                get_feature_value(feature, "PlantCoverageAnnualPatternId", int),
+                get_feature_value(feature, "RootDepth", float),
+                get_feature_value(feature, "RootDepthAnnualPatternId", int),
+                get_feature_value(feature, "RoughnessCoefficient", float),
+                scenario_id,
+                get_feature_value(feature, "pTAW", float) if get_feature_value(feature, "pTAW", float) is not None else 0.5
             ))
 
         conn.commit()
@@ -3711,29 +3770,43 @@ class QTalsim:
         #Retrieve sorted features
         features = self.eflLayer.getFeatures(request)
 
+        calculation_order_index = 1
+        last_subbasin_ui = None
         #Loop through features and insert directly
         for feature in features:
             
             #Get the SystemElementId from the SystemElement table
             subBasinUI = feature[self.subBasinUI]
-            systemElementId = cur.execute("SELECT Id FROM SystemElement WHERE ElementIdentifier = ?", (subBasinUI,))
 
+            cur.execute("SELECT Id FROM SystemElement WHERE (ElementTypeCharacter || ElementIdentifier) = ?", (subBasinUI,))
+            result = cur.fetchone()
+            systemElementId = result[0]
+
+            if last_subbasin_ui is None or subBasinUI != last_subbasin_ui:
+                calculation_order_index = 1
+            else:
+                calculation_order_index += 1
             #Insert into the HydrologicalResponseUnit table
             cur.execute("""
                 INSERT INTO HydrologicalResponseUnit (
-                    LandUseId, PercentageShare, Slope, SoilTypeId, SystemElementId
+                    LandUseId, PercentageShare, Slope, SoilTypeId, SystemElementId, CalculationOrderIndex
                 )
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
             """, (
-                int(feature[self.hruLandUseId]) if self.hruLandUseId in feature.fields().names() else None,
-                float(feature[self.fieldNameAreaEFL]) if self.fieldNameAreaEFL in feature.fields().names() else None,
-                float(feature[self.slopeFieldName]) if self.slopeFieldName in feature.fields().names() else None,
-                int(feature[self.hruSoilTypeId]) if self.hruSoilTypeId in feature.fields().names() else None,
-                systemElementId  
+                get_feature_value(feature, self.hruLandUseId, int),
+                get_feature_value(feature, self.fieldNameAreaEFL, float),
+                get_feature_value(feature, self.slopeFieldName, float),
+                get_feature_value(feature, self.hruSoilTypeId, int),
+                systemElementId,
+                calculation_order_index
             ))
 
+            last_subbasin_ui = subBasinUI
+        
         conn.commit()
         conn.close()
+
+        self.log_to_qtalsim_tab(f"Data was exported to the Talsim Database: {self.file_path_db}", Qgis.Info)
 
     def saveFiles(self):
         '''
@@ -4109,11 +4182,29 @@ class QTalsim:
         self.soilWindow.show()
         self.soilWindow.destroyed.connect(self.onWindowDestroyedSoil)
 
+    def open_landuse_window(self):
+        if self.first_start:
+            self.first_start = False
+        if not hasattr(self, 'landuseWindow'):
+            self.landuseWindow = QMainWindow(self.iface.mainWindow())
+            self.landuseWindow.setWindowTitle("Land Use Assignment")
+            self.landuseDialog = LanduseAssignmentDialog(self.iface.mainWindow(), self)
+            self.landuseWindow.setCentralWidget(self.landuseDialog)
+        else:
+            self.landuseDialog.initialize_parameters()
+        
+        self.landuseWindow.raise_()
+        self.landuseWindow.show()
+        self.landuseWindow.destroyed.connect(self.onWindowDestroyedLanduse)
+
     def onWindowDestroyedSubbasin(self, obj=None):
         self.subBasinWindow = None
 
     def onWindowDestroyedSoil(self, obj=None):
         self.soilWindow = None
+
+    def onWindowDestroyedLanduse(self, obj=None):
+        self.landuseWindow = None
     
 '''
     Custom Dock Widget for 'Connect to Talsim DB' to overwrite the closeEvent-Action with a custom function. 

@@ -2,7 +2,7 @@
 ID_LNZ;int;-;
 Name;string;-;
 RootDepth;float;m;0 >= x
-RootDepthMonthlyPatternId;int;-;
+RootDepthAnnualPatternId;int;-;
 PlantCoverage;float;%;0 >= x >= 100
 PlantCoverageAnnualPatternId;int;-;
 LeafAreaIndex;float;-;0 >= x
