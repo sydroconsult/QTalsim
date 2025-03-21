@@ -1,0 +1,131 @@
+﻿ATKIS-Bezeichnung;Codes;Beschreibung/Bemerkung;Layer;Talsim Landnutzung;Code-Spalte
+AX_SportFreizeitUndErholungsflaeche;leer;;sie02_f;?;FKT
+AX_Landwirtschaft;1010;Ackerland;veg01_f;Ackerland;VEG
+AX_Landwirtschaft;1012;Hopfen;veg01_f;Ackerland;VEG
+AX_Landwirtschaft;1013;Spargel;veg01_f;Ackerland;VEG
+AX_Landwirtschaft;1014;Hanf;veg01_f;Ackerland;VEG
+AX_Gehoelz;-;"Fläche, die mit einzelnen Bäumen, Baumgruppen, Büschen, Hecken und
+Sträuchern bestockt ist";veg03_f;Gehoelz;
+AX_Fliessgewaesser;-;Kennung Hyd gibt an, ob das Gewässer ganzjährig Wasser führt;gew01_f;Gewaesser;
+AX_Hafenbecken;-;Teil des Gewässers;gew01_f;Gewaesser;
+AX_Meer;-;Teil des Gewässers;gew01_f;Gewaesser;
+AX_StehendesGewaesser;-;Teil des Gewässers;gew01_f;Gewaesser;
+AX_Heide;-;typischen Sträuchern, Gräsern und geringwertigem Baumbestand.;veg03_f;Heide;
+AX_IndustrieUndGewerbeflaeche;-;Unterkategorien über Funktion der Fläche vorhanden (zB Werft, Handel, Gärtnerei, Kläranlage, Deponie…);sie02_f;IndustrieUndGewerbe;
+AX_Wald;1100;Laubholz;veg02_f;Laubholz;VEG
+AX_Abschnitt;-;Teil des Straßennetzes;ver07_l;löschen;
+AX_Ast;-;Teil des Straßennetzes;ver07_l;löschen;
+AX_Bahnstrecke;-;;ver03_l;löschen;
+AX_Bahnverkehrsanlage;-;überlappend mit Verkehrsflächen;ver06_f;löschen;
+AX_BauwerkeEinrichtungenUndSonstigeAngaben;-;"Überkategorie; sollte in OBJART_TXT nicht vorkommen";;löschen;
+AX_BauwerkImGewaesserbereich;-;überlappend mit Verkehrsflächen;ver06_f;löschen;
+AX_BauwerkImVerkehrsbereich;-;überlappend mit Verkehrsflächen;ver06_f;löschen;
+AX_BauwerkOderAnlageFuerIndustrieUndGewerbe;-;überlappend mit anderen Flächen (zB Siedlung/Vegetation);sie03_f;löschen;
+AX_BauwerkOderAnlageFuerSportFreizeitUndErholung;-;überlappend mit anderen Flächen (zB Siedlung/Vegetation);sie03_f;löschen;
+AX_BoeschungKliff;-;Zusatzinformation;rel01_f;löschen;
+AX_Boeschungsflaeche;-; eine durch Geländekanten begrenzte Geländeoberfläche künstlichen oder natürlichen Ursprungs.;rel01_f;löschen;
+AX_DammWallDeich;-;;rel01_l;löschen;
+AX_Denkmalschutzrecht;-;;geb03;löschen;
+AX_Duene;-;ein vom Wind angewehter Sandhügel;rel01_f;löschen;
+AX_EinrichtungenFuerDenSchiffsverkehr;-;;ver06_p, ver06_l;löschen;
+AX_EinrichtungInOeffentlichenBereichen;-;"kommt in Datensatz nicht vor; sind Gegenstände und Einrichtungen verschiedenster Art in öffentlichen oder öffentlich zugänglichen Bereichen; Punktförmig (Kolometerstein, -tafel) ";;löschen;
+AX_Fahrbahnachse;-;;Linie;löschen;
+AX_Fahrwegachse;-;;Linie;löschen;
+AX_FelsenFelsblockFelsnadel;-;;rel01_f, rel01_p, rel01_l;löschen;
+AX_FlaecheZurZeitUnbestimmbar;-;;veg03_f;löschen;
+AX_Flugverkehrsanlage;-;überlappend mit Verkehrsflächen;ver06_f;löschen;
+AX_Gebietsgrenze;-;;geb01_l;löschen;
+AX_Gelaendekante;-;;rel01_l;löschen;
+AX_Gemeindekennzeichen;-;;;löschen;
+AX_Gewaesserachse;-;;gew01_l;löschen;
+AX_Gewaessermerkmal;-;;gew02_p;löschen;
+AX_Gewaesserstationierungsachse;-;;gew03_l;löschen;
+AX_Grenzuebergang;-;;;löschen;
+AX_Hafen;-;nicht so genau wie ver05_f und ist teilweise überlappend mit anderen Flächen (zB Gewässerflächen);sie04_f;löschen;
+AX_HistorischesBauwerkOderHistorischeEinrichtung;-;überlappend mit anderen Flächen (zB Siedlung/Vegetation);sie03_f;löschen;
+AX_Hoehenlinie;-;;rel01_l;löschen;
+AX_Hoehleneingang;-;;rel01_p;löschen;
+AX_Insel;-;überlappend mit weiteren Landnutzungsflächen;geb02_f;löschen;
+AX_Kanal;-;"Zusatzinformation zu gew01_f; kein räumliches Objekt";;löschen;
+AX_KommunalesGebiet;-;;geb01_f;löschen;
+AX_Kondominium;-;;geb01_f;löschen;
+AX_Lagebezeichnung;-;;;löschen;
+AX_Leitung;-;;sie03_l;löschen;
+AX_NaturUmweltOderBodenschutzrecht;-;;geb03_f;löschen;
+AX_Netzknoten;-;"Zusatzinformation; Teil des Straßennetzes; kein reines räumliches Objekt";ver07_l;löschen;
+AX_Nullpunkt;-;;ver07_l;löschen;
+AX_Ortslage;-;;sie01_f;löschen;
+AX_SchifffahrtslinieFaehrverkehr;-;;ver05_l;löschen;
+AX_Schleuse;-;nicht so genau wie ver05_f und ist teilweise überlappend mit anderen Flächen (zB Gewässerflächen);sie04_f;löschen;
+AX_SchutzgebietNachNaturUmweltOderBodenschutzrecht;-;Zusatz in Spalte OBJART_Z;geb03_f;löschen;
+AX_Schutzzone;-;;geb03_f;löschen;
+AX_SeilbahnSchwebebahn;-;;ver03_l;löschen;
+AX_Sickerstrecke;-;"kommt nicht vor; Bedeutet, dass ein Gewässer unter der Erdoberfläche durch Lockergestein verläuft";Linienobjekt;löschen;
+AX_SonstigesBauwerkOderSonstigeEinrichtung;-;überlappend mit anderen Flächen (zB Siedlung/Vegetation);sie03_f;löschen;
+AX_SonstigesRecht;-;;geb03_f;löschen;
+AX_Strasse;-;;Linie;löschen;
+AX_Strassenachse;-;;Linie;löschen;
+AX_Strassenverkehrsanlage;-;;ver06_p, ver06_l;löschen;
+AX_TatsaechlicheNutzung;-;;;löschen;
+AX_Transportanlage;-;;sie03_p, sie03_l;löschen;
+AX_Turm;-;überlappend mit sie02_f;sie05_f;löschen;
+AX_Vegetationsmerkmal;-;überlappend mit Vegetationsflächen (zusätzliche Infos);veg04_f;löschen;
+AX_VorratsbehaelterSpeicherbauwerk;-;überlappend mit anderen Flächen (zB Siedlung/Vegetation);sie03_f;löschen;
+AX_Wasserlauf;-;"Zusatzinformation zu gew01_f;  kein räumliches Objekt";;löschen;
+AX_Wasserspiegelhoehe;-;;gew02_p;löschen;
+AX_WegPfadSteig;-;;ver03_l;löschen;
+AX_Wohnplatz;-;;geb02_p;löschen;
+AX_Wald;1300;Laub- und Nadelholz;veg02_f;Mischwald;VEG
+AX_Moor;-;unkultivierte Fläche, deren obere Schicht aus vertorften oder zersetzten Pflanzenresten besteht.;veg03_f;Moor;
+AX_Wald;1200;Nadelholz;veg02_f;Nadelholz;VEG
+AX_Friedhof;-;;sie02_f;ParkanlagenUndObstplantagen;
+AX_Landwirtschaft;1011;Streuobstacker;veg01_f;ParkanlagenUndObstplantagen;VEG
+AX_Landwirtschaft;1021;Streuobstwiese;veg01_f;ParkanlagenUndObstplantagen;VEG
+AX_Landwirtschaft;1030;Gartenbauland;veg01_f;ParkanlagenUndObstplantagen;VEG
+AX_Landwirtschaft;1031;Baumschule;veg01_f;ParkanlagenUndObstplantagen;VEG
+AX_Landwirtschaft;1040;Rebfläche;veg01_f;ParkanlagenUndObstplantagen;VEG
+AX_Landwirtschaft;1050;Obst- und Nussplantage;veg01_f;ParkanlagenUndObstplantagen;VEG
+AX_Landwirtschaft;1051;Obst- und Nussbaumplantage;veg01_f;ParkanlagenUndObstplantagen;VEG
+AX_Landwirtschaft;1052;Obst- und Nussstrauchplantage;veg01_f;ParkanlagenUndObstplantagen;VEG
+AX_Landwirtschaft;1060;Weihnachtsbaumkultur;veg01_f;ParkanlagenUndObstplantagen;VEG
+AX_Landwirtschaft;1100;Kurzumtriebspantagen;veg01_f;ParkanlagenUndObstplantagen;VEG
+AX_SportFreizeitUndErholungsflaeche;4110;Golfplatz;sie02_f;ParkanlagenUndObstplantagen;FKT
+AX_SportFreizeitUndErholungsflaeche;4140;Reitsport;sie02_f;ParkanlagenUndObstplantagen;FKT
+AX_SportFreizeitUndErholungsflaeche;4220;Safaripark, Wildpark;sie02_f;ParkanlagenUndObstplantagen;FKT
+AX_SportFreizeitUndErholungsflaeche;4320;Schwimmen;sie02_f;ParkanlagenUndObstplantagen;FKT
+AX_SportFreizeitUndErholungsflaeche;4330;Campingplatz;sie02_f;ParkanlagenUndObstplantagen;FKT
+AX_SportFreizeitUndErholungsflaeche;4400;Grünanlage;sie02_f;ParkanlagenUndObstplantagen;FKT
+AX_SportFreizeitUndErholungsflaeche;4420;Park;sie02_f;ParkanlagenUndObstplantagen;FKT
+AX_SportFreizeitUndErholungsflaeche;4440;Kleingarten;sie02_f;ParkanlagenUndObstplantagen;FKT
+AX_SportFreizeitUndErholungsflaeche;4460;Gartenland;sie02_f;ParkanlagenUndObstplantagen;FKT
+AX_Strassenverkehr;2312;Verkehrsbegleitfläche Straße;sie02_f;ParkanlagenUndObstplantagen;FKT
+AX_Bahnverkehr;-;;ver03_f;Strassenverkehr;
+AX_Flugverkehr;-;;ver04_f;Strassenverkehr;
+AX_Platz;-;;ver01_f;Strassenverkehr;
+AX_Schiffsverkehr;-;Unterkategorien Parken, Begleitfläche Schiffsverkehr, Hafenanlage (Landfläche) & Schleuse (Landfläche);ver05_f;Strassenverkehr;
+AX_SportFreizeitUndErholungsflaeche;1200;Parken;sie02_f;Strassenverkehr;FKT
+AX_SportFreizeitUndErholungsflaeche;4270;Verkehrsübungsplatz, Testgelände, Fahrsicherheit;sie02_f;Strassenverkehr;FKT
+AX_SportFreizeitUndErholungsflaeche;4290;Modellflugplatz;sie02_f;Strassenverkehr;FKT
+AX_SportFreizeitUndErholungsflaeche;4295;Gelände für Luftsportgeräte;sie02_f;Strassenverkehr;FKT
+AX_Strassenverkehr;-;Verkehrsbegleitfläche Straße werden zu ParkanlagenUndObstplantagen zugeordnet, alle anderen AX_Strassenverkehr-Polygone zu Strassenverkehr;ver01_f;Strassenverkehr;
+AX_Sumpf;-;wassergesättigtes, zeitweise unter Wasser stehendes Gelände. Nach Regenfällen kurzzeitig nasse Stellen im Boden werden nicht als 'Sumpf' erfasst;veg03_f;Sumpf;
+AX_Bergbaubetrieb;-;Abgebautes Material als zusätzliche Information;sie02_f;Vegetationslos;
+AX_Halde;-;;sie02_f;Vegetationslos;
+AX_TagebauGrubeSteinbruch;-;Abgebautes Material als zusätzliche Information;sie02_f;Vegetationslos;
+AX_UnlandVegetationsloseFlaeche;-;Fläche, die nicht dauerhaft landwirtschaftlich genutzt wird, wie z. B. Fels-, Sand- oder Eisflächen, Uferstreifen längs von Gewässern und Sukzessionsflächen;veg03_f;Vegetationslos;
+AX_Landwirtschaft;1020;Grünland;veg01_f;WieseUndWeide;VEG
+AX_Landwirtschaft;1022;Salzweide;veg01_f;WieseUndWeide;VEG
+AX_Landwirtschaft;1200;Brachland;veg01_f;WieseUndWeide;VEG
+AX_FlaecheBesondererFunktionalerPraegung;-;Unterkategorien über Funktion der Fläche/Gebäude (z.B. Bildung, Verwaltung, Kultur…);sie02_f;Wohnbauflaeche;
+AX_FlaecheGemischterNutzung;-;"bebaute Fläche einschließlich der mit ihr im Zusammenhang stehenden Freifläche (Hofraumfläche, Hausgarten), auf der keine Art der baulichen Nutzung vorherrscht. Solche Flächen sind insbesondere ländlich-dörflich geprägte Flächen mit
+land- und forstwirtschaftlichen Betrieben, Wohngebäuden u.a. sowie städtisch geprägte Kerngebiete mit Handelsbetrieben und zentralen Einrichtungen für die Wirtschaft und die Verwaltung.;
+zusätzliche Information über Art der Bebauung über Kennung BEB: offen/geschlossen (>/< 50% der Wohnbaufläche)";sie02_f;Wohnbauflaeche;
+AX_SportFreizeitUndErholungsflaeche;4100;Sportanlage;sie02_f;Wohnbauflaeche;FKT
+AX_SportFreizeitUndErholungsflaeche;4200;Freizeitanlage;sie02_f;Wohnbauflaeche;FKT
+AX_SportFreizeitUndErholungsflaeche;4210;Zoo;sie02_f;Wohnbauflaeche;FKT
+AX_SportFreizeitUndErholungsflaeche;4230;Freizeitpark;sie02_f;Wohnbauflaeche;FKT
+AX_SportFreizeitUndErholungsflaeche;4240;Freilichttheater;sie02_f;Wohnbauflaeche;FKT
+AX_SportFreizeitUndErholungsflaeche;4250;Freilichtmuseum;sie02_f;Wohnbauflaeche;FKT
+AX_SportFreizeitUndErholungsflaeche;4260;Autokino, Freilichtkino;sie02_f;Wohnbauflaeche;FKT
+AX_SportFreizeitUndErholungsflaeche;4310;Wochenend- und Ferienhausfläche;sie02_f;Wohnbauflaeche;FKT
+AX_Wohnbauflaeche;-;Zusätzliche Information über Art der Bebauung über Kennung BEB: offen/geschlossen (>/< 50% der Wohnbaufläche);sie02_f;Wohnbauflaeche;
