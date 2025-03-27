@@ -3152,18 +3152,25 @@ class QTalsim:
             self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             #Add data
             self.eflLayer.startEditing()
+            features_to_delete = []
             for feature in self.eflLayer.getFeatures():
                 area = feature.geometry().area()
                 ezg = feature[self.ezgUniqueIdentifier]
                 ezgArea = ezgAreas[ezg]
                 percentage = (area/ezgArea)*100
                 feature[self.fieldNameAreaEFL] = percentage
+                if percentage < 0.001: #delete features with area < 0.001%
+                    features_to_delete.append(feature.id())
+                    continue  
                 self.eflLayer.updateFeature(feature)
                 if self.dlg.checkboxIntersectMinSizeArea.isChecked() and area < self.dlg.spinboxIntersectMinSizeArea.value(): # if area of feature < minimum accepted area specified by user
                     self.log_to_qtalsim_tab(f"Feature {feature.id()} is not deleted, eventhough it's area is below {self.dlg.spinboxIntersectMinSizeArea.value()} m².", Qgis.Warning)
                 if self.dlg.checkboxIntersectShareofArea.isChecked() and percentage < self.dlg.spinboxIntersectShareofArea.value(): #if the percentage-chechbox is chosen
                     self.log_to_qtalsim_tab(f"Feature {feature.id()} is not deleted, eventhough it's percentage is below {self.dlg.spinboxIntersectShareofArea.value()} %.", Qgis.Warning)
-                
+            
+            for fid in features_to_delete: #delete features with area < 0.001%
+                self.eflLayer.deleteFeature(fid)
+
             self.eflLayer.commitChanges()
             #self.dlg.progressbar.setValue(95)
             self.log_to_qtalsim_tab(f"Progress: 95.00% done", Qgis.Info)

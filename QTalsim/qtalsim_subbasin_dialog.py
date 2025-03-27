@@ -40,7 +40,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.noLayerSelected = "No Layer selected"
         self.outputFolder = None
         self.outputPath.clear()
-        self.filename = None #ASCII-Filename
+        self.asciiFilename = None #ASCII-Filename
         self.basinIDField = 'BASINID'
         self.lengthFieldName = 'Length'
         self.imperviousFieldName = 'Imp_mean'
@@ -60,7 +60,6 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.connectButtontoFunction(self.onRun, self.runSubBasinPreprocessing) 
         self.connectButtontoFunction(self.onOutputFolder, self.selectOutputFolder) 
         self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
-        self.connectButtontoFunction(self.onAsciiOutput, self.selectAsciiFilename)
         self.log_to_qtalsim_tab(
             "This feature processes a sub-basins layer. It calculates the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin, and the longest flow path for each sub-basin. "
             "Please ensure that both SAGA GIS and WhiteboxTools are installed and properly configured. "
@@ -69,6 +68,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         )        
         #Fill Comboboxes
         self.comboboxUISubBasin.clear()
+        self.comboboxNameField.clear()
         self.fillLayerComboboxes()
 
     def safeConnect(self, signal: pyqtSignal, slot):
@@ -126,8 +126,8 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.lineLayers = self.getAllLineLayers(QgsProject.instance().layerTreeRoot())
 
         #Output Format
-        self.comboboxOutputFormat.clear() #clear combobox from previous runs
-        self.comboboxOutputFormat.addItems(["SQLite-Export (Talsim NG5)","ASCII-Export (Talsim NG4)"])
+        #self.comboboxOutputFormat.clear() #clear combobox from previous runs
+        #self.comboboxOutputFormat.addItems(["SQLite-Export (Talsim NG5)","ASCII-Export (Talsim NG4)"])
 
         #Sub-basins layer
         self.comboboxSubBasinLayer.clear() #clear combobox EZG from previous runs
@@ -163,6 +163,8 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.comboboxUISubBasin.clear()
                 self.fieldsSubbasinLayer = [field.name() for field in self.subBasinLayer.fields()]
                 self.comboboxUISubBasin.addItems([str(field) for field in self.fieldsSubbasinLayer])
+                self.comboboxNameField.addItems(["Select Name-Field"])
+                self.comboboxNameField.addItems([str(field) for field in self.fieldsSubbasinLayer])
 
     def runSubBasinPreprocessing(self):
         '''
@@ -192,6 +194,12 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             #Get the original field index
             if not self.subbasinUIField:
                 self.subbasinUIField = self.comboboxUISubBasin.currentText()
+            
+            if self.comboboxNameField.currentText() != 'Select Name-Field':
+                self.nameField = self.comboboxNameField.currentText()
+            else:
+                self.nameField = None
+                
             original_field_name = self.subbasinUIField
             original_field_index = self.subBasinLayerProcessed.fields().indexOf(original_field_name)
       
@@ -253,9 +261,12 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.geopackage_path = os.path.join(self.outputFolder, f"Sub_basins_processed.gpkg") #Output-path
 
             self.outputFormat = self.comboboxOutputFormat.currentText()
-            if self.outputFormat == "SQLite-Export (Talsim NG5)":
+            if self.textDBName.text() is not None:
+                self.dbName = self.textDBName.text()
                 self.DBExport()
-            elif self.outputFormat == "ASCII-Export (Talsim NG4)":
+
+            if self.textAsciiFileName.text() is not None:
+                self.asciiFilename = self.textAsciiFileName.text()
                 self.asciiExport()
             
 
@@ -690,16 +701,16 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.lfpFinalLayer = QgsVectorLayer(lfp_output_final, 'LFP Final', 'ogr')
         QgsProject.instance().addMapLayer(self.lfpFinalLayer)
 
-    def selectAsciiFilename(self):
-        #Get the filename, as specified by the user
-        self.filename, self.ascii_ok = QInputDialog.getText(None, 'Input Dialog', 'Enter filename for EZG-file:')
-
-        self.log_to_qtalsim_tab(f".EZG-filename: {self.filename}.EZG", Qgis.Info)
 
     def DBExport(self):
         try:
             self.subbasinUIField = self.comboboxUISubBasin.currentText()
-            self.DBPath = os.path.join(self.outputFolder, "QTalsim.db")
+            if self.textScenarioName.text() is None:
+                self.log_to_qtalsim_tab("Please specify a scenario name.", Qgis.Critical)
+            else:
+                self.scenarioName = self.textScenarioName.text()
+
+            self.DBPath = os.path.join(self.outputFolder, self.dbName)
             current_path = os.path.dirname(os.path.abspath(__file__))
             source_db = os.path.join(current_path, "DB", "QTalsim.db") 
             shutil.copy(source_db, self.DBPath)
@@ -711,7 +722,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             cursor.execute("""
                 INSERT INTO Scenario (ScenarioGroupId, DateCreated, Name, Description, ActiveSimulationId, IsUpdateActive, OperationalInfo)
                 VALUES (?, datetime('now'), ?, ?, ?, ?, ?)
-            """, (1, "QTalsim", "Output of QTalsim", None, 0, None))
+            """, (1, str(self.scenarioName), "Output of QTalsim", None, 0, None))
 
             conn.commit()
             conn.close()
@@ -751,6 +762,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             fields = [field.name() for field in self.subBasinLayerProcessed.fields()]
             for feature in self.subBasinLayerProcessed.getFeatures():
                 element_identifier = feature[self.subbasinUIField][1:] if isinstance(feature[self.subbasinUIField], str) and feature[self.subbasinUIField] else None # ElementIdentifier & Name
+                name = feature[self.nameField] if isinstance(feature[self.nameField], str) and feature[self.nameField] else None
                 geometry = feature.geometry()
                 
                 #Transform geometry to EPSG:4326
@@ -770,7 +782,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                         Latitude, Longitude, Geometry
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (scenario_id, element_identifier, element_identifier, 2, "A", 
+                """, (scenario_id, element_identifier, name, 2, "A", 
                     latitude, longitude, wkt_multipolygon))
 
                 # Get the created SystemElementId
@@ -870,7 +882,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     value_str = str(value)
                 return value_str[:length].rjust(length)
 
-            if self.ascii_ok and self.filename:
+            if self.asciiFilename:
                 self.log_to_qtalsim_tab("Exporting ASCII-files.", Qgis.Info)
 
                 current_path = os.path.dirname(os.path.abspath(__file__))
