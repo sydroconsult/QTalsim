@@ -67,6 +67,8 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         if self.inputFolder:
             self.inputPath.setText(self.inputFolder)
 
+            self.log_to_qtalsim_tab(f"Selected input folder: {self.inputFolder}", Qgis.Info)
+
     def selectOutputFile(self):
         '''
             Function to select the output folder. 
@@ -74,15 +76,16 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         self.outputFolder = QFileDialog.getExistingDirectory(self, "Select Folder","")
         if self.outputFolder:
             #Prompt the user for the GeoPackage file name
-            gpkg_name, ok = QInputDialog.getText(self, "GeoPackage Name", "Enter name for the GeoPackage (without .gpkg):")
+            self.gpkg_name, ok = QInputDialog.getText(self, "GeoPackage Name", "Enter name for the GeoPackage (without .gpkg):")
 
-            if ok and gpkg_name.strip():
-                gpkg_name = gpkg_name.strip()
-                if not gpkg_name.endswith(".gpkg"):
-                    gpkg_name += ".gpkg"
+            if ok and self.gpkg_name.strip():
+                self.gpkg_name = self.gpkg_name.strip()
+                if not self.gpkg_name.endswith(".gpkg"):
+                    self.gpkg_name += ".gpkg"
 
                 #Create the full output path
-                full_path = os.path.join(self.outputFolder, gpkg_name)
+                full_path = os.path.join(self.outputFolder, self.gpkg_name)
+                self.gpkgOutputPath = full_path
                 self.outputPath.setText(full_path)
 
     def mergeAndClip(self):
@@ -103,20 +106,18 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                         file_name_without_ext = os.path.splitext(file)[0]
                         if file_name_without_ext in self.relevantFiles:
                             shapefile_paths.append(os.path.join(root, file))
-            self.log_to_qtalsim_tab(f"{shapefile_paths}", Qgis.Info)
+            
             #Create layers from the shapefiles
             layersToMerge = []
             for shp_path in shapefile_paths:
                 layer_name = os.path.splitext(os.path.basename(shp_path))[0]
                 layer = QgsVectorLayer(shp_path, layer_name, "ogr")
-                QgsProject.instance().addMapLayer(layer, False)
                 if layer.isValid():
                     layersToMerge.append(layer)
-            self.log_to_qtalsim_tab(f"{layersToMerge}", Qgis.Info)
+            
             #Merge the layers
             result_merge = processing.run("native:mergevectorlayers", {'LAYERS': layersToMerge,  'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)
             self.merged_layer = result_merge['OUTPUT']
-            QgsProject.instance().addMapLayer(self.merged_layer)
             clipping_layer_name = self.comboboxClippingLayer.currentText()
             if clipping_layer_name == "Select Clipping Layer":
                 clipping_layer = None
@@ -153,7 +154,6 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.landuseLayer = self.clippedLayer
                 else:
                     self.landuseLayer = self.merged_layer
-                QgsProject.instance().addMapLayer(self.landuseLayer)
         except Exception as e:
             self.log_to_qtalsim_tab("Error during merging and clipping: " + str(e), Qgis.Critical)
         
@@ -165,7 +165,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             self.atkisToTalsimMapping()
             self.exportGeopackage()
         except Exception as e:
-            self.log_to_qtalsim_tab("Error during landuse assignment: " + str(e), Qgis.Critical)
+            self.log_to_qtalsim_tab("Error during landuse mapping: " + str(e), Qgis.Critical)
         finally:
             self.end_operation()
             self.log_to_qtalsim_tab("Land use mapping finished", Qgis.Info)
@@ -239,19 +239,65 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def exportGeopackage(self):
 
-        output_path = self.outputPath.text()
+        #gpkgOutputPath = os.path.join(self.outputFolder, self.gpkg_name)
         options = QgsVectorFileWriter.SaveVectorOptions()
         options.driverName = "GPKG"
         options.fileEncoding = "UTF-8"
-        options.layerName = "Landuse"  # Name of the layer inside the GeoPackage
-        options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer  # or AppendToLayer / CreateOrOverwriteFile
+        layer_name_in_gpkg = "Landuse"
+        options.layerName = layer_name_in_gpkg  #Name of the layer inside the GeoPackage
+        options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteFile
 
-        # Perform export
         result, error_message = QgsVectorFileWriter.writeAsVectorFormatV2(
             self.landuseLayer,
-            gpkgOutputPath,
+            self.gpkgOutputPath,
             QgsProject.instance().transformContext(),
             options
         )
+
+        if result == QgsVectorFileWriter.NoError:
+            self.log_to_qtalsim_tab(f"Exported to {self.gpkgOutputPath}", Qgis.Info)
+
+        exported_layer = QgsVectorLayer(f"{self.gpkgOutputPath}|layername={layer_name_in_gpkg}", layer_name_in_gpkg, "ogr")
+        if exported_layer.isValid():
+            QgsProject.instance().addMapLayer(exported_layer)
+
+        #Dissolve Landuse Layer
+        landuseLayerDissolved = processing.run("native:dissolve", {
+            'INPUT': self.landuseLayer,
+            'FIELD': ['OBJART_NEU'],
+            'SEPARATE_DISJOINT': False,
+            'OUTPUT': 'TEMPORARY_OUTPUT'
+        })['OUTPUT']
+
+        #Delete all fields except 'OBJART_NEU'
+        fields = landuseLayerDissolved.fields()
+        fields_to_delete = [i for i, f in enumerate(fields) if f.name() != 'OBJART_NEU']
+
+        if landuseLayerDissolved.dataProvider().deleteAttributes(fields_to_delete):
+            landuseLayerDissolved.updateFields()
+
+        #Export dissolved layer to same GeoPackage under a new name
+        layer_name_dissolved = "LanduseDissolved"
+        options = QgsVectorFileWriter.SaveVectorOptions()
+        options.driverName = "GPKG"
+        options.fileEncoding = "UTF-8"
+        options.layerName = layer_name_dissolved
+        options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer  # Add as new layer
+
+        result, error_message = QgsVectorFileWriter.writeAsVectorFormatV2(
+            landuseLayerDissolved,
+            self.gpkgOutputPath,
+            QgsProject.instance().transformContext(),
+            options
+        )
+
+        if result == QgsVectorFileWriter.NoError:
+            uri = f"{self.gpkgOutputPath}|layername={layer_name_dissolved}"
+            dissolved_layer = QgsVectorLayer(uri, layer_name_dissolved, "ogr")
+
+            if dissolved_layer.isValid():
+                QgsProject.instance().addMapLayer(dissolved_layer)
+
+                self.log_to_qtalsim_tab(f"Exported dissolved layer with layer name {layer_name_dissolved} to {self.gpkgOutputPath}", Qgis.Info)       
 
         

@@ -194,12 +194,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             #Get the original field index
             if not self.subbasinUIField:
                 self.subbasinUIField = self.comboboxUISubBasin.currentText()
-            
-            if self.comboboxNameField.currentText() != 'Select Name-Field':
-                self.nameField = self.comboboxNameField.currentText()
-            else:
-                self.nameField = None
-                
+
             original_field_name = self.subbasinUIField
             original_field_index = self.subBasinLayerProcessed.fields().indexOf(original_field_name)
       
@@ -260,14 +255,19 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.log_to_qtalsim_tab(f"Exporting the layer...", Qgis.Info)
             self.geopackage_path = os.path.join(self.outputFolder, f"Sub_basins_processed.gpkg") #Output-path
 
-            self.outputFormat = self.comboboxOutputFormat.currentText()
-            if self.textDBName.text() is not None:
-                self.dbName = self.textDBName.text()
-                self.DBExport()
+            if groupboxDBExport.isChecked():
+                if self.textDBName.text() is not None:
+                    self.dbName = self.textDBName.text()
+                    self.DBExport()
+                else:
+                    self.log_to_qtalsim_tab("Please enter a database name.", Qgis.Critical)
 
-            if self.textAsciiFileName.text() is not None:
-                self.asciiFilename = self.textAsciiFileName.text()
-                self.asciiExport()
+            if groupboxASCIIExport.isChecked():
+                if self.textAsciiFileName.text() is not None:
+                    self.asciiFilename = self.textAsciiFileName.text()
+                    self.asciiExport()
+                else:
+                    self.log_to_qtalsim_tab("Please enter a filename for the ASCII-export.", Qgis.Critical)
             
 
             #Export sub-basins-layer to geopackage
@@ -710,7 +710,13 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             else:
                 self.scenarioName = self.textScenarioName.text()
 
-            self.DBPath = os.path.join(self.outputFolder, self.dbName)
+            if self.comboboxNameField.currentText() != 'Select Name-Field':
+                self.nameField = self.comboboxNameField.currentText()
+            else:
+                self.nameField = None
+            self.log_to_qtalsim_tab(f"Name-field: {self.nameField}", Qgis.Info)
+
+            self.DBPath = os.path.join(self.outputFolder, self.dbName + ".db")
             current_path = os.path.dirname(os.path.abspath(__file__))
             source_db = os.path.join(current_path, "DB", "QTalsim.db") 
             shutil.copy(source_db, self.DBPath)
@@ -785,10 +791,10 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 """, (scenario_id, element_identifier, name, 2, "A", 
                     latitude, longitude, wkt_multipolygon))
 
-                # Get the created SystemElementId
+                #Get the created SystemElementId
                 system_element_id = cursor.lastrowid
 
-                # Extract SubBasin fields (only those explicitly mentioned)
+                #Extract SubBasin fields (only those explicitly mentioned)
                 area = feature[self.areaFieldName] if self.areaFieldName in fields else None
                 imperviousness = feature[self.imperviousFieldName]/100 if self.imperviousFieldName in fields else None
                 max_height = feature['Height_max'] if 'Height_max' in fields else None

@@ -59,9 +59,9 @@
          <property name="geometry">
           <rect>
            <x>0</x>
-           <y>0</y>
+           <y>-122</y>
            <width>877</width>
-           <height>433</height>
+           <height>524</height>
           </rect>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout">
@@ -704,7 +704,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QWidget" name="saveWidget" native="true">
+           <widget class="QGroupBox" name="saveGroupBox">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
@@ -723,7 +723,97 @@
               <height>16777215</height>
              </size>
             </property>
+            <property name="title">
+             <string>Output</string>
+            </property>
             <layout class="QVBoxLayout" name="verticalLayout_12">
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_9">
+               <item>
+                <widget class="QgsCollapsibleGroupBox" name="groupboxASCIIExport">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="title">
+                  <string>ASCII-Export (Talsim NG4)</string>
+                 </property>
+                 <property name="checkable">
+                  <bool>true</bool>
+                 </property>
+                 <property name="checked">
+                  <bool>false</bool>
+                 </property>
+                 <layout class="QVBoxLayout" name="verticalLayout_9">
+                  <item>
+                   <widget class="QLineEdit" name="textAsciiFileName">
+                    <property name="placeholderText">
+                     <string>[Insert ASCII File Name]</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+               <item>
+                <widget class="QgsCollapsibleGroupBox" name="groupboxDBExport">
+                 <property name="enabled">
+                  <bool>true</bool>
+                 </property>
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>250</width>
+                   <height>0</height>
+                  </size>
+                 </property>
+                 <property name="title">
+                  <string>SQLite-Export (Talsim NG5)</string>
+                 </property>
+                 <property name="checkable">
+                  <bool>true</bool>
+                 </property>
+                 <property name="checked">
+                  <bool>false</bool>
+                 </property>
+                 <layout class="QVBoxLayout" name="verticalLayout_4">
+                  <item>
+                   <layout class="QHBoxLayout" name="horizontalLayout_6">
+                    <item>
+                     <widget class="QLineEdit" name="inputDBPath"/>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="onInputDB">
+                      <property name="text">
+                       <string>Select Talsim-Input-DB</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                  <item>
+                   <layout class="QHBoxLayout" name="horizontalLayout_12">
+                    <item>
+                     <widget class="QComboBox" name="comboboxScenarios">
+                      <property name="placeholderText">
+                       <string>Select Scenario</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+              </layout>
+             </item>
              <item>
               <layout class="QHBoxLayout" name="horizontalLayout_11">
                <item>
@@ -746,20 +836,6 @@
                  </property>
                  <property name="text">
                   <string>ASCII-Export</string>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </item>
-             <item>
-              <layout class="QHBoxLayout" name="horizontalLayout_6">
-               <item>
-                <widget class="QLineEdit" name="inputDBPath"/>
-               </item>
-               <item>
-                <widget class="QPushButton" name="onInputDB">
-                 <property name="text">
-                  <string>Select Talsim-Input-DB</string>
                  </property>
                 </widget>
                </item>

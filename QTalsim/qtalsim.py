@@ -279,7 +279,7 @@ class QTalsim:
         self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_sql_connect_dock, parent=self.iface.mainWindow(), add_to_toolbar=True)
         self.add_action(icon_path, text=self.tr(u'Sub-basin preprocessing'), callback=self.open_sub_basin_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
         self.add_action(icon_path, text=self.tr(u'ISRIC Soil Type Converter'), callback=self.open_soil_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        self.add_action(icon_path, text=self.tr(u'Land Use Assignment'), callback=self.open_landuse_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        self.add_action(icon_path, text=self.tr(u'Land use mapping'), callback=self.open_landuse_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
         
         self.first_start = True
         self.initialize_parameters()
@@ -1104,6 +1104,27 @@ class QTalsim:
 
         except:
             return
+
+    def on_input_db_changed(self): 
+        if not os.path.exists(self.file_path_db):
+            return  # Ignore if path doesn't exist
+
+        try:
+            conn = sqlite3.connect(self.file_path_db)
+            cursor = conn.cursor()
+
+            # Assuming the table is named 'scenarios' with columns 'id' and 'name'
+            cursor.execute("SELECT id, name FROM Scenario")
+            rows = cursor.fetchall()
+
+            # Clear and repopulate the combobox
+            self.dlg.comboboxScenarios.clear()
+            for scenario_id, name in rows:
+                display_text = f"{name} (ID: {scenario_id})"
+                self.dlg.comboboxScenarios.addItem(display_text, scenario_id)
+            conn.close()
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"Error loading scenarios: {e}", Qgis.Critical)
 
     def selectEZG(self):
         '''
@@ -3229,8 +3250,8 @@ class QTalsim:
         '''
 
         try:
-            filename, ok = QInputDialog.getText(None, 'Input Dialog', 'Enter filename for ASCII-Files:')
-
+            #filename, _ = QInputDialog.getText(None, 'Input Dialog', 'Enter filename for ASCII-Files:')
+            filename = self.dlg.textAsciiFileName.text()
             self.start_operation()
             #The template file of every output file holds a line that defines the field lengths and spaces between lengths
             def parse_definition_linev1(line):
@@ -3317,8 +3338,8 @@ class QTalsim:
                     value_str = str(value)
                 return value_str[:length].rjust(length)
         
-            if ok and filename:
-                self.log_to_qtalsim_tab("Exporting ASCII-files.",Qgis.Info)
+            if filename:
+                self.log_to_qtalsim_tab("Exporting ASCII-files.", Qgis.Info)
                 
                 '''
                     EFL
@@ -3500,8 +3521,7 @@ class QTalsim:
 
                 data = []
                 for feature in features:
-                    # Define the fields you're interested in
-                    fields = ["Id", "RootDepth", "PlantCoverage", "PlantCoverageAnnualPatternId",
+                    fields = ["Id", "RootDepth", "RootDepthAnnualPatternId", "PlantCoverage", "PlantCoverageAnnualPatternId",
                             "LeafAreaIndex", "LeafAreaIndexAnnualPatternId", "KcCoeffAnnualPatternId",
                             "KyYieldAnnualPatternId", "Imp", "RoughnessCoefficient", "BulkDensityChange", "pTAW", "Name"]
 
@@ -3515,7 +3535,7 @@ class QTalsim:
                             layer_data[field] = feature[field] if feature[field] is not None else ""
                         except KeyError:
                             # Handle the case where the field does not exist
-                            layer_data[field] = ""  # Optionally log this issue or handle differently
+                            layer_data[field] = "" 
 
                     # Append the data
                     data.append(layer_data)
@@ -3559,6 +3579,9 @@ class QTalsim:
         self.file_path_db, _ = QFileDialog.getOpenFileName(self.dlg, "Select Talsim Database", "", "Databases (*.db);;All Files (*)", options=options)
         if self.file_path_db:
             self.dlg.inputDBPath.setText(self.file_path_db)
+        
+        self.safeConnect(self.dlg.inputDBPath.textChanged, self.on_input_db_changed)
+        self.on_input_db_changed()
 
     def DBExport(self):
         '''
@@ -3569,56 +3592,72 @@ class QTalsim:
             return
 
         def check_and_delete_existing_data():
-            #Checks if tables contain data and asks for user confirmation to delete them.
-            #Connect to SQLite database
+            if scenario_id is None:
+                QMessageBox.warning(None, "No Scenario Selected", "Please select a scenario before continuing.")
+                return False
+
             conn = sqlite3.connect(self.file_path_db)
             cur = conn.cursor()
 
-            #Define the tables to check
-            tables = ["SoilType", "SoilTexture", "Landuse", "HydrologicalResponseUnit"]
+            #Tables and queries with Scenario filtering
+            table_queries = {
+                "SoilType": f"SELECT COUNT(*) FROM SoilType WHERE ScenarioId = ?",
+                "SoilTexture": f"SELECT COUNT(*) FROM SoilTexture WHERE ScenarioId = ?",
+                "Landuse": f"SELECT COUNT(*) FROM Landuse WHERE ScenarioId = ?",
+                "HydrologicalResponseUnit": """
+                    SELECT COUNT(*) 
+                    FROM HydrologicalResponseUnit hru
+                    JOIN SystemElement se ON hru.SystemElementId = se.Id
+                    WHERE se.ScenarioId = ?
+                """
+            }
 
-            #Check if any of the tables have data
             tables_with_data = []
-            for table in tables:
-                cur.execute(f"SELECT COUNT(*) FROM {table}")
+
+            for table, query in table_queries.items():
+                cur.execute(query, (scenario_id,))
                 count = cur.fetchone()[0]
                 if count > 0:
                     tables_with_data.append(table)
 
-            #If no data exists, return and proceed normally
             if not tables_with_data:
                 conn.close()
-                return True  #No data, safe to continue
+                return True 
 
-            #Show a popup asking for confirmation
+            #Ask user for confirmation to delete table entries
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Warning)
             msg.setWindowTitle("Existing Data Found")
-            msg.setText("There are existing entries in the following tables:\n\n" +
+            msg.setText("There are existing entries in the following tables for the selected scenario:\n\n" +
                         "\n".join(tables_with_data) +
                         "\n\nYou can only continue if all entries are deleted.")
             msg.setInformativeText("Would you like to delete all entries in these tables?")
             msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             msg.setDefaultButton(QMessageBox.No)
-
-            #Show the popup and get user response
             response = msg.exec_()
 
             if response == QMessageBox.No:
                 conn.close()
-                return False 
+                return False
 
-            #If user confirms, delete all records from the tables
+            #Delete entries with the matching scenario_id
             for table in tables_with_data:
-                cur.execute(f"DELETE FROM {table}")
-            
+                if table == "HydrologicalResponseUnit":
+                    #Delete HRUs by joining with SystemElement
+                    cur.execute("""
+                        DELETE FROM HydrologicalResponseUnit
+                        WHERE SystemElementId IN (
+                            SELECT Id FROM SystemElement WHERE ScenarioId = ?
+                        )
+                    """, (scenario_id,))
+                else:
+                    cur.execute(f"DELETE FROM {table} WHERE ScenarioId = ?", (scenario_id,))
+
             conn.commit()
             conn.close()
-            
-            #Show a confirmation message
-            QMessageBox.information(None, "Data Deleted", "All data in the selected tables has been deleted.")
 
-            return True 
+            QMessageBox.information(None, "Data Deleted", "All data for the selected scenario has been deleted.")
+            return True
 
         def safe_cast(value, to_type):
             #Safely cast value to a given type (int or float), returning None if invalid.
@@ -3633,16 +3672,39 @@ class QTalsim:
             #Returns the safely cast feature value if field exists, otherwise None.
             return safe_cast(feature[field_name], to_type) if field_name in feature.fields().names() else None
 
+        def check_subbasins():
+            #Get unique UI sub-basins from layer
+            subbasins = set()
+            for feature in self.eflLayer.getFeatures():
+                subbasins.add(feature[self.subBasinUI])
+            #Get sub-basins from the database
+            conn = sqlite3.connect(self.file_path_db)
+            cur = conn.cursor()
+            cur.execute("SELECT DISTINCT ElementTypeCharacter || ElementIdentifier FROM SystemElement WHERE ElementType = 2")
+            db_subbasins = set([row[0] for row in cur.fetchall()])
+            conn.close()
+
+            #Check if there are differences in the sub-basins of layer and DB
+            if subbasins == db_subbasins:
+                return True
+            else:
+                missing_in_layer = db_subbasins - subbasins
+                missing_in_db = subbasins - db_subbasins
+
+                if missing_in_layer:
+                    self.log_to_qtalsim_tab(f"The following sub-basins are in the database but missing in the layer: {', '.join(missing_in_layer)}", Qgis.Critical)
+                if missing_in_db:
+                    self.log_to_qtalsim_tab(f"The following sub-basins are in the layer but missing in the database: {', '.join(missing_in_db)}", Qgis.Critical)
+                return False
+
+        #Get selected Scenario ID from the combobox
+        scenario_id = self.dlg.comboboxScenarios.currentData()
+        
         check_and_delete_existing_data() #Check if there is data in the relevant tables
 
         #Connect to DB
         conn = sqlite3.connect(self.file_path_db)
         cur = conn.cursor()
-
-        cur.execute("SELECT Id FROM Scenario ORDER BY DateCreated DESC LIMIT 1") #Get the latest Scenario-ID
-        scenario = cur.fetchone()
-
-        scenario_id = scenario[0]
 
         clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
         orderby = QgsFeatureRequest.OrderBy([clause])
@@ -3824,9 +3886,9 @@ class QTalsim:
 
             self.start_operation()
             self.outputFormat = self.dlg.comboboxOutputFormat.currentText()
-            if self.outputFormat == "SQLite-Export (Talsim NG5)":
+            if self.dlg.groupboxDBExport.isChecked(): # or self.outputFormat == "SQLite-Export (Talsim NG5)"
                 self.DBExport()
-            elif self.outputFormat == "ASCII-Export (Talsim NG4)":
+            if self.dlg.groupboxASCIIExport.isChecked(): #or self.outputFormat == "ASCII-Export (Talsim NG4)"
                 self.saveASCII()
 
             #Save Geopackage
@@ -4086,14 +4148,14 @@ class QTalsim:
         self.connectButtontoFunction(self.dlg.onOutputFolder, self.selectOutputFolder) 
         self.connectButtontoFunction(self.dlg.onInputDB, self.selectInputDB) 
         self.connectButtontoFunction(self.dlg.onExportASCII, self.saveASCII)
-        # show the dialog
+        #show the dialog
         self.dlg.show()
 
-        # Run the dialog event loop
+        #Run the dialog event loop
         result = self.dlg.exec_()
         if self.dialog_status == 'Reset':
             return
-        # See if OK was pressed
+        #See if OK was pressed
         if result:
             '''
                 Saving to Geopackage.
@@ -4194,7 +4256,7 @@ class QTalsim:
             self.first_start = False
         if not hasattr(self, 'landuseWindow'):
             self.landuseWindow = QMainWindow(self.iface.mainWindow())
-            self.landuseWindow.setWindowTitle("Land Use Assignment")
+            self.landuseWindow.setWindowTitle("Land use mapping")
             self.landuseDialog = LanduseAssignmentDialog(self.iface.mainWindow(), self)
             self.landuseWindow.setCentralWidget(self.landuseDialog)
         else:

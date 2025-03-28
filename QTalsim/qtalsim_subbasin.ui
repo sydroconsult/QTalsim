@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>803</width>
-    <height>434</height>
+    <width>797</width>
+    <height>458</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -152,7 +152,10 @@
           </sizepolicy>
          </property>
          <property name="text">
-          <string>Select Name Field</string>
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;Select Name Field&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
+         <property name="textFormat">
+          <enum>Qt::AutoText</enum>
          </property>
         </widget>
        </item>
@@ -245,7 +248,7 @@
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_10">
           <item>
-           <widget class="QgsCollapsibleGroupBox" name="mGroupBox">
+           <widget class="QgsCollapsibleGroupBox" name="groupboxASCIIExport">
             <property name="sizePolicy">
              <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
               <horstretch>0</horstretch>
@@ -267,6 +270,12 @@
             <property name="title">
              <string>ASCII-Export (Talsim NG4) </string>
             </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
             <property name="collapsed">
              <bool>false</bool>
             </property>
@@ -282,7 +291,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QgsCollapsibleGroupBox" name="mGroupBox_2">
+           <widget class="QgsCollapsibleGroupBox" name="groupboxDBExport">
             <property name="sizePolicy">
              <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
               <horstretch>0</horstretch>
@@ -297,6 +306,12 @@
             </property>
             <property name="title">
              <string>SQLite-Export (Talsim NG5)</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
             </property>
             <property name="collapsed">
              <bool>false</bool>
