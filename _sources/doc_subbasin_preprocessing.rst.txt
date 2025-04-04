@@ -2,7 +2,7 @@
 Sub-basins preprocessing
 ========================
 
-   The third core functionality allows you to pre-process a sub-basins layer. It calculates the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin, and the longest flow path for each sub-basin. Output includes a line layer containing the longest flow paths, a sub-basins layer (and Geopackage) containing the sub-basins with all calculated parameters and an .EZG-ASCII file, which can be used as `input to Talsim <https://www.talsim.de/docs/index.php?title=EZG-Datei>`__ (optional). Please note that to use this functionality, SAGA GIS and WhiteboxTools must be installed. 
+   The third core functionality allows you to pre-process a sub-basins layer. It calculates the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin, and the longest flow path for each sub-basin. Output includes a line layer containing the longest flow paths, a sub-basins layer (and Geopackage) containing the sub-basins with all calculated parameters and an .EZG-ASCII file, which can be used as `input to Talsim <https://www.talsim.de/docs/index.php?title=EZG-Datei>`__ (optional). Please note that to use this functionality the QGIS-Plugin WhiteboxTools must be installed. 
 
 Prerequisites
 ^^^^^^^^^^^^^
@@ -10,14 +10,13 @@ Prerequisites
 
    **Input Layers:**
 
-   -  Sub-basin layer
+   -  Sub-basin layer: For optimal performance, the sub-basin layer should be continuous, with no gaps or holes (e.g., no empty areas for dams)
    -  Digital Elevation Model (DEM) layer
-   -  Water network layer
+   -  Optional: Water network layer (necessary for LongestFlowPath-calculation)
    -  Optional: Layer with impervious areas
    
-   To use this plugin's functionality, SAGA GIS and WhiteboxTools must be installed.
+   To use this plugin's functionality, WhiteboxTools must be installed.
 
-   -  SAGA GIS: Ensure that the "Processing Saga NextGen Provider" plugin is installed via the Plugin Manager in QGIS.
    -  WhiteboxTools: Install the "WhiteboxTools for QGIS" plugin, and make sure the environment path is set correctly. 
 
       -  Install the "WhiteboxTools for QGIS" plugin.
@@ -28,7 +27,7 @@ Prerequisites
 Executing the Plugin
 ^^^^^^^^^^^^^^^^^^^^
    
-   After installing SAGA GIS and WhiteboxTools, you can run the plugin.
+   After installing WhiteboxTools, you can run the plugin.
 
 Select Layers
 -------------
@@ -56,8 +55,8 @@ Output
 Calculation of LongestFlowPath
 ------------------------------
 
-   The plugin first burns the water network into the DEM using the QGIS "Raster calculator".
-   It then applies SAGA's "Fill sinks (Wang & Liu)" tool to fill any sinks in the DEM. After this The plugin uses WhiteboxTools' "LongestFlowPath" (LFP) to generate the longest flowpath for each sub-basin. To address an issue with LFP creating disconnected flowpaths across different sub-basins (see details `here <https://github.com/jblindsay/whitebox-tools/issues/289>`__), the plugin processes each sub-basin individually, generating the LFP for each one separately. Finally, the plugin saves the correct LFP for each sub-basin and merges them into a single layer.
+   The calculation of LongestFlowPath is optional. The plugin first burns the water network into the DEM using the QGIS "Raster calculator".
+   It then applies Whitebox' "FillDepressionsWangAndLiu" tool to fill any sinks in the DEM. After this the plugin uses WhiteboxTools' "LongestFlowPath" (LFP) to generate the longest flowpath for each sub-basin. To address an issue with LFP creating disconnected flowpaths across different sub-basins (see details `here <https://github.com/jblindsay/whitebox-tools/issues/289>`__), the plugin processes each sub-basin individually, generating the LFP for each one separately. Finally, the plugin saves the correct LFP for each sub-basin and merges them into a single layer.
    
    The final LFP layer is added to the current QGIS project and saved to the specified output folder. Additionally, the burned and filled DEM layer is also saved and added to the current project.
 

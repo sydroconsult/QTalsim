@@ -43,21 +43,20 @@
   <section id="sub-basins-preprocessing">
 <h1>Sub-basins preprocessing<a class="headerlink" href="#sub-basins-preprocessing" title="Permalink to this heading">¶</a></h1>
 <blockquote>
-<div><p>The third core functionality allows you to pre-process a sub-basins layer. It calculates the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin, and the longest flow path for each sub-basin. Output includes a line layer containing the longest flow paths, a sub-basins layer (and Geopackage) containing the sub-basins with all calculated parameters and an .EZG-ASCII file, which can be used as <a class="reference external" href="https://www.talsim.de/docs/index.php?title=EZG-Datei">input to Talsim</a> (optional). Please note that to use this functionality, SAGA GIS and WhiteboxTools must be installed.</p>
+<div><p>The third core functionality allows you to pre-process a sub-basins layer. It calculates the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin, and the longest flow path for each sub-basin. Output includes a line layer containing the longest flow paths, a sub-basins layer (and Geopackage) containing the sub-basins with all calculated parameters and an .EZG-ASCII file, which can be used as <a class="reference external" href="https://www.talsim.de/docs/index.php?title=EZG-Datei">input to Talsim</a> (optional). Please note that to use this functionality the QGIS-Plugin WhiteboxTools must be installed.</p>
 </div></blockquote>
 <section id="prerequisites">
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this heading">¶</a></h2>
 <blockquote>
 <div><p><strong>Input Layers:</strong></p>
 <ul class="simple">
-<li><p>Sub-basin layer</p></li>
+<li><p>Sub-basin layer: For optimal performance, the sub-basin layer should be continuous, with no gaps or holes (e.g., no empty areas for dams)</p></li>
 <li><p>Digital Elevation Model (DEM) layer</p></li>
-<li><p>Water network layer</p></li>
+<li><p>Optional: Water network layer (necessary for LongestFlowPath-calculation)</p></li>
 <li><p>Optional: Layer with impervious areas</p></li>
 </ul>
-<p>To use this plugin’s functionality, SAGA GIS and WhiteboxTools must be installed.</p>
+<p>To use this plugin’s functionality, WhiteboxTools must be installed.</p>
 <ul class="simple">
-<li><p>SAGA GIS: Ensure that the “Processing Saga NextGen Provider” plugin is installed via the Plugin Manager in QGIS.</p></li>
 <li><p>WhiteboxTools: Install the “WhiteboxTools for QGIS” plugin, and make sure the environment path is set correctly.</p>
 <ul>
 <li><p>Install the “WhiteboxTools for QGIS” plugin.</p></li>
@@ -72,7 +71,7 @@
 <section id="executing-the-plugin">
 <h2>Executing the Plugin<a class="headerlink" href="#executing-the-plugin" title="Permalink to this heading">¶</a></h2>
 <blockquote>
-<div><p>After installing SAGA GIS and WhiteboxTools, you can run the plugin.</p>
+<div><p>After installing WhiteboxTools, you can run the plugin.</p>
 </div></blockquote>
 <section id="select-layers">
 <h3>Select Layers<a class="headerlink" href="#select-layers" title="Permalink to this heading">¶</a></h3>
@@ -110,8 +109,8 @@
 <section id="calculation-of-longestflowpath">
 <h3>Calculation of LongestFlowPath<a class="headerlink" href="#calculation-of-longestflowpath" title="Permalink to this heading">¶</a></h3>
 <blockquote>
-<div><p>The plugin first burns the water network into the DEM using the QGIS “Raster calculator”.
-It then applies SAGA’s “Fill sinks (Wang &amp; Liu)” tool to fill any sinks in the DEM. After this The plugin uses WhiteboxTools’ “LongestFlowPath” (LFP) to generate the longest flowpath for each sub-basin. To address an issue with LFP creating disconnected flowpaths across different sub-basins (see details <a class="reference external" href="https://github.com/jblindsay/whitebox-tools/issues/289">here</a>), the plugin processes each sub-basin individually, generating the LFP for each one separately. Finally, the plugin saves the correct LFP for each sub-basin and merges them into a single layer.</p>
+<div><p>The calculation of LongestFlowPath is optional. The plugin first burns the water network into the DEM using the QGIS “Raster calculator”.
+It then applies Whitebox’ “FillDepressionsWangAndLiu” tool to fill any sinks in the DEM. After this the plugin uses WhiteboxTools’ “LongestFlowPath” (LFP) to generate the longest flowpath for each sub-basin. To address an issue with LFP creating disconnected flowpaths across different sub-basins (see details <a class="reference external" href="https://github.com/jblindsay/whitebox-tools/issues/289">here</a>), the plugin processes each sub-basin individually, generating the LFP for each one separately. Finally, the plugin saves the correct LFP for each sub-basin and merges them into a single layer.</p>
 <p>The final LFP layer is added to the current QGIS project and saved to the specified output folder. Additionally, the burned and filled DEM layer is also saved and added to the current project.</p>
 <p><img alt="Screenshot Sub-basin preprocessing" src="_images/SubBasinPreprocessing.png" /></p>
 </div></blockquote>

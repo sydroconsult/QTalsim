@@ -21,7 +21,8 @@ HRU calculation
    -  Geopackage containing HRU, land use, soil texture and soil type
       layers
    -  Layers are also added to the current QGIS project
-   
+   -  ASCII files (.EFL, .LNZ, .BOA, .BOD) suitable for Talsim-NG4 and/or SQLite database suitable for Talsim-NG5
+ 
 .. toctree::
    :maxdepth: 2
 

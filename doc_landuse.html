@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Land use Mapping &#8212; QTalsim 1.6.2 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
+    
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=c3225494"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="ISRIC Soil Type Converter" href="doc_soil.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="doc_soil.html" title="ISRIC Soil Type Converter"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.2 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Land use Mapping</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="land-use-mapping">
+<h1>Land use Mapping<a class="headerlink" href="#land-use-mapping" title="Permalink to this heading">¶</a></h1>
+<blockquote>
+<div><p>This plugin feature offers the functionality to map land use data to Talsim land use categories. Currently, only the mapping of ATKIS land use data is implemented.</p>
+</div></blockquote>
+<section id="executing-the-plugin">
+<h2>Executing the Plugin<a class="headerlink" href="#executing-the-plugin" title="Permalink to this heading">¶</a></h2>
+<blockquote>
+<div><p>The user must provide a folder containing all relevant ATKIS layers (e.g., veg01_f, sie01_f, etc.). The plugin automatically detects the necessary files and merges them into a single land use layer. Optionally, the user can specify a clipping layer to limit the extent of the merged result.</p>
+<p>Once merged (and optionally clipped), the plugin maps ATKIS land use types to Talsim-compatible categories using the fields “OBJART_TXT”, “FKT”, and “VEG”.</p>
+<p>The output is a GeoPackage containing two land use layers:</p>
+<ul class="simple">
+<li><p>One layer with all land use polygons, where the mapped Talsim land use type is stored in the column “OBJART_NEU”.</p></li>
+<li><p>A second, dissolved layer where polygons with the same land use type are aggregated. This layer can be used as input for the HRU Calculation.</p></li>
+</ul>
+<p><img alt="Screenshot Land use mapping" src="_images/landuseMappingFeature.png" /></p>
+</div></blockquote>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <div>
+    <h3><a href="index.html">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">Land use Mapping</a><ul>
+<li><a class="reference internal" href="#executing-the-plugin">Executing the Plugin</a></li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="doc_soil.html"
+                          title="previous chapter">ISRIC Soil Type Converter</a></p>
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/doc_landuse.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="doc_soil.html" title="ISRIC Soil Type Converter"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.2 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Land use Mapping</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2024, Sydro Consult GmbH.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
+    </div>
+  </body>
+</html>
