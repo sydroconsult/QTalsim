@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>797</width>
-    <height>458</height>
+    <width>793</width>
+    <height>449</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -348,16 +348,6 @@
            <widget class="QPushButton" name="onOutputFolder">
             <property name="text">
              <string>Select Output-Folder</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="comboboxOutputFormat"/>
-          </item>
-          <item>
-           <widget class="QPushButton" name="onAsciiOutput">
-            <property name="text">
-             <string>ASCII-Output</string>
             </property>
            </widget>
           </item>

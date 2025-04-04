@@ -163,7 +163,7 @@ Select and Edit Land use layer
          ID_LNZ                             int                    
          Name                               string                 
          RootDepth                          float      m          0 >= x
-         RootDepthMonthlyPatternId          int                    
+         RootDepthAnnualPatternId           int                    
          PlantCoverage                      float      %          0 >= x >= 100
          PlantCoverageAnnualPatternId       int                    
          LeafAreaIndex                      float                 0 >= x
@@ -245,14 +245,19 @@ Save Layers as ASCII-Files & Geopackage
 .. _save-layers-to-geopackage:
 
    
-   In the final step, users have the option to export layers as ASCII files. 
-   Exporting ASCII files allows for the layers to be saved in a format compatible with Talsim NG4. 
-   To begin, users must select the ‘Select Output Folder’ option and choose an appropriate folder. 
-   This folder will be designated for both the ASCII files and the geopackage export. 
-   Once the folder is chosen, users can proceed by clicking 'Export ASCII Files' and 
-   entering a preferred name for the ASCII files. These files will then be exported with 
-   the corresponding extensions (.EFL, .BOD, .BOA, .LNZ). By clicking 'Ok', the layers are
-   stored in a geopackage under a name specified by the user.
+   In the final step, users can choose to export the processed layers in either ASCII format (for Talsim NG4), SQLite format (for Talsim NG5), or both.
+
+   - ASCII-Export
+     To export in ASCII format, users need to specify only the ASCII file name. The plugin will generate all relevant files with the appropriate extensions (.EFL, .BOD, .BOA, .LNZ), ensuring compatibility with Talsim NG4.
+
+  - SQLite Export
+    For SQLite export, users must select an existing Talsim database (e.g., one created using QTalsim – Sub-basins preprocessing) and specify the scenario to which the data should be assigned. Tables HydrologicalReponseUnit, SoilType, SoilTexture and LandUse of the specified scenario will be filled. This export is compatible with Talsim NG5.
+
+   After configuring the desired export options, users must click ‘Select Output Folder’ to choose the directory where all outputs will be saved. This includes both the ASCII files and the GeoPackage export.
+
+   Finally, clicking ‘Save’ will:
+   - Export the layers in the selected format(s)
+   - Store the resulting data in a GeoPackage under a user-defined name
    
    |Final Steps|
 

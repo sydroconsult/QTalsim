@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1231</width>
-    <height>514</height>
+    <height>505</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -59,9 +59,9 @@
          <property name="geometry">
           <rect>
            <x>0</x>
-           <y>-122</y>
-           <width>877</width>
-           <height>524</height>
+           <y>0</y>
+           <width>881</width>
+           <height>521</height>
           </rect>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout">
@@ -826,19 +826,6 @@
                  </property>
                 </widget>
                </item>
-               <item>
-                <widget class="QComboBox" name="comboboxOutputFormat"/>
-               </item>
-               <item>
-                <widget class="QPushButton" name="onExportASCII">
-                 <property name="toolTip">
-                  <string>Export Layers to ASCII-files (LNZ, BOD, BOA, EFL).</string>
-                 </property>
-                 <property name="text">
-                  <string>ASCII-Export</string>
-                 </property>
-                </widget>
-               </item>
               </layout>
              </item>
             </layout>
@@ -879,7 +866,7 @@
          <enum>Qt::Horizontal</enum>
         </property>
         <property name="standardButtons">
-         <set>QDialogButtonBox::Cancel|QDialogButtonBox::Help|QDialogButtonBox::Ok|QDialogButtonBox::Reset|QDialogButtonBox::Save</set>
+         <set>QDialogButtonBox::Cancel|QDialogButtonBox::Help|QDialogButtonBox::Reset|QDialogButtonBox::Save</set>
         </property>
         <property name="centerButtons">
          <bool>false</bool>

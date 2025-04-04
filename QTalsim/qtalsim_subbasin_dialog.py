@@ -62,7 +62,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
         self.log_to_qtalsim_tab(
             "This feature processes a sub-basins layer. It calculates the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin, and the longest flow path for each sub-basin. "
-            "Please ensure that both SAGA GIS and WhiteboxTools are installed and properly configured. "
+            "Please ensure that WhiteboxTools is installed and properly configured. "
             "For detailed instructions, click the Help button.", 
             Qgis.Info
         )        
@@ -255,14 +255,25 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.log_to_qtalsim_tab(f"Exporting the layer...", Qgis.Info)
             self.geopackage_path = os.path.join(self.outputFolder, f"Sub_basins_processed.gpkg") #Output-path
 
-            if groupboxDBExport.isChecked():
+            #Check if feature starts with A and delete feature if it does not
+            self.subBasinLayerProcessed.startEditing()
+            deleted_feature_ui = []
+            for feature in self.subBasinLayerProcessed.getFeatures():
+                if feature[self.subbasinUIField].startswith("A") == False:
+                    deleted_feature_ui.append(feature[self.subbasinUIField])
+                    self.subBasinLayerProcessed.deleteFeature(feature.id())
+
+            self.subBasinLayerProcessed.commitChanges()
+            self.log_to_qtalsim_tab(f"Deleted following features because they do not start with A: {deleted_feature_ui}", Qgis.Info)
+
+            if self.groupboxDBExport.isChecked():
                 if self.textDBName.text() is not None:
                     self.dbName = self.textDBName.text()
                     self.DBExport()
                 else:
                     self.log_to_qtalsim_tab("Please enter a database name.", Qgis.Critical)
 
-            if groupboxASCIIExport.isChecked():
+            if self.groupboxASCIIExport.isChecked():
                 if self.textAsciiFileName.text() is not None:
                     self.asciiFilename = self.textAsciiFileName.text()
                     self.asciiExport()
@@ -331,6 +342,10 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.start_operation()
             self.log_to_qtalsim_tab(f"Calculating the longest flowpath for each sub-basin.", Qgis.Info) 
 
+            if self.outputFolder is None:
+                self.log_to_qtalsim_tab("Please select an output folder.", Qgis.Critical)
+                return
+                
             if self.DEMLayer is None:
                 selected_layer_name = self.comboboxDEMLayer.currentText()
                 if selected_layer_name != self.noLayerSelected:
@@ -419,6 +434,8 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 Burns and fills the DEM
         '''
 
+        #resultDissolve = processing.run("native:dissolve", {'INPUT':sub_basins_layer,'FIELD':[],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})
+
         result = processing.run("qgis:deleteholes", {
                 'INPUT': sub_basins_layer,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
@@ -437,8 +454,11 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.extent = f"{self.dem_extent.xMinimum()},{self.dem_extent.xMaximum()},{self.dem_extent.yMinimum()},{self.dem_extent.yMaximum()}"
 
         #Rasterize Water Network
-        result = processing.run("gdal:rasterize", {'INPUT':water_network_layer,'FIELD':'','BURN':1,'USE_Z':False,'UNITS':1,'WIDTH':self.dem_pixel_size_x,'HEIGHT':self.dem_pixel_size_y,'EXTENT': f"{self.extent}[{crs_water_network}]",'NODATA':None,'OPTIONS':'','DATA_TYPE':0,'INIT':None,'INVERT':False,'EXTRA':'','OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=self.no_feedback)
-        water_network_rasterized = QgsRasterLayer(result['OUTPUT'],'WaterNetworkRasterized')
+        result = processing.run("gdal:rasterize", {'INPUT':water_network_layer,'FIELD':'','BURN':1,'USE_Z':False,'UNITS':1,'WIDTH':self.dem_pixel_size_x,'HEIGHT':self.dem_pixel_size_y,'EXTENT': f"{self.extent}[{crs_water_network}]",'NODATA':0,'OPTIONS':'','DATA_TYPE':5,'INIT':2,'INVERT':False,'EXTRA':'','OUTPUT': 'TEMPORARY_OUTPUT'})
+        water_network_rasterized_temp = QgsRasterLayer(result['OUTPUT'],'WaterNetworkRasterized')
+
+        cleaned = processing.run("native:rastercalc", {'LAYERS':[water_network_rasterized_temp],'EXPRESSION':f'if("{water_network_rasterized_temp.name()}@1"= 1, 1, 0)','EXTENT':None,'CELL_SIZE':None,'CRS':None,'OUTPUT':'TEMPORARY_OUTPUT'})
+        water_network_rasterized = QgsRasterLayer(cleaned['OUTPUT'],'WaterNetworkRasterized_cleaned')
         QgsProject.instance().addMapLayer(water_network_rasterized)
 
         #Standardize Raster Layer
@@ -496,14 +516,11 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         
         #fillsinkswangliu or fillsinksxxlwangliu
         try:
-            processing.run("sagang:fillsinkswangliu", {'ELEV':dem_burn_layer,'FILLED': dem_burn_fill_output,'FDIR':'TEMPORARY_OUTPUT','WSHED':'TEMPORARY_OUTPUT','MINSLOPE':0.1}, feedback=self.no_feedback)
-        except QgsProcessingException as e:
+            #processing.run("sagang:fillsinkswangliu", {'ELEV':dem_burn_layer,'FILLED': dem_burn_fill_output,'FDIR':'TEMPORARY_OUTPUT','WSHED':'TEMPORARY_OUTPUT','MINSLOPE':0.1}, feedback=self.no_feedback)
+            processing.run("wbt:FillDepressionsWangAndLiu", {'dem':self.dem_burn_output,'fix_flats':True,'flat_increment':None,'output':dem_burn_fill_output})
+        except Exception as e:
             # Catch the specific exception for processing errors
-            self.log_to_qtalsim_tab(
-                "Error: SAGA GIS might not be installed or configured properly. "
-                "Please ensure SAGA is available and try again.", 
-                Qgis.Critical
-            )
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
             return
         
         dem_burn_fill_layer = QgsRasterLayer(dem_burn_fill_output,'DEMBurnFill')
@@ -796,7 +813,8 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 #Extract SubBasin fields (only those explicitly mentioned)
                 area = feature[self.areaFieldName] if self.areaFieldName in fields else None
-                imperviousness = feature[self.imperviousFieldName]/100 if self.imperviousFieldName in fields else None
+                raw_value_imp = feature[self.imperviousFieldName] if self.imperviousFieldName in fields else None
+                imperviousness = raw_value_imp / 100 if raw_value_imp is not None else None
                 max_height = feature['Height_max'] if 'Height_max' in fields else None
                 min_height = feature['Height_min'] if 'Height_min' in fields else None
 

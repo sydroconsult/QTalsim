@@ -3,8 +3,9 @@ from qgis.PyQt import uic, QtWidgets
 import pandas as pd
 from qgis.core import QgsVectorLayer, QgsProject, Qgis, QgsField, QgsVectorFileWriter
 from qgis.PyQt.QtCore import QVariant
-from qgis.PyQt.QtWidgets import QFileDialog, QInputDialog
+from qgis.PyQt.QtWidgets import QFileDialog, QInputDialog, QDialogButtonBox
 import processing
+import webbrowser
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -37,6 +38,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         self.connectButtontoFunction(self.onInputFolder, self.selectInputFolder) 
         self.connectButtontoFunction(self.onOutputFolder, self.selectOutputFile)
         self.connectButtontoFunction(self.onCreateLanduseLayer, self.landuseMapping)
+        self.connectButtontoFunction(self.onHelp.button(QDialogButtonBox.Help), self.openDocumentation)
         
         current_path = os.path.dirname(os.path.abspath(__file__))
         landuseAssignmentPath = os.path.join(current_path, "talsim_parameter", "atkis_talsim_zuordnung.csv")
@@ -46,6 +48,12 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         self.merged_layer = None
         list_layers = ['sie02_f', 'ver01_f', 'ver03_f', 'ver04_f', 'ver05_f', 'gew01_f', 'veg01_f', 'veg02_f', 'veg03_f']
     
+    def openDocumentation(self):
+        '''
+            Connected with help-button.
+        '''
+        webbrowser.open('https://sydroconsult.github.io/QTalsim/doc_landuse.html')
+
     def fillClippingLayerCombobox(self):
         '''
             Fills all comboboxes with layers
@@ -161,14 +169,15 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
     def landuseMapping(self):
         try:
             self.start_operation()
+            self.log_to_qtalsim_tab("Starting land use mapping", Qgis.Info)
             self.mergeAndClip()
             self.atkisToTalsimMapping()
             self.exportGeopackage()
+            self.log_to_qtalsim_tab("Land use mapping finished", Qgis.Info)
         except Exception as e:
-            self.log_to_qtalsim_tab("Error during landuse mapping: " + str(e), Qgis.Critical)
+            self.log_to_qtalsim_tab("Error during land use mapping: " + str(e), Qgis.Critical)
         finally:
             self.end_operation()
-            self.log_to_qtalsim_tab("Land use mapping finished", Qgis.Info)
 
     def atkisToTalsimMapping(self):
         '''

@@ -3560,9 +3560,9 @@ class QTalsim:
                 self.log_to_qtalsim_tab(f"ASCII-files were saved to this folder: {self.outputFolder}",Qgis.Info)
                 
                 #Add checkmark when process is finished
-                current_text = self.dlg.onExportASCII.text()
-                if "✓" not in current_text:  #Avoid duplicate checkmarks
-                    self.dlg.onExportASCII.setText(f"{current_text} ✓")
+                current_text_groupbox = self.dlg.groupboxASCIIExport.title()
+                if "✓" not in current_text_groupbox:  #Avoid duplicate checkmarks
+                    self.dlg.groupboxASCIIExport.setTitle(f"{current_text_groupbox} ✓")
 
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
@@ -3587,308 +3587,319 @@ class QTalsim:
         '''
             Function that inserts landuse, soiltexture, soiltype and hydrological response units to existing database.
         '''
-        if not self.file_path_db:
-            self.log_to_qtalsim_tab("Please select a Talsim Database first.", Qgis.Warning)
-            return
+        try:
+            if not self.file_path_db:
+                self.log_to_qtalsim_tab("Please select a Talsim Database first.", Qgis.Warning)
+                return
 
-        def check_and_delete_existing_data():
-            if scenario_id is None:
-                QMessageBox.warning(None, "No Scenario Selected", "Please select a scenario before continuing.")
-                return False
+            def check_and_delete_existing_data(scenario_id):
+                if scenario_id is None:
+                    QMessageBox.warning(None, "No Scenario Selected", "Please select a scenario before continuing.")
+                    return False
 
+                conn = sqlite3.connect(self.file_path_db)
+                cur = conn.cursor()
+
+                #Tables and queries with Scenario filtering
+                table_queries = {
+                    "SoilType": f"SELECT COUNT(*) FROM SoilType WHERE ScenarioId = ?",
+                    "SoilTexture": f"SELECT COUNT(*) FROM SoilTexture WHERE ScenarioId = ?",
+                    "Landuse": f"SELECT COUNT(*) FROM Landuse WHERE ScenarioId = ?",
+                    "HydrologicalResponseUnit": """
+                        SELECT COUNT(*) 
+                        FROM HydrologicalResponseUnit hru
+                        JOIN SystemElement se ON hru.SystemElementId = se.Id
+                        WHERE se.ScenarioId = ?
+                    """
+                }
+
+                tables_with_data = []
+
+                for table, query in table_queries.items():
+                    cur.execute(query, (scenario_id,))
+                    count = cur.fetchone()[0]
+                    if count > 0:
+                        tables_with_data.append(table)
+
+                if not tables_with_data:
+                    conn.close()
+                    return True 
+
+                #Ask user for confirmation to delete table entries
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Warning)
+                msg.setWindowTitle("Existing Data Found")
+                msg.setText("There are existing entries in the following tables for the selected scenario:\n\n" +
+                            "\n".join(tables_with_data) +
+                            "\n\nYou can only continue if all entries are deleted.")
+                msg.setInformativeText("Would you like to delete all entries in these tables?")
+                msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                msg.setDefaultButton(QMessageBox.No)
+                response = msg.exec_()
+
+                if response == QMessageBox.No:
+                    conn.close()
+                    return False
+
+                #Delete entries with the matching scenario_id
+                for table in tables_with_data:
+                    if table == "HydrologicalResponseUnit":
+                        #Delete HRUs by joining with SystemElement
+                        cur.execute("""
+                            DELETE FROM HydrologicalResponseUnit
+                            WHERE SystemElementId IN (
+                                SELECT Id FROM SystemElement WHERE ScenarioId = ?
+                            )
+                        """, (scenario_id,))
+                    else:
+                        cur.execute(f"DELETE FROM {table} WHERE ScenarioId = ?", (scenario_id,))
+
+                conn.commit()
+                conn.close()
+
+                QMessageBox.information(None, "Data Deleted", "All data for the selected scenario has been deleted.")
+                return True
+
+            def safe_cast(value, to_type):
+                #Safely cast value to a given type (int or float), returning None if invalid.
+                if value is None or (isinstance(value, QVariant) and value.isNull()):
+                    return None 
+                try:
+                    return to_type(value)
+                except (ValueError, TypeError):
+                    return None
+
+            def get_feature_value(feature, field_name, to_type=str):
+                #Returns the safely cast feature value if field exists, otherwise None.
+                return safe_cast(feature[field_name], to_type) if field_name in feature.fields().names() else None
+
+            def check_subbasins():
+                #Get unique UI sub-basins from layer
+                subbasins = set()
+                for feature in self.eflLayer.getFeatures():
+                    subbasins.add(feature[self.subBasinUI])
+                #Get sub-basins from the database
+                conn = sqlite3.connect(self.file_path_db)
+                cur = conn.cursor()
+                cur.execute("SELECT DISTINCT ElementTypeCharacter || ElementIdentifier FROM SystemElement WHERE ElementType = 2")
+                db_subbasins = set([row[0] for row in cur.fetchall()])
+                conn.close()
+
+                #Check if there are differences in the sub-basins of layer and DB
+                if subbasins == db_subbasins:
+                    return True
+                else:
+                    missing_in_layer = db_subbasins - subbasins
+                    missing_in_db = subbasins - db_subbasins
+
+                    if missing_in_layer:
+                        self.log_to_qtalsim_tab(f"The following sub-basins are in the database but missing in the layer: {', '.join(missing_in_layer)}", Qgis.Critical)
+                    if missing_in_db:
+                        self.log_to_qtalsim_tab(f"The following sub-basins are in the layer but missing in the database: {', '.join(missing_in_db)}", Qgis.Critical)
+                    return False
+
+            #Get selected Scenario ID from the combobox
+            scenario_id = self.dlg.comboboxScenarios.currentData()
+            
+            check_and_delete_existing_data(scenario_id) #Check if there is data in the relevant tables
+            check_subbasins()
+            
+            #Connect to DB
             conn = sqlite3.connect(self.file_path_db)
             cur = conn.cursor()
 
-            #Tables and queries with Scenario filtering
-            table_queries = {
-                "SoilType": f"SELECT COUNT(*) FROM SoilType WHERE ScenarioId = ?",
-                "SoilTexture": f"SELECT COUNT(*) FROM SoilTexture WHERE ScenarioId = ?",
-                "Landuse": f"SELECT COUNT(*) FROM Landuse WHERE ScenarioId = ?",
-                "HydrologicalResponseUnit": """
-                    SELECT COUNT(*) 
-                    FROM HydrologicalResponseUnit hru
-                    JOIN SystemElement se ON hru.SystemElementId = se.Id
-                    WHERE se.ScenarioId = ?
-                """
-            }
+            clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
+            orderby = QgsFeatureRequest.OrderBy([clause])
 
-            tables_with_data = []
+            request = QgsFeatureRequest()
+            request.setOrderBy(orderby)
 
-            for table, query in table_queries.items():
-                cur.execute(query, (scenario_id,))
-                count = cur.fetchone()[0]
-                if count > 0:
-                    tables_with_data.append(table)
+            features = self.soilTypeFinal.getFeatures(request)
 
-            if not tables_with_data:
-                conn.close()
-                return True 
-
-            #Ask user for confirmation to delete table entries
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Warning)
-            msg.setWindowTitle("Existing Data Found")
-            msg.setText("There are existing entries in the following tables for the selected scenario:\n\n" +
-                        "\n".join(tables_with_data) +
-                        "\n\nYou can only continue if all entries are deleted.")
-            msg.setInformativeText("Would you like to delete all entries in these tables?")
-            msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            msg.setDefaultButton(QMessageBox.No)
-            response = msg.exec_()
-
-            if response == QMessageBox.No:
-                conn.close()
-                return False
-
-            #Delete entries with the matching scenario_id
-            for table in tables_with_data:
-                if table == "HydrologicalResponseUnit":
-                    #Delete HRUs by joining with SystemElement
-                    cur.execute("""
-                        DELETE FROM HydrologicalResponseUnit
-                        WHERE SystemElementId IN (
-                            SELECT Id FROM SystemElement WHERE ScenarioId = ?
-                        )
-                    """, (scenario_id,))
-                else:
-                    cur.execute(f"DELETE FROM {table} WHERE ScenarioId = ?", (scenario_id,))
+            for feature in features:
+                cur.execute("""
+                    INSERT INTO SoilType (
+                        Id, Name, LayerThickness1, SoilTextureId1, LayerThickness2, SoilTextureId2, 
+                        LayerThickness3, SoilTextureId3, LayerThickness4, SoilTextureId4, 
+                        LayerThickness5, SoilTextureId5, LayerThickness6, SoilTextureId6, ScenarioId
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    get_feature_value(feature, "Id", int),
+                    get_feature_value(feature, "Description", str), 
+                    get_feature_value(feature, f"soillayer1_{self.soilTypeThickness}", float),
+                    get_feature_value(feature, "soillayer1_id_boa", int),
+                    get_feature_value(feature, f"soillayer2_{self.soilTypeThickness}", float),
+                    get_feature_value(feature, "soillayer2_id_boa", int),
+                    get_feature_value(feature, f"soillayer3_{self.soilTypeThickness}", float),
+                    get_feature_value(feature, "soillayer3_id_boa", int),
+                    get_feature_value(feature, f"soillayer4_{self.soilTypeThickness}", float),
+                    get_feature_value(feature, "soillayer4_id_boa", int),
+                    get_feature_value(feature, f"soillayer5_{self.soilTypeThickness}", float),
+                    get_feature_value(feature, "soillayer5_id_boa", int),
+                    get_feature_value(feature, f"soillayer6_{self.soilTypeThickness}", float),
+                    get_feature_value(feature, "soillayer6_id_boa", int),
+                    scenario_id
+                ))
 
             conn.commit()
             conn.close()
 
-            QMessageBox.information(None, "Data Deleted", "All data for the selected scenario has been deleted.")
-            return True
-
-        def safe_cast(value, to_type):
-            #Safely cast value to a given type (int or float), returning None if invalid.
-            if value is None or (isinstance(value, QVariant) and value.isNull()):
-                return None 
-            try:
-                return to_type(value)
-            except (ValueError, TypeError):
-                return None
-
-        def get_feature_value(feature, field_name, to_type=str):
-            #Returns the safely cast feature value if field exists, otherwise None.
-            return safe_cast(feature[field_name], to_type) if field_name in feature.fields().names() else None
-
-        def check_subbasins():
-            #Get unique UI sub-basins from layer
-            subbasins = set()
-            for feature in self.eflLayer.getFeatures():
-                subbasins.add(feature[self.subBasinUI])
-            #Get sub-basins from the database
+            '''
+                SoilTexture
+            '''
             conn = sqlite3.connect(self.file_path_db)
             cur = conn.cursor()
-            cur.execute("SELECT DISTINCT ElementTypeCharacter || ElementIdentifier FROM SystemElement WHERE ElementType = 2")
-            db_subbasins = set([row[0] for row in cur.fetchall()])
+
+            clause = QgsFeatureRequest.OrderByClause('ID_Soil', ascending=True)
+            orderby = QgsFeatureRequest.OrderBy([clause])
+            request = QgsFeatureRequest()
+            request.setOrderBy(orderby)
+
+            # Retrieve sorted features
+            features = self.soilTextureFinal.getFeatures(request)
+
+            # Loop through features and insert directly
+            for feature in features:
+                cur.execute("""
+                    INSERT INTO SoilTexture (
+                        Id, BulkDensityClass, FieldCapacity, KfValue, MaxCapillarySuction,
+                        MaxInfiltration, Name, ScenarioId, TotalPoreVolume, WiltingPoint
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    get_feature_value(feature, "ID_Soil", int),
+                    get_feature_value(feature, "BulkDensityClass", int),
+                    get_feature_value(feature, "FieldCapacity", float),
+                    get_feature_value(feature, "KfValue", float),
+                    get_feature_value(feature, "MaxCapillarySuction", float),
+                    get_feature_value(feature, "MaxInfiltration", float),
+                    get_feature_value(feature, self.nameSoil, str), 
+                    scenario_id,  #Use the latest ScenarioId
+                    get_feature_value(feature, "TotalPoreVolume", float),
+                    get_feature_value(feature, "WiltingPoint", float)
+                ))
+
+            conn.commit()
             conn.close()
 
-            #Check if there are differences in the sub-basins of layer and DB
-            if subbasins == db_subbasins:
-                return True
-            else:
-                missing_in_layer = db_subbasins - subbasins
-                missing_in_db = subbasins - db_subbasins
+            '''
+                LNZ
+            '''
 
-                if missing_in_layer:
-                    self.log_to_qtalsim_tab(f"The following sub-basins are in the database but missing in the layer: {', '.join(missing_in_layer)}", Qgis.Critical)
-                if missing_in_db:
-                    self.log_to_qtalsim_tab(f"The following sub-basins are in the layer but missing in the database: {', '.join(missing_in_db)}", Qgis.Critical)
-                return False
+            conn = sqlite3.connect(self.file_path_db)
+            cur = conn.cursor()
 
-        #Get selected Scenario ID from the combobox
-        scenario_id = self.dlg.comboboxScenarios.currentData()
-        
-        check_and_delete_existing_data() #Check if there is data in the relevant tables
+            clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
+            orderby = QgsFeatureRequest.OrderBy([clause])
+            request = QgsFeatureRequest()
+            request.setOrderBy(orderby)
 
-        #Connect to DB
-        conn = sqlite3.connect(self.file_path_db)
-        cur = conn.cursor()
+            # Retrieve sorted features
+            features = self.landuseFinal.getFeatures(request)
 
-        clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
-        orderby = QgsFeatureRequest.OrderBy([clause])
+            for feature in features:
+                cur.execute("""
+                    INSERT INTO Landuse (
+                        Id, BulkDensityChange, Name, KcCoeffAnnualPatternId, KyYieldAnnualPatternId,
+                        LeafAreaIndex, LeafAreaIndexAnnualPatternId, PlantCoverage, PlantCoverageAnnualPatternId, 
+                        RootDepth, RootDepthAnnualPatternId, RoughnessCoefficient, ScenarioId, pTAW
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    safe_cast(feature["Id"], int), 
+                    get_feature_value(feature, "BulkDensityChange", int),
+                    get_feature_value(feature, "Name", str),  
+                    get_feature_value(feature, "KcCoeffAnnualPatternId", int),
+                    get_feature_value(feature, "KyYieldAnnualPatternId", int),
+                    get_feature_value(feature, "LeafAreaIndex", float),
+                    get_feature_value(feature, "LeafAreaIndexAnnualPatternId", int),
+                    get_feature_value(feature, "PlantCoverage", float),
+                    get_feature_value(feature, "PlantCoverageAnnualPatternId", int),
+                    get_feature_value(feature, "RootDepth", float),
+                    get_feature_value(feature, "RootDepthAnnualPatternId", int),
+                    get_feature_value(feature, "RoughnessCoefficient", float),
+                    scenario_id,
+                    get_feature_value(feature, "pTAW", float) if get_feature_value(feature, "pTAW", float) is not None else 0.5
+                ))
 
-        request = QgsFeatureRequest()
-        request.setOrderBy(orderby)
+            conn.commit()
+            conn.close()
 
-        features = self.soilTypeFinal.getFeatures(request)
+            '''
+                EFL
+            '''
+            conn = sqlite3.connect(self.file_path_db)
+            cur = conn.cursor()
 
-        for feature in features:
-            cur.execute("""
-                INSERT INTO SoilType (
-                    Id, Name, LayerThickness1, SoilTextureId1, LayerThickness2, SoilTextureId2, 
-                    LayerThickness3, SoilTextureId3, LayerThickness4, SoilTextureId4, 
-                    LayerThickness5, SoilTextureId5, LayerThickness6, SoilTextureId6, ScenarioId
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                get_feature_value(feature, "Id", int),
-                get_feature_value(feature, "Description", str), 
-                get_feature_value(feature, f"soillayer1_{self.soilTypeThickness}", float),
-                get_feature_value(feature, "soillayer1_id_boa", int),
-                get_feature_value(feature, f"soillayer2_{self.soilTypeThickness}", float),
-                get_feature_value(feature, "soillayer2_id_boa", int),
-                get_feature_value(feature, f"soillayer3_{self.soilTypeThickness}", float),
-                get_feature_value(feature, "soillayer3_id_boa", int),
-                get_feature_value(feature, f"soillayer4_{self.soilTypeThickness}", float),
-                get_feature_value(feature, "soillayer4_id_boa", int),
-                get_feature_value(feature, f"soillayer5_{self.soilTypeThickness}", float),
-                get_feature_value(feature, "soillayer5_id_boa", int),
-                get_feature_value(feature, f"soillayer6_{self.soilTypeThickness}", float),
-                get_feature_value(feature, "soillayer6_id_boa", int),
-                scenario_id
-            ))
+            # Define sorting order (ascending by subBasinUI)
+            clause = QgsFeatureRequest.OrderByClause(self.subBasinUI, ascending=True)
+            orderby = QgsFeatureRequest.OrderBy([clause])
+            request = QgsFeatureRequest()
+            request.setOrderBy(orderby)
 
-        conn.commit()
-        conn.close()
+            #Retrieve sorted features
+            features = self.eflLayer.getFeatures(request)
 
-        '''
-            SoilTexture
-        '''
-        conn = sqlite3.connect(self.file_path_db)
-        cur = conn.cursor()
+            calculation_order_index = 1
+            last_subbasin_ui = None
+            #Loop through features and insert directly
+            for feature in features:
+                
+                #Get the SystemElementId from the SystemElement table
+                subBasinUI = feature[self.subBasinUI]
 
-        clause = QgsFeatureRequest.OrderByClause('ID_Soil', ascending=True)
-        orderby = QgsFeatureRequest.OrderBy([clause])
-        request = QgsFeatureRequest()
-        request.setOrderBy(orderby)
+                cur.execute("SELECT Id FROM SystemElement WHERE (ElementTypeCharacter || ElementIdentifier) = ?", (subBasinUI,))
+                result = cur.fetchone()
+                systemElementId = result[0]
 
-        # Retrieve sorted features
-        features = self.soilTextureFinal.getFeatures(request)
+                if last_subbasin_ui is None or subBasinUI != last_subbasin_ui:
+                    calculation_order_index = 1
+                else:
+                    calculation_order_index += 1
+                #Insert into the HydrologicalResponseUnit table
+                cur.execute("""
+                    INSERT INTO HydrologicalResponseUnit (
+                        LandUseId, PercentageShare, Slope, SoilTypeId, SystemElementId, CalculationOrderIndex
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    get_feature_value(feature, self.hruLandUseId, int),
+                    get_feature_value(feature, self.fieldNameAreaEFL, float),
+                    get_feature_value(feature, self.slopeFieldName, float),
+                    get_feature_value(feature, self.hruSoilTypeId, int),
+                    systemElementId,
+                    calculation_order_index
+                ))
 
-        # Loop through features and insert directly
-        for feature in features:
-            cur.execute("""
-                INSERT INTO SoilTexture (
-                    Id, BulkDensityClass, FieldCapacity, KfValue, MaxCapillarySuction,
-                    MaxInfiltration, Name, ScenarioId, TotalPoreVolume, WiltingPoint
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                get_feature_value(feature, "ID_Soil", int),
-                get_feature_value(feature, "BulkDensityClass", int),
-                get_feature_value(feature, "FieldCapacity", float),
-                get_feature_value(feature, "KfValue", float),
-                get_feature_value(feature, "MaxCapillarySuction", float),
-                get_feature_value(feature, "MaxInfiltration", float),
-                get_feature_value(feature, self.nameSoil, str), 
-                scenario_id,  #Use the latest ScenarioId
-                get_feature_value(feature, "TotalPoreVolume", float),
-                get_feature_value(feature, "WiltingPoint", float)
-            ))
-
-        conn.commit()
-        conn.close()
-
-        '''
-            LNZ
-        '''
-
-        conn = sqlite3.connect(self.file_path_db)
-        cur = conn.cursor()
-
-        clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
-        orderby = QgsFeatureRequest.OrderBy([clause])
-        request = QgsFeatureRequest()
-        request.setOrderBy(orderby)
-
-        # Retrieve sorted features
-        features = self.landuseFinal.getFeatures(request)
-
-        for feature in features:
-            cur.execute("""
-                INSERT INTO Landuse (
-                    Id, BulkDensityChange, Name, KcCoeffAnnualPatternId, KyYieldAnnualPatternId,
-                    LeafAreaIndex, LeafAreaIndexAnnualPatternId, PlantCoverage, PlantCoverageAnnualPatternId, 
-                    RootDepth, RootDepthAnnualPatternId, RoughnessCoefficient, ScenarioId, pTAW
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                safe_cast(feature["Id"], int), 
-                get_feature_value(feature, "BulkDensityChange", int),
-                get_feature_value(feature, "Name", str),  
-                get_feature_value(feature, "KcCoeffAnnualPatternId", int),
-                get_feature_value(feature, "KyYieldAnnualPatternId", int),
-                get_feature_value(feature, "LeafAreaIndex", float),
-                get_feature_value(feature, "LeafAreaIndexAnnualPatternId", int),
-                get_feature_value(feature, "PlantCoverage", float),
-                get_feature_value(feature, "PlantCoverageAnnualPatternId", int),
-                get_feature_value(feature, "RootDepth", float),
-                get_feature_value(feature, "RootDepthAnnualPatternId", int),
-                get_feature_value(feature, "RoughnessCoefficient", float),
-                scenario_id,
-                get_feature_value(feature, "pTAW", float) if get_feature_value(feature, "pTAW", float) is not None else 0.5
-            ))
-
-        conn.commit()
-        conn.close()
-
-        '''
-            EFL
-        '''
-        conn = sqlite3.connect(self.file_path_db)
-        cur = conn.cursor()
-
-        # Define sorting order (ascending by subBasinUI)
-        clause = QgsFeatureRequest.OrderByClause(self.subBasinUI, ascending=True)
-        orderby = QgsFeatureRequest.OrderBy([clause])
-        request = QgsFeatureRequest()
-        request.setOrderBy(orderby)
-
-        #Retrieve sorted features
-        features = self.eflLayer.getFeatures(request)
-
-        calculation_order_index = 1
-        last_subbasin_ui = None
-        #Loop through features and insert directly
-        for feature in features:
+                last_subbasin_ui = subBasinUI
             
-            #Get the SystemElementId from the SystemElement table
-            subBasinUI = feature[self.subBasinUI]
+            conn.commit()
+            conn.close()
 
-            cur.execute("SELECT Id FROM SystemElement WHERE (ElementTypeCharacter || ElementIdentifier) = ?", (subBasinUI,))
-            result = cur.fetchone()
-            systemElementId = result[0]
-
-            if last_subbasin_ui is None or subBasinUI != last_subbasin_ui:
-                calculation_order_index = 1
-            else:
-                calculation_order_index += 1
-            #Insert into the HydrologicalResponseUnit table
-            cur.execute("""
-                INSERT INTO HydrologicalResponseUnit (
-                    LandUseId, PercentageShare, Slope, SoilTypeId, SystemElementId, CalculationOrderIndex
-                )
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                get_feature_value(feature, self.hruLandUseId, int),
-                get_feature_value(feature, self.fieldNameAreaEFL, float),
-                get_feature_value(feature, self.slopeFieldName, float),
-                get_feature_value(feature, self.hruSoilTypeId, int),
-                systemElementId,
-                calculation_order_index
-            ))
-
-            last_subbasin_ui = subBasinUI
+            current_text_groupbox = self.dlg.groupboxASCIIExport.title()
+            if "✓" not in current_text_groupbox:  #Avoid duplicate checkmarks
+                self.dlg.groupboxASCIIExport.setTitle(f"{current_text_groupbox} ✓")
+            self.log_to_qtalsim_tab(f"Data was exported to the Talsim Database: {self.file_path_db}", Qgis.Info)
         
-        conn.commit()
-        conn.close()
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"Error: {e}", Qgis.Critical)
 
-        self.log_to_qtalsim_tab(f"Data was exported to the Talsim Database: {self.file_path_db}", Qgis.Info)
+        finally:
+            self.end_operation()
 
     def saveFiles(self):
         '''
-            Saves all layers to files
+            Saves all layers to files.
         '''
         try:
             geopackage_name, ok = QInputDialog.getText(None, "GeoPackage Name", "Enter the name of the GeoPackage:")
 
             self.start_operation()
-            self.outputFormat = self.dlg.comboboxOutputFormat.currentText()
-            if self.dlg.groupboxDBExport.isChecked(): # or self.outputFormat == "SQLite-Export (Talsim NG5)"
+
+            if self.dlg.groupboxDBExport.isChecked(): 
                 self.DBExport()
-            if self.dlg.groupboxASCIIExport.isChecked(): #or self.outputFormat == "ASCII-Export (Talsim NG4)"
+            if self.dlg.groupboxASCIIExport.isChecked():
                 self.saveASCII()
 
             #Save Geopackage
@@ -4141,13 +4152,9 @@ class QTalsim:
         self.dlg.comboboxEliminateModes.addItems(['Largest Area', 'Smallest Area','Largest Common Boundary'])
 
         #Outputfile
-        #Output Format
-        self.dlg.comboboxOutputFormat.clear() #clear combobox from previous runs
-        self.dlg.comboboxOutputFormat.addItems(["SQLite-Export (Talsim NG5)", "ASCII-Export (Talsim NG4)"])
-
         self.connectButtontoFunction(self.dlg.onOutputFolder, self.selectOutputFolder) 
         self.connectButtontoFunction(self.dlg.onInputDB, self.selectInputDB) 
-        self.connectButtontoFunction(self.dlg.onExportASCII, self.saveASCII)
+
         #show the dialog
         self.dlg.show()
 
@@ -4155,11 +4162,13 @@ class QTalsim:
         result = self.dlg.exec_()
         if self.dialog_status == 'Reset':
             return
+
         #See if OK was pressed
+        '''
         if result:
-            '''
+            
                 Saving to Geopackage.
-            '''
+            
             try:
                 geopackage_name, ok = QInputDialog.getText(None, "GeoPackage Name", "Enter the name of the GeoPackage:")
                 self.geopackage_path = os.path.join(self.outputFolder, f"{geopackage_name}.gpkg")
@@ -4197,7 +4206,7 @@ class QTalsim:
 
             finally:
                 self.end_operation()
-
+        '''
 
     def open_sql_connect_dock(self):
         '''
