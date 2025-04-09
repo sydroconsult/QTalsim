@@ -904,7 +904,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         nodata_value = -9999 #Qgis interprets this as nodata
         #Get dimensions
         rows, cols = array.shape
-
+        print(rows,cols)
         #Create an in-memory GDAL dataset with the correct dimensions
         driver = gdal.GetDriverByName('MEM')
         dataset = driver.Create('', cols, rows, 1, gdal.GDT_Float32)
@@ -980,9 +980,9 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         err = gdal.Polygonize(band, None, temp_layer, field_index, [], callback=None)
         if err != 0:
             self.log_to_qtalsim_tab("Polygonization failed with error code:", Qgis.Critical)
-
+        
         #Check if polygons were created
-        if temp_layer.GetFeatureCount() == 0:
+        if temp_layer.GetFeatureCount() == 0 or temp_layer.GetGeomType() != ogr.wkbPolygon:
             self.log_to_qtalsim_tab("No features created by Polygonize.", Qgis.Critical)
 
         #Delete no data polygons
@@ -996,7 +996,6 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         result_layer = QgsVectorLayer(f"{output_gpkg}|layername={layer_name}", f"{layer_name}", "ogr")
         result_layer,_ = self.make_geometries_valid(result_layer)
         self.log_to_qtalsim_tab(f"Successfully created layer {layer_name}", Qgis.Info)
-
         return result_layer, layer_name
     
     def soilMapping(self):
@@ -1097,23 +1096,20 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.log_to_qtalsim_tab(f"Further processing layer {layer_name}...", Qgis.Info)
 
                 #Populate the "soil_type" field based on talsim_soilid
-                request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
                 with edit(result_layer):
-                    for feature in result_layer.getFeatures(request):
+                    for feature in result_layer.getFeatures(QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)):
+                        fid = feature.id()
                         talsim_soilid = feature['talsim_soilid'] 
                         soil_type = get_soil_type_by_id(int(talsim_soilid))
-                        feature[self.fieldNameSoilType] = soil_type
+                        result_layer.changeAttributeValue(fid, result_layer.fields().indexFromName(self.fieldNameSoilType), soil_type)
 
-                        #Add layer thickness as parameter
-                        match = re.search(r'(\d+)[-_](\d+)cm', layer_name) #retrieve the layer thickness from the layername
+                        match = re.search(r'(\d+)[-_](\d+)cm', layer_name)
                         if match:
-                            lower_depth_cm = int(match.group(1))  #Lower bound of depth (in cm)
-                            upper_depth_cm = int(match.group(2))  #Upper bound of depth (in cm)
-                            thickness_m = round(upper_depth_cm/100 - lower_depth_cm/100,4)
-                            feature['layer_thickness'] = float(thickness_m)
-
-                        result_layer.updateFeature(feature)
-                
+                            lower_depth_cm = int(match.group(1))
+                            upper_depth_cm = int(match.group(2))
+                            thickness_m = round(upper_depth_cm / 100 - lower_depth_cm / 100, 4)
+                            result_layer.changeAttributeValue(fid, result_layer.fields().indexFromName('layer_thickness'), float(thickness_m))
+                    
                 result_layer.setName(layer_name)
                 self.soilTypeLayers.append(result_layer)
 
