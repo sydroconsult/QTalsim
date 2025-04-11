@@ -1,5 +1,5 @@
 ================
-Land use Mapping
+Land use mapping
 ================
 
    This plugin feature offers the functionality to map land use data to Talsim land use categories. Currently, only the mapping of ATKIS land use data is implemented. 

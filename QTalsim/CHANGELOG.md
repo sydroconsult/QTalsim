@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.6.3] - Planned
+- New feature - Land use Mapping
+  - Plugin feature to map ATKIS land use data to Talsim land use categories
+  - Output layer can be used as input to HRU calculation
+
+- Enhancement
+  - HRU Calculation
+    - Implemented possibility to export to Talsim DB (#18)
+    - Enhance Performance
+    - Very small HRUs (< 0.001%) are deleted (#19)
+    - Updated LNZ file output Format to v2.1 (#21)
+    - Styling: Deleted deprecated buttons and updated export format
+  - Sub-basins preprocessing
+    - Implemented possibility to export to Talsim DB (#18)
+    - Styling: Deleted deprecated buttons and updated export format
+
+- Fixes
+  - HRU Calculation
+    - Clipping layers does not lead to errors if geometries are invalid
+    - Updated land use parameter "RootDepthMonthlyPatternId" to "RootDepthAnnualPatternId" (#20)
+  - Sub-basins preprocessing
+    - LongestFlowPath now works correctly with QGIS 3.40 (fixes #22)
+
 ## [1.6.2] - 2024-12-06
 - Enhancement
   - ISRIC Soil Type Converter

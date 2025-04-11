@@ -1,5 +1,8 @@
 ﻿ATKIS-Bezeichnung;Codes;Beschreibung/Bemerkung;Layer;Talsim Landnutzung;Code-Spalte
-AX_SportFreizeitUndErholungsflaeche;leer;;sie02_f;?;FKT
+AX_SportFreizeitUndErholungsflaeche;leer;Wenn AX_SportFreizeitUndErholungsflaeche Code fehlt dann eintragen als ParkanlagenUndObstplantagen;sie02_f;ParkanlagenUndObstplantagen;FKT
+AX_Landwirtschaft;leer;;veg01_f;Ackerland;VEG
+AX_Wald;leer;;veg02_f;Mischwald;VEG
+AX_Strassenverkehr;leer;;ver01_f;Strassenverkehr;FKT
 AX_Landwirtschaft;1010;Ackerland;veg01_f;Ackerland;VEG
 AX_Landwirtschaft;1012;Hopfen;veg01_f;Ackerland;VEG
 AX_Landwirtschaft;1013;Spargel;veg01_f;Ackerland;VEG
@@ -107,7 +110,6 @@ AX_SportFreizeitUndErholungsflaeche;1200;Parken;sie02_f;Strassenverkehr;FKT
 AX_SportFreizeitUndErholungsflaeche;4270;Verkehrsübungsplatz, Testgelände, Fahrsicherheit;sie02_f;Strassenverkehr;FKT
 AX_SportFreizeitUndErholungsflaeche;4290;Modellflugplatz;sie02_f;Strassenverkehr;FKT
 AX_SportFreizeitUndErholungsflaeche;4295;Gelände für Luftsportgeräte;sie02_f;Strassenverkehr;FKT
-AX_Strassenverkehr;-;Verkehrsbegleitfläche Straße werden zu ParkanlagenUndObstplantagen zugeordnet, alle anderen AX_Strassenverkehr-Polygone zu Strassenverkehr;ver01_f;Strassenverkehr;
 AX_Sumpf;-;wassergesättigtes, zeitweise unter Wasser stehendes Gelände. Nach Regenfällen kurzzeitig nasse Stellen im Boden werden nicht als 'Sumpf' erfasst;veg03_f;Sumpf;
 AX_Bergbaubetrieb;-;Abgebautes Material als zusätzliche Information;sie02_f;Vegetationslos;
 AX_Halde;-;;sie02_f;Vegetationslos;

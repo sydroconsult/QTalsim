@@ -3218,7 +3218,6 @@ class QTalsim:
             self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
 
             self.dlg.finalButtonBox.button(QDialogButtonBox.Save).setEnabled(True)
-            self.dlg.finalButtonBox.button(QDialogButtonBox.Ok).setEnabled(True)
             #Add checkmark when process is finished
             current_text = self.dlg.onPerformIntersect.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
@@ -3695,7 +3694,7 @@ class QTalsim:
                     if missing_in_layer:
                         self.log_to_qtalsim_tab(f"The following sub-basins are in the database but missing in the layer: {', '.join(missing_in_layer)}", Qgis.Critical)
                     if missing_in_db:
-                        self.log_to_qtalsim_tab(f"The following sub-basins are in the layer but missing in the database: {', '.join(missing_in_db)}", Qgis.Critical)
+                        self.log_to_qtalsim_tab(f"The following sub-basins are in the layer but missing in the database: {', '.join(missing_in_db)}. Therefore, the HRUs cannot be inserted in DB.", Qgis.Critical)
                     return False
 
             #Get selected Scenario ID from the combobox
@@ -3703,7 +3702,7 @@ class QTalsim:
             
             check_and_delete_existing_data(scenario_id) #Check if there is data in the relevant tables
             check_subbasins()
-            
+
             #Connect to DB
             conn = sqlite3.connect(self.file_path_db)
             cur = conn.cursor()
@@ -3756,20 +3755,21 @@ class QTalsim:
             request = QgsFeatureRequest()
             request.setOrderBy(orderby)
 
-            # Retrieve sorted features
+            #Retrieve sorted features
             features = self.soilTextureFinal.getFeatures(request)
 
-            # Loop through features and insert directly
+            #Loop through features and insert directly
             for feature in features:
                 cur.execute("""
                     INSERT INTO SoilTexture (
-                        Id, BulkDensityClass, FieldCapacity, KfValue, MaxCapillarySuction,
+                        Id, BulkDensityClass, Category, FieldCapacity, KfValue, MaxCapillarySuction,
                         MaxInfiltration, Name, ScenarioId, TotalPoreVolume, WiltingPoint
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     get_feature_value(feature, "ID_Soil", int),
                     get_feature_value(feature, "BulkDensityClass", int),
+                    get_feature_value(feature, "Category", int),
                     get_feature_value(feature, "FieldCapacity", float),
                     get_feature_value(feature, "KfValue", float),
                     get_feature_value(feature, "MaxCapillarySuction", float),
@@ -3782,6 +3782,7 @@ class QTalsim:
 
             conn.commit()
             conn.close()
+            self.log_to_qtalsim_tab(f"Finished inserting spil data into Talsim DB", Qgis.Info)
 
             '''
                 LNZ
@@ -3795,7 +3796,7 @@ class QTalsim:
             request = QgsFeatureRequest()
             request.setOrderBy(orderby)
 
-            # Retrieve sorted features
+            #Retrieve sorted features
             features = self.landuseFinal.getFeatures(request)
 
             for feature in features:
@@ -3825,6 +3826,7 @@ class QTalsim:
 
             conn.commit()
             conn.close()
+            self.log_to_qtalsim_tab(f"Finished inserting land use data into Talsim DB", Qgis.Info)
 
             '''
                 EFL
@@ -3832,7 +3834,7 @@ class QTalsim:
             conn = sqlite3.connect(self.file_path_db)
             cur = conn.cursor()
 
-            # Define sorting order (ascending by subBasinUI)
+            #Define sorting order (ascending by subBasinUI)
             clause = QgsFeatureRequest.OrderByClause(self.subBasinUI, ascending=True)
             orderby = QgsFeatureRequest.OrderBy([clause])
             request = QgsFeatureRequest()
@@ -3876,11 +3878,12 @@ class QTalsim:
             
             conn.commit()
             conn.close()
+            self.log_to_qtalsim_tab(f"Finished inserting HRUs into Talsim DB", Qgis.Info)
 
             current_text_groupbox = self.dlg.groupboxASCIIExport.title()
             if "✓" not in current_text_groupbox:  #Avoid duplicate checkmarks
                 self.dlg.groupboxASCIIExport.setTitle(f"{current_text_groupbox} ✓")
-            self.log_to_qtalsim_tab(f"Data was exported to the Talsim Database: {self.file_path_db}", Qgis.Info)
+            self.log_to_qtalsim_tab(f"All Data was exported to the Talsim Database: {self.file_path_db}", Qgis.Info)
         
         except Exception as e:
             self.log_to_qtalsim_tab(f"Error: {e}", Qgis.Critical)
@@ -3994,7 +3997,7 @@ class QTalsim:
         for group_box in group_boxes:
             groupbox_title = group_box.title()
             if groupbox_title.endswith("✓"):
-                group_box.setTitle(current_text[:-1])
+                group_box.setTitle(groupbox_title[:-1])
 
         #Disable group boxes
         self.dlg.groupboxIntersect.setEnabled(False)
@@ -4003,6 +4006,10 @@ class QTalsim:
         self.dlg.soilGroupBox.setEnabled(False)
         self.dlg.landuseGroupBox.setEnabled(False)
         self.dlg.groupboxSoilOptional.setEnabled(False)
+
+        self.dlg.groupboxASCIIExport.setChecked(False)
+
+        self.dlg.groupboxDBExport.setChecked(False)
 
         #Clear Boxes
         self.dlg.comboboxUICatchment.clear()
@@ -4083,14 +4090,12 @@ class QTalsim:
             self.dlg.onCreateSoilLayer.setVisible(False)
             #self.dlg.onLanduseConfirm2.setVisible(False)
             self.dlg.onCreateLanduseLayer.setVisible(False)
-            self.dlg.finalButtonBox.button(QDialogButtonBox.Ok).setEnabled(False)
             self.dlg.finalButtonBox.button(QDialogButtonBox.Save).setEnabled(False)
         self.dlg.progressBar.setVisible(False)
 
         #Translating the buttons to English for consistency
         if self.dlg.finalButtonBox:
             #Set button texts in English
-            self.dlg.finalButtonBox.button(QDialogButtonBox.Ok).setText('OK')
             self.dlg.finalButtonBox.button(QDialogButtonBox.Save).setText('Save')
             self.dlg.finalButtonBox.button(QDialogButtonBox.Cancel).setText('Cancel')
             self.dlg.finalButtonBox.button(QDialogButtonBox.Reset).setText('Reset')

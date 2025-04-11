@@ -46,6 +46,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.landuseLayer = None
         self.merged_layer = None
+        self.clippedLayer = None
         list_layers = ['sie02_f', 'ver01_f', 'ver03_f', 'ver04_f', 'ver05_f', 'gew01_f', 'veg01_f', 'veg02_f', 'veg03_f']
     
     def openDocumentation(self):
@@ -97,6 +98,9 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.outputPath.setText(full_path)
 
     def mergeAndClip(self):
+        '''
+            Function to merge the shapefiles in the input folder and optionally clip them with the selected layer.
+        '''
         try:
             valid_layers = self.dfLanduseAssignmentTalsim[
                 self.dfLanduseAssignmentTalsim["Talsim Landnutzung"].str.lower() != "löschen"
@@ -167,6 +171,9 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         
         
     def landuseMapping(self):
+        '''
+            Function to perform the land use mapping process.
+        '''
         try:
             self.start_operation()
             self.log_to_qtalsim_tab("Starting land use mapping", Qgis.Info)
@@ -174,8 +181,10 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             self.atkisToTalsimMapping()
             self.exportGeopackage()
             self.log_to_qtalsim_tab("Land use mapping finished", Qgis.Info)
+
         except Exception as e:
             self.log_to_qtalsim_tab("Error during land use mapping: " + str(e), Qgis.Critical)
+
         finally:
             self.end_operation()
 
@@ -183,14 +192,13 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
             Function to map the ATKIS landuse to Talsim land use
         '''
-
-        #Mapping of ATKIS landuse to Talsim landuse
-        if 'OBJART_NEU' not in [f.name() for f in self.landuseLayer.fields()]:
-            self.landuseLayer.dataProvider().addAttributes([QgsField('OBJART_NEU', QVariant.String)])
-            self.landuseLayer.updateFields()
         mapping = {}
         deleted_matches = []
+        objart_to_codevals = {}
 
+        dissolve_fields = []
+        #Store the data of the csv in a dictionary
+        #Key: (ATKIS-Bezeichnung, Code-Spalte, Code) -> Value: Talsim Landnutzung
         for _, row in self.dfLanduseAssignmentTalsim.iterrows():
             objart = row["ATKIS-Bezeichnung"]
             code_column = row["Code-Spalte"]
@@ -203,7 +211,26 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             key = (objart, code_column, code_value)
             mapping[key] = talsim_landuse
 
-        # Start editing the layer
+            if objart not in objart_to_codevals:
+                objart_to_codevals[objart] = set()
+            objart_to_codevals[objart].add(code_value)
+
+            if code_column not in dissolve_fields and pd.notna(code_column):
+                dissolve_fields.append(code_column)
+            
+        dissolve_fields.append("OBJART_TXT")
+        #Dissolve the merged layer to make the looping faster
+        self.landuseLayer = processing.run("native:dissolve", {
+            'INPUT': self.landuseLayer,
+            'FIELD': dissolve_fields,
+            'SEPARATE_DISJOINT': False,
+            'OUTPUT': 'TEMPORARY_OUTPUT'
+        })['OUTPUT']
+
+        if 'OBJART_NEU' not in [f.name() for f in self.landuseLayer.fields()]:
+            self.landuseLayer.dataProvider().addAttributes([QgsField('OBJART_NEU', QVariant.String)])
+            self.landuseLayer.updateFields()
+        
         self.landuseLayer.startEditing()
 
         for feature in self.landuseLayer.getFeatures():
@@ -214,24 +241,45 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             for key, landuse in mapping.items():
                 objart, code_col, code_val = key
 
+                #Check if the land use of the feature matches the land use of the csv
                 if objart_txt != objart:
                     continue
 
                 #Check if feature has the code column
                 if pd.notna(code_col) and code_col not in feature.fields().names():
                     continue
-
-                #If code is "-", ignore the code check
+                
+                #1. All land uses with code '-' are assigned to the land use in the csv, as they do not have subcategories
                 if code_val == "-":
                     feature["OBJART_NEU"] = landuse
                     matched = True
                     break
 
-                #Match by code value
+                
                 feature_code = feature[code_col]
-                if pd.isna(feature_code):
-                    continue
 
+                #2. If there is no code and the code in the csv is 'leer', assign this land use of the csv (where code_val = 'leer')
+                    #e.g. relevant for AX_SportFreizeitUndErholungsflaeche which often has subcategories but it is also possible that code is empty
+                if str(feature_code).strip().upper() == 'NULL' or feature_code is None or pd.isna(feature_code): #if there is no code 
+                    if code_val == 'leer': #assign the value where this objart is "leer"
+                        feature["OBJART_NEU"] = landuse
+                        matched = True
+                        break
+                    else:
+                        continue
+                
+                #3. If the code of the layer is not known, assign the land use where code = 'leer'
+                if objart in objart_to_codevals:
+                    if feature_code not in objart_to_codevals[objart]:
+                        if code_val == 'leer':
+                            feature["OBJART_NEU"] = landuse
+                            matched = True
+                            self.log_to_qtalsim_tab(f"Could not find the code {feature_code} and assigned ATKIS land use {objart_txt} with code {feature_code} to Talsim land use {landuse}.", Qgis.Warning)
+                            break
+                        else:
+                            continue
+                
+                #4. If there is a known code and it matches with the code-value of the feature
                 if str(feature_code) == str(code_val):
                     feature["OBJART_NEU"] = landuse
                     matched = True
@@ -245,9 +293,12 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             self.landuseLayer.updateFeature(feature)
         
         self.landuseLayer.commitChanges()
-
+        self.log_to_qtalsim_tab("ATKIS land use mapping completed", Qgis.Info)
+    
     def exportGeopackage(self):
-
+        '''
+            Function to export the landuse layer to a GeoPackage.
+        '''
         #gpkgOutputPath = os.path.join(self.outputFolder, self.gpkg_name)
         options = QgsVectorFileWriter.SaveVectorOptions()
         options.driverName = "GPKG"
