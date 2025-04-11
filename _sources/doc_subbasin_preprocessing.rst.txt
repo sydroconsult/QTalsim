@@ -27,30 +27,18 @@ Prerequisites
 Executing the Plugin
 ^^^^^^^^^^^^^^^^^^^^
    
-   After installing WhiteboxTools, you can run the plugin.
+   After installing WhiteboxTools, you can run the plugin. 
 
 Select Layers
 -------------
 
    -  Choose the correct polygon layer for the sub-basin layer.
    -  Select the field that contains the unique identifier for the sub-basins.
-   -  Select the DEM layer (raster layer) and the water network layer (line layer).
+   -  Select the field that contains the names of the sub-basins.
+   -  Select the DEM layer (raster layer) and the water network layer (line layer). The water network layer is only necessary for calculating LFP. 
    -  Optional: Select a layer containing impervious areas (`Example data set <https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862>`__). 
       
       -  Values should be expressed as percentages
-
-Output
-------
-
-   -  When choosing the output folder, it is recommended to use a folder that does not contain any spatial files, as using the same file names can lead to issues.
-   -  Optional: Choose ASCII-Output to input a filename for the .EZG-ASCII-file.
-   -  Output Parameters:
-
-      -  Area of sub-basin in hectares [ha].
-      -  Optional: Average impervious area in the sub-basin [%] (=field 'Imp_mean').
-      -  Maximum height in sub-basin [MASL].
-      -  Minimum height in sub-basin [MASL].
-      -  Longest flow path [m] (=field 'Length'). 
 
 Calculation of LongestFlowPath
 ------------------------------
@@ -59,6 +47,23 @@ Calculation of LongestFlowPath
    It then applies Whitebox' "FillDepressionsWangAndLiu" tool to fill any sinks in the DEM. After this the plugin uses WhiteboxTools' "LongestFlowPath" (LFP) to generate the longest flowpath for each sub-basin. To address an issue with LFP creating disconnected flowpaths across different sub-basins (see details `here <https://github.com/jblindsay/whitebox-tools/issues/289>`__), the plugin processes each sub-basin individually, generating the LFP for each one separately. Finally, the plugin saves the correct LFP for each sub-basin and merges them into a single layer.
    
    The final LFP layer is added to the current QGIS project and saved to the specified output folder. Additionally, the burned and filled DEM layer is also saved and added to the current project.
+
+Output
+------
+
+   -  When choosing the output folder, it is recommended to use a folder that does not contain any spatial files, as using the same file names can lead to issues.
+   -  Select ASCII-Export and/or SQLite-Export
+   -  ASCII-Export: Choose ASCII-Output to input a filename for the .EZG-ASCII-file.
+   -  SQLite-Export: Insert names for scenario and database. 
+   -  Output Parameters:
+
+      -  Area of sub-basin in hectares [ha].
+      -  Optional: Average impervious area in the sub-basin [%] (=field 'Imp_mean').
+      -  Maximum height in sub-basin [MASL].
+      -  Minimum height in sub-basin [MASL].
+      -  Optional (if calculated): Longest flow path [m] (=field 'Length'). 
+
+
 
    |Screenshot Sub-basin preprocessing|
 

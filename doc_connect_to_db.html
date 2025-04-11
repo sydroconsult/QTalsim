@@ -45,36 +45,34 @@
 <blockquote>
 <div><blockquote>
 <div><p>The second functionality of QTalsim allows users to connect to a Talsim Database, load system elements, sub-basins, outflows and transport reaches.
-Moreover, users can edit all existing system-elements and the geometries of sub-basins and transport reaches. It is also possible to import sub-basins and transport reaches from       external layers.</p>
+Moreover, users can edit all existing system-elements and the geometries of sub-basins and transport reaches. It is also possible to import sub-basins and transport reaches from         external layers.</p>
 </div></blockquote>
-<p><img alt="DB Connection Overview" src="_images/db_connectionOverview.png" /></p>
+<p><a class="reference external" href="qtalsim_screenshots/db_connectionOverview.png"><img alt="DB Connection Overview" src="_images/db_connectionOverview.png" /></a></p>
 </div></blockquote>
 <section id="id1">
 <h2>Connect to Talsim DB<a class="headerlink" href="#id1" title="Permalink to this heading">¶</a></h2>
 <blockquote id="getting-started">
 <div><p>The first step involves connecting to a Talsim SQLite Database. By clicking “Select Database,” you can browse and select the Talsim Database. Note that all geometries must be in the CRS WGS84 (EPSG 4326).</p>
-<p>The next step requires selecting a scenario from the list and confirming this scenario by clicking “Confirm Scenario and load Layers”.
-As a result, the System Elements, Outflows, TransportReaches and Sub-basins are added to a layer group (named after the scenario) in the active QGIS-Project.
-The SystemElement-layer contains all system elements, located based on longitude and latitude attributes. The Sub-basins layer contains the polygons of all
-sub-basins in the Talsim DB, while TransportReach contains all lines of the TransportReach as defined by the “Geometry”-column. These three layers can be edited. The Outflows- layer depicts the corresponding lines between the system elements and this layer can not be edited.</p>
+<p>The next step requires selecting a scenario from the list and confirming this scenario by clicking “Confirm Scenario and load Layers”. As a result, the System Elements, Outflows, TransportReaches and Sub-basins are added to a layer group (named after the scenario) in the active QGIS-Project. The SystemElement-layer contains all system elements, located based on longitude and latitude attributes. The Sub-basins layer contains the polygons of all sub-basins in the Talsim DB, while TransportReach contains all lines of the TransportReach as defined by the “Geometry”-column. These three layers can be edited. The Outflows-layer depicts the corresponding lines between the system elements and this layer can not be edited.</p>
 <p>At any stage, you can click the “Reconnect to DB and Reload Layers” button at the bottom to reconnect to the database, e.g., if you wish to inspect changes.</p>
 </div></blockquote>
 </section>
 <section id="edit-features-of-talsim-db">
 <h2>Edit features of Talsim DB<a class="headerlink" href="#edit-features-of-talsim-db" title="Permalink to this heading">¶</a></h2>
 <blockquote id="edit-existing">
-<div><p>The SystemElement, Sub-basins, and TransportReach layers can be edited by the user. All edits, inserts, and deletions made by the user are saved to the connected Talsim DB. As         shown in the screenshot below, the user must select the layer to be edited in the layer group and then click the ‘Toggle Editing’ button to start the editing mode for this layer.</p>
-<p>Using the editing options of QGIS, the user is now able to make any changes to the geometries
-(find further information <a class="reference external" href="https://docs.qgis.org/3.34/en/docs/user_manual/working_with_vector/editing_geometry_attributes.html">here</a>) and to the attributes of these three  layers.</p>
-<p><img alt="Edit Sub-basins" src="_images/db_editSubBasins.png" /></p>
+<div><p>The SystemElement, Sub-basins, and TransportReach layers can be edited by the user. All edits, inserts, and deletions made by the user are saved to the connected Talsim DB. As shown in the screenshot below, the user must select the layer to be edited in the layer group and then click the ‘Toggle Editing’ button to start the editing mode for this layer.</p>
+<p>Using the editing options of QGIS, the user is now able to make any changes to the geometries (find further information <a class="reference external" href="https://docs.qgis.org/3.34/en/docs/user_manual/working_with_vector/editing_geometry_attributes.html">here</a>) and to the attributes of these three      layers.</p>
+<blockquote>
+<div><p><a class="reference external" href="qtalsim_screenshots/db_editSubBasins.png"><img alt="Edit Sub-basins" src="_images/db_editSubBasins.png" /></a></p>
+</div></blockquote>
 </div></blockquote>
 <section id="edit-systemelement-layer">
 <h3>Edit SystemElement Layer<a class="headerlink" href="#edit-systemelement-layer" title="Permalink to this heading">¶</a></h3>
 <blockquote>
-<div><p>The SystemElement layer is a point layer that holds all SystemElements. Users can insert new elements, delete unwanted ones, or update existing elements. To insert new elements,       simply add a new point to the SystemElement layer and then fill in the fields displayed in the prompt. The most critical field to fill in is the ‘Identifier’ field. The first  character of the identifier represents the ElementTypeCharacter of the system element (e.g., A for sub-basins). Therefore, it is essential for users to insert the correct      ElementTypeCharacter here. The remainder of the ‘Identifier’ field serves as the ElementIdentifier. Please note that the element types cannot be changed by this plugin. Changes        of the first character of the ‘Identifier’-field are not saved to the DB. The Id (SystemElementId) is automatically added by the plugin. All other fields are optional and can be       left empty (=’NULL’).</p>
+<div><p>The SystemElement layer is a point layer that holds all SystemElements. Users can insert new elements, delete unwanted ones, or update existing elements. To insert new elements,         simply add a new point to the SystemElement layer and then fill in the fields displayed in the prompt. The most critical field to fill in is the ‘Identifier’ field. The first  character of the identifier represents the ElementTypeCharacter of the system element (e.g., A for sub-basins). Therefore, it is essential for users to insert the correct      ElementTypeCharacter here. The remainder of the ‘Identifier’ field serves as the ElementIdentifier. Please note that the element types cannot be changed by this plugin. Changes        of the first character of the ‘Identifier’-field are not saved to the DB. The Id (SystemElementId) is automatically added by the plugin. All other fields are optional and can be       left empty (=’NULL’).</p>
 <p>Another option is to delete system elements by removing the unwanted point feature.</p>
-<p>Users can also edit existing system elements by either modifying the fields in the attribute table or editing the point geometries. Editing the geometries updates the ‘Latitude’       and ‘Longitude’ columns to reflect the location as defined by the user. Please note that it is not possible to change the element type of system elements.</p>
-<p>It is important to save changes by clicking the ‘Commit Changes’ button. As a result, newly added features are inserted into the database, edited geometries/attributes of      existing features are updated in the database, and deleted features are deleted from the DB. A log message (QTalsim-log) provides details on all updated/inserted/deleted       features.</p>
+<p>Users can also edit existing system elements by either modifying the fields in the attribute table or editing the point geometries. Editing the geometries updates the ‘Latitude’ and ‘Longitude’ columns to reflect the location as defined by the user. Please note that it is not possible to change the element type of system elements.</p>
+<p>It is important to save changes by clicking the ‘Commit Changes’ button. As a result, newly added features are inserted into the database, edited geometries/attributes of existing features are updated in the database, and deleted features are deleted from the DB. A log message (QTalsim-log) provides details on all updated/inserted/deleted features.</p>
 </div></blockquote>
 </section>
 <section id="edit-layers-sub-basins-and-transportreach">
@@ -92,7 +90,7 @@ sub-basins in the Talsim DB, while TransportReach contains all lines of the Tran
 <div><p>An additional feature enables the addition of geometries from an external polygon layer to either insert into existing sub-basins or create new sub-basins in the database. First,      you must select a polygon layer from the list. If the layer’s Coordinate Reference System (CRS) differs from WGS84, it is reprojected to EPSG-code 4326. The layer must include a unique identifier field combining the ‘ElementTypeCharacter’ and the ‘ElementIdentifier’ (e.g., AA001 for a sub-basin). After selecting the unique identifier field from the list,    you may optionally choose other fields that contain various attributes of the sub-basins.</p>
 <p>When these fields are selected, their content is added to the corresponding fields in the database. Another option for updating existing features involves updating the point coordinates (columns ‘Latitude’ and ‘Longitude’) to align with the center of the geometry, which can be done by selecting the appropriate checkbox.</p>
 <p>By clicking ‘Save New/Updated Features in DB,’ all new or updated features with changes in their geometries are saved to the database. Information about these updates and insertions is logged in the QTalsim-log.</p>
-<p><img alt="External layer" src="_images/db_externalLayer.png" /></p>
+<p><a class="reference external" href="qtalsim_screenshots/db_externalLayer.png"><img alt="External layer" src="_images/db_externalLayer.png" /></a></p>
 </div></blockquote>
 </section>
 <section id="external-transportreaches-layer">
@@ -100,14 +98,14 @@ sub-basins in the Talsim DB, while TransportReach contains all lines of the Tran
 <blockquote id="external-transport-reach-layer">
 <div><p>Similarly to inserting external sub-basins, the plugin provides functionality to insert transport reach geometries using the corresponding window-tab. The user selects a line layer containing the transport reaches to be imported from the list of external layers. If required, this layer is reprojected to EPSG 4326. The user can then map input fields to Talsim fields.</p>
 <p>By clicking ‘Save New/Updated Features in DB,’ all new features or features with updated geometries are saved to the database. Once more, information about the updated/inserted        features is logged in the QTalsim-log.</p>
-<p><img alt="External TP Layer" src="_images/db_externalTransportReachLayer.png" /></p>
+<p><a class="reference external" href="qtalsim_screenshots/db_externalTransportReachLayer.png"><img alt="External TP Layer" src="_images/db_externalTransportReachLayer.png" /></a></p>
 </div></blockquote>
 </section>
 <section id="update-coordinates-to-center-of-geometry">
 <h2>Update Coordinates to Center of Geometry<a class="headerlink" href="#update-coordinates-to-center-of-geometry" title="Permalink to this heading">¶</a></h2>
 <blockquote id="update-coordinates">
 <div><p>Another provided feature is the option to update the coordinates of all features that have a geometry (line/polygon) to the center of their respective geometries. This functionality is accessed by clicking the button labeled “Optional: Update Coordinates to Center of Sub-basins.” Upon clicking this button, the plugin calculates the centroid of the geometries and updates all coordinates (columns ‘Latitude’ and ‘Longitude’) with the coordinates of the centroid.</p>
-<p><img alt="Update Coordinates" src="_images/db_updateAllCoordinates.png" /></p>
+<p><a class="reference external" href="qtalsim_screenshots/db_updateAllCoordinates.png"><img alt="Update Coordinates" src="_images/db_updateAllCoordinates.png" /></a></p>
 </div></blockquote>
 </section>
 </section>
@@ -147,13 +145,6 @@ sub-basins in the Talsim DB, while TransportReach contains all lines of the Tran
     <p class="topless"><a href="doc_subbasin_preprocessing.html"
                           title="next chapter">Sub-basins preprocessing</a></p>
   </div>
-  <div role="note" aria-label="source link">
-    <h3>This Page</h3>
-    <ul class="this-page-menu">
-      <li><a href="_sources/doc_connect_to_db.rst.txt"
-            rel="nofollow">Show Source</a></li>
-    </ul>
-   </div>
 <div id="searchbox" style="display: none" role="search">
   <h3 id="searchlabel">Quick search</h3>
     <div class="searchformwrapper">

@@ -2,8 +2,8 @@
 Connect to Talsim DB
 ====================
    
-   	The second functionality of QTalsim allows users to connect to a Talsim Database, load system elements, sub-basins, outflows and transport reaches. 
-   	Moreover, users can edit all existing system-elements and the geometries of sub-basins and transport reaches. It is also possible to import sub-basins and transport reaches from 	external layers.
+      The second functionality of QTalsim allows users to connect to a Talsim Database, load system elements, sub-basins, outflows and transport reaches. 
+      Moreover, users can edit all existing system-elements and the geometries of sub-basins and transport reaches. It is also possible to import sub-basins and transport reaches from 	external layers.
 	
    |DB Connection Overview|
    
@@ -12,36 +12,32 @@ Connect to Talsim DB
 .. _getting-started:
 	
 
-   	The first step involves connecting to a Talsim SQLite Database. By clicking "Select Database," you can browse and select the Talsim Database. Note that all geometries must be in the CRS WGS84 (EPSG 4326).
+      The first step involves connecting to a Talsim SQLite Database. By clicking "Select Database," you can browse and select the Talsim Database. Note that all geometries must be in the CRS WGS84 (EPSG 4326).
 	
-	The next step requires selecting a scenario from the list and confirming this scenario by clicking "Confirm Scenario and load Layers".
-	As a result, the System Elements, Outflows, TransportReaches and Sub-basins are added to a layer group (named after the scenario) in the active QGIS-Project.
-	The SystemElement-layer contains all system elements, located based on longitude and latitude attributes. The Sub-basins layer contains the polygons of all 
-	sub-basins in the Talsim DB, while TransportReach contains all lines of the TransportReach as defined by the "Geometry"-column. These three layers can be edited. The Outflows-	layer depicts the corresponding lines between the system elements and this layer can not be edited.
+      The next step requires selecting a scenario from the list and confirming this scenario by clicking "Confirm Scenario and load Layers". As a result, the System Elements, Outflows, TransportReaches and Sub-basins are added to a layer group (named after the scenario) in the active QGIS-Project. The SystemElement-layer contains all system elements, located based on longitude and latitude attributes. The Sub-basins layer contains the polygons of all sub-basins in the Talsim DB, while TransportReach contains all lines of the TransportReach as defined by the "Geometry"-column. These three layers can be edited. The Outflows-layer depicts the corresponding lines between the system elements and this layer can not be edited.
 	
-	At any stage, you can click the "Reconnect to DB and Reload Layers" button at the bottom to reconnect to the database, e.g., if you wish to inspect changes. 
+      At any stage, you can click the "Reconnect to DB and Reload Layers" button at the bottom to reconnect to the database, e.g., if you wish to inspect changes. 
 	
 Edit features of Talsim DB
 --------------------------
 .. _edit-existing:	
 
-	The SystemElement, Sub-basins, and TransportReach layers can be edited by the user. All edits, inserts, and deletions made by the user are saved to the connected Talsim DB. As 	shown in the screenshot below, the user must select the layer to be edited in the layer group and then click the 'Toggle Editing' button to start the editing mode for this layer.
+      The SystemElement, Sub-basins, and TransportReach layers can be edited by the user. All edits, inserts, and deletions made by the user are saved to the connected Talsim DB. As shown in the screenshot below, the user must select the layer to be edited in the layer group and then click the 'Toggle Editing' button to start the editing mode for this layer.
 
-	Using the editing options of QGIS, the user is now able to make any changes to the geometries
-	(find further information `here <https://docs.qgis.org/3.34/en/docs/user_manual/working_with_vector/editing_geometry_attributes.html>`__) and to the attributes of these three 	layers. 	
+      Using the editing options of QGIS, the user is now able to make any changes to the geometries (find further information `here <https://docs.qgis.org/3.34/en/docs/user_manual/working_with_vector/editing_geometry_attributes.html>`__) and to the attributes of these three 	layers. 	
 	
 	|Edit Sub-basins|
 	
 Edit SystemElement Layer
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-	The SystemElement layer is a point layer that holds all SystemElements. Users can insert new elements, delete unwanted ones, or update existing elements. To insert new elements, 	simply add a new point to the SystemElement layer and then fill in the fields displayed in the prompt. The most critical field to fill in is the 'Identifier' field. The first 	character of the identifier represents the ElementTypeCharacter of the system element (e.g., A for sub-basins). Therefore, it is essential for users to insert the correct 	ElementTypeCharacter here. The remainder of the 'Identifier' field serves as the ElementIdentifier. Please note that the element types cannot be changed by this plugin. Changes 	of the first character of the 'Identifier'-field are not saved to the DB. The Id (SystemElementId) is automatically added by the plugin. All other fields are optional and can be 	left empty (='NULL').
+      The SystemElement layer is a point layer that holds all SystemElements. Users can insert new elements, delete unwanted ones, or update existing elements. To insert new elements, 	simply add a new point to the SystemElement layer and then fill in the fields displayed in the prompt. The most critical field to fill in is the 'Identifier' field. The first 	character of the identifier represents the ElementTypeCharacter of the system element (e.g., A for sub-basins). Therefore, it is essential for users to insert the correct 	ElementTypeCharacter here. The remainder of the 'Identifier' field serves as the ElementIdentifier. Please note that the element types cannot be changed by this plugin. Changes 	of the first character of the 'Identifier'-field are not saved to the DB. The Id (SystemElementId) is automatically added by the plugin. All other fields are optional and can be 	left empty (='NULL').
 
-	Another option is to delete system elements by removing the unwanted point feature.
+      Another option is to delete system elements by removing the unwanted point feature.
 
-	Users can also edit existing system elements by either modifying the fields in the attribute table or editing the point geometries. Editing the geometries updates the 'Latitude' 	and 'Longitude' columns to reflect the location as defined by the user. Please note that it is not possible to change the element type of system elements.
+      Users can also edit existing system elements by either modifying the fields in the attribute table or editing the point geometries. Editing the geometries updates the 'Latitude' and 'Longitude' columns to reflect the location as defined by the user. Please note that it is not possible to change the element type of system elements.
 
-	It is important to save changes by clicking the 'Commit Changes' button. As a result, newly added features are inserted into the database, edited geometries/attributes of 	existing features are updated in the database, and deleted features are deleted from the DB. A log message (QTalsim-log) provides details on all updated/inserted/deleted 	features.
+      It is important to save changes by clicking the 'Commit Changes' button. As a result, newly added features are inserted into the database, edited geometries/attributes of existing features are updated in the database, and deleted features are deleted from the DB. A log message (QTalsim-log) provides details on all updated/inserted/deleted features.
 	
 
 Edit Layers Sub-basins and TransportReach
@@ -86,10 +82,19 @@ Update Coordinates to Center of Geometry
 	|Update Coordinates|
 	
 .. |DB Connection Overview| image:: qtalsim_screenshots/db_connectionOverview.png
+   :target: qtalsim_screenshots/db_connectionOverview.png
+
 .. |Edit Sub-basins| image:: qtalsim_screenshots/db_editSubBasins.png
+   :target: qtalsim_screenshots/db_editSubBasins.png
+
 .. |External layer| image:: qtalsim_screenshots/db_externalLayer.png
+   :target: qtalsim_screenshots/db_externalLayer.png
+
 .. |External TP Layer| image:: qtalsim_screenshots/db_externalTransportReachLayer.png
+   :target: qtalsim_screenshots/db_externalTransportReachLayer.png
+
 .. |Update Coordinates| image:: qtalsim_screenshots/db_updateAllCoordinates.png
+   :target: qtalsim_screenshots/db_updateAllCoordinates.png
 
 
 
