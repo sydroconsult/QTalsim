@@ -5,11 +5,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Welcome to QTalsim’s documentation! &#8212; QTalsim 1.6.2 documentation</title>
+    <title>Welcome to QTalsim’s documentation! &#8212; QTalsim 1.6.3 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
     
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=c3225494"></script>
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=675ad08d"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
     
@@ -26,7 +26,7 @@
         <li class="right" >
           <a href="install_plugin.html" title="Install Plugin"
              accesskey="N">next</a> |</li>
-        <li class="nav-item nav-item-0"><a href="#">QTalsim 1.6.2 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="#">QTalsim 1.6.3 documentation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Welcome to QTalsim’s documentation!</a></li> 
       </ul>
     </div>  
@@ -39,11 +39,30 @@
   <section id="welcome-to-qtalsim-s-documentation">
 <h1>Welcome to QTalsim’s documentation!<a class="headerlink" href="#welcome-to-qtalsim-s-documentation" title="Permalink to this heading">¶</a></h1>
 <blockquote>
-<div><p>QTalsim is a QGIS plugin with five principal functionalities that enable the processing of spatial data suitable for <a class="reference external" href="https://www.talsim.de/docs/index.php?title=Hauptseite/en">Talsim</a>.
-Firstly, it enables users to calculate Hydrological Response Units (HRUs). Secondly, the plugin faciliates a direct connection to a Talsim database, enabling users to edit system elements, sub-basins and transport reaches. The third functionality allows the user to preprocess sub-basins and calculate the longest flowpaths for each sub-basin. Another functionality downloads data from ISRIC and creates layers containing the soil type and bulk density for a given input area. The fifth functionality allows to map ATKIS land use data to Talsim land uses.</p>
+<div><p>QTalsim is a QGIS plugin with five principal functionalities that enable the processing of spatial data suitable for <a class="reference external" href="https://www.talsim.de/docs/index.php?title=Hauptseite/en">Talsim</a>.  The core functionality of this plugin is to calculate Hydrological Response Units (HRUs) suitable for Talsim. This feature requires three input layers.</p>
 </div></blockquote>
+<section id="main-features">
+<h2>Main Features<a class="headerlink" href="#main-features" title="Permalink to this heading">¶</a></h2>
+<blockquote>
+<div><ul class="simple">
+<li><dl class="simple">
+<dt><strong>HRU Calculation</strong></dt><dd><p>Enables users to calculate Hydrological Response Units (HRUs).</p>
+</dd>
+</dl>
+</li>
+<li><p><strong>Sub-basins Preprocessing</strong>
+Calculates various parameters for each sub-basin and generates files compatible with Talsim.</p></li>
+<li><p><strong>ISRIC Soil Type Converter</strong>
+Downloads and processes data from ISRIC, creating a soil layer that includes soil type and bulk density.</p></li>
+<li><p><strong>Land Use Mapping</strong>
+If your area is in Germany, this feature allows you to convert ATKIS land use data into Talsim land use categories.</p></li>
+<li><p><strong>Connect to Talsim DB</strong>
+For users of Talsim NG5, this functionality enables a direct connection to a Talsim database, allowing you to edit system elements, sub-basins, and transport reaches.</p></li>
+</ul>
+</div></blockquote>
+<section id="contents">
+<h3>Contents<a class="headerlink" href="#contents" title="Permalink to this heading">¶</a></h3>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="install_plugin.html">Install Plugin</a></li>
 <li class="toctree-l1"><a class="reference internal" href="doc_qtalsim.html">HRU calculation</a><ul>
@@ -75,11 +94,7 @@ Firstly, it enables users to calculate Hydrological Response Units (HRUs). Secon
 </ul>
 </div>
 </section>
-<section id="indices-and-tables">
-<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this heading">¶</a></h1>
-<ul class="simple">
-<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
-</ul>
+</section>
 </section>
 
 
@@ -92,15 +107,15 @@ Firstly, it enables users to calculate Hydrological Response Units (HRUs). Secon
   <div>
     <h3><a href="#">Table of Contents</a></h3>
     <ul>
-<li><a class="reference internal" href="#">Welcome to QTalsim’s documentation!</a></li>
-<li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
+<li><a class="reference internal" href="#">Welcome to QTalsim’s documentation!</a><ul>
+<li><a class="reference internal" href="#main-features">Main Features</a><ul>
+<li><a class="reference internal" href="#contents">Contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 
-  </div>
-  <div>
-    <h4>Next topic</h4>
-    <p class="topless"><a href="install_plugin.html"
-                          title="next chapter">Install Plugin</a></p>
   </div>
 <div id="searchbox" style="display: none" role="search">
   <h3 id="searchlabel">Quick search</h3>
@@ -125,12 +140,12 @@ Firstly, it enables users to calculate Hydrological Response Units (HRUs). Secon
         <li class="right" >
           <a href="install_plugin.html" title="Install Plugin"
              >next</a> |</li>
-        <li class="nav-item nav-item-0"><a href="#">QTalsim 1.6.2 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="#">QTalsim 1.6.3 documentation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Welcome to QTalsim’s documentation!</a></li> 
       </ul>
     </div>
     <div class="footer" role="contentinfo">
-    &#169; Copyright 2024, Sydro Consult GmbH.
+    &#169; Copyright 2025, Sydro Consult GmbH.
       Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
     </div>
   </body>

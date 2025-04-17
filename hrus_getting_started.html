@@ -5,11 +5,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Getting Started with HRUs &#8212; QTalsim 1.6.2 documentation</title>
+    <title>Getting Started with HRUs &#8212; QTalsim 1.6.3 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
     
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=c3225494"></script>
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=675ad08d"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
     
@@ -30,7 +30,7 @@
         <li class="right" >
           <a href="doc_qtalsim.html" title="HRU calculation"
              accesskey="P">previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.2 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.3 documentation</a> &#187;</li>
           <li class="nav-item nav-item-1"><a href="doc_qtalsim.html" accesskey="U">HRU calculation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Getting Started with HRUs</a></li> 
       </ul>
@@ -52,15 +52,18 @@ current QGIS project. Additionally a raster DEM layer can be used as input to ca
 <li><p>Sub-basin layer</p>
 <p>This layer should contain the sub-basins as well as a field for
 Unique Identifiers and another one for slope.</p>
+<ul class="simple">
+<li><p>If you want to export to Talsim NG5, you should first create a Talsim database using the plugin feature <strong>Sub-basins Preprocessing</strong>.</p></li>
+</ul>
 </li>
 <li><p>Soil Layer</p>
 <p>This layer should contain all soil types within the study area and can consist of up to 6 soil layers. It must contain at least a
-field specifying the names of the soil types of one soil layer.</p>
+field specifying the names of the soil types of one soil layer. Plugin feature “ISRIC soil type converter” can be used to create this input layer.</p>
 </li>
 <li><p>Land Use Layer</p>
 <p>This layer should contain all land use areas within the study
 area, and it must contain a field specifying the names of the land
-use types.</p>
+use types. The land use input layer can be created by the plugin feature “Land use mapping”, if your area is in Germany and you want to use ATKIS land use data.</p>
 </li>
 <li><p>Optional: DEM Layer</p>
 <p>The DEM layer is optional, and if a DEM layer is uploaded, the slope for each HRU will be calculated.</p>
@@ -88,16 +91,6 @@ use types.</p>
 </ul>
 
   </div>
-  <div>
-    <h4>Previous topic</h4>
-    <p class="topless"><a href="doc_qtalsim.html"
-                          title="previous chapter">HRU calculation</a></p>
-  </div>
-  <div>
-    <h4>Next topic</h4>
-    <p class="topless"><a href="hrus_step_by_step.html"
-                          title="next chapter">Step by Step</a></p>
-  </div>
 <div id="searchbox" style="display: none" role="search">
   <h3 id="searchlabel">Quick search</h3>
     <div class="searchformwrapper">
@@ -124,13 +117,13 @@ use types.</p>
         <li class="right" >
           <a href="doc_qtalsim.html" title="HRU calculation"
              >previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.2 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.3 documentation</a> &#187;</li>
           <li class="nav-item nav-item-1"><a href="doc_qtalsim.html" >HRU calculation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Getting Started with HRUs</a></li> 
       </ul>
     </div>
     <div class="footer" role="contentinfo">
-    &#169; Copyright 2024, Sydro Consult GmbH.
+    &#169; Copyright 2025, Sydro Consult GmbH.
       Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
     </div>
   </body>
