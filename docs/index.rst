@@ -1,21 +1,34 @@
 Welcome to QTalsim's documentation!
 ===================================
 
-   QTalsim is a QGIS plugin with five principal functionalities that enable the processing of spatial data suitable for `Talsim <https://www.talsim.de/docs/index.php?title=Hauptseite/en>`__.  
-   Firstly, it enables users to calculate Hydrological Response Units (HRUs). Secondly, the plugin faciliates a direct connection to a Talsim database, enabling users to edit system elements, sub-basins and transport reaches. The third functionality allows the user to preprocess sub-basins and calculate the longest flowpaths for each sub-basin. Another functionality downloads data from ISRIC and creates layers containing the soil type and bulk density for a given input area. The fifth functionality allows to map ATKIS land use data to Talsim land uses. 
+   QTalsim is a QGIS plugin with five principal functionalities that enable the processing of spatial data suitable for `Talsim <https://www.talsim.de/docs/index.php?title=Hauptseite/en>`__.  The core functionality of this plugin is to calculate Hydrological Response Units (HRUs) suitable for Talsim. This feature requires three input layers.
+
+Main Features
+-------------
+      -  **HRU Calculation** 
+          Enables users to calculate Hydrological Response Units (HRUs).
+
+      -  **Sub-basins Preprocessing**  
+         Calculates various parameters for each sub-basin and generates files compatible with Talsim.
+
+      -  **ISRIC Soil Type Converter**  
+         Downloads and processes data from ISRIC, creating a soil layer that includes soil type and bulk density.
+
+      -  **Land Use Mapping**  
+         If your area is in Germany, this feature allows you to convert ATKIS land use data into Talsim land use categories.
+
+      -  **Connect to Talsim DB**  
+         For users of Talsim NG5, this functionality enables a direct connection to a Talsim database, allowing you to edit system elements, sub-basins, and transport reaches.
+
+Contents
+^^^^^^^^
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
-   
+
    install_plugin
    doc_qtalsim
    doc_connect_to_db
    doc_subbasin_preprocessing
    doc_soil
    doc_landuse
-
-Indices and tables
-==================
-
-* :ref:`search`

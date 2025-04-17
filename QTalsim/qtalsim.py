@@ -2443,9 +2443,11 @@ class QTalsim:
                 intersectedDissolvedLayer = resultDissolve['OUTPUT']
             
             ezgDissolved = processing.run("native:dissolve", {'INPUT': self.ezgLayer,'FIELD': [],'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-
-            intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayer, ezgDissolved)            
             
+            try:
+                intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayer, ezgDissolved)            
+            except:
+                pass
             #Split the intersected areas and create own layer for each catchment area
                 # --> necessary for eliminating: deleted areas (e.g. area too small) should only take the attributes of features in the same catchment area
             all_fields = [field.name() for field in intersectedDissolvedLayer.fields()]
@@ -2593,7 +2595,7 @@ class QTalsim:
         #Calculate the mean slope for each HRU
         statsLayer = processing.run("native:zonalstatisticsfb", {'INPUT':hruLayer,'INPUT_RASTER':self.slopeLayer,'RASTER_BAND':1,'COLUMN_PREFIX':'_','STATISTICS':[2],'OUTPUT':'TEMPORARY_OUTPUT'}).get('OUTPUT')
 
-        # Add field 'Slope'
+        #Add field 'Slope'
         statsLayer.startEditing()
         statsLayer.addAttribute(QgsField(self.slopeFieldName, QVariant.Double))
         statsLayer.commitChanges()
@@ -2699,7 +2701,6 @@ class QTalsim:
             except:
                 pass
                 
-            #self.dlg.progressbar.setValue(15)
             intersectedDissolvedLayer, _ = self.editOverlappingFeatures(intersectedDissolvedLayer)
         
             all_fields = [field.name() for field in intersectedDissolvedLayer.fields()]
@@ -3782,7 +3783,7 @@ class QTalsim:
 
             conn.commit()
             conn.close()
-            self.log_to_qtalsim_tab(f"Finished inserting spil data into Talsim DB", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Finished inserting soil data into Talsim DB", Qgis.Info)
 
             '''
                 LNZ

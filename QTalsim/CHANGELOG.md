@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.6.3] - Planned
+## [1.6.3] - 2025-04-17
 - New feature - Land use Mapping
   - Plugin feature to map ATKIS land use data to Talsim land use categories
   - Output layer can be used as input to HRU calculation

@@ -7,9 +7,9 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'QTalsim'
-copyright = '2024, Sydro Consult GmbH'
+copyright = '2025, Sydro Consult GmbH'
 author = 'Sydro Consult GmbH'
-release = '1.6.2'
+release = '1.6.3'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -27,3 +27,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 html_theme = 'classic'
 html_static_path = ['_static']
 html_show_sourcelink = False
+html_sidebars = {
+    '**': ['localtoc.html', 'searchbox.html'],
+}
+html_logo = '_static/logo.png'
