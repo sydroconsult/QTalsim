@@ -39,29 +39,32 @@
   <section id="welcome-to-qtalsim-s-documentation">
 <h1>Welcome to QTalsim’s documentation!<a class="headerlink" href="#welcome-to-qtalsim-s-documentation" title="Permalink to this heading">¶</a></h1>
 <blockquote>
-<div><p>QTalsim is a QGIS plugin with five principal functionalities that enable the processing of spatial data suitable for <a class="reference external" href="https://www.talsim.de/docs/index.php?title=Hauptseite/en">Talsim</a>.  The core functionality of this plugin is to calculate Hydrological Response Units (HRUs) suitable for Talsim. This feature requires three input layers.</p>
+<div><p>QTalsim is a QGIS plugin with five principal functionalities that enable the processing of spatial data suitable for <a class="reference external" href="https://www.talsim.de/docs/index.php?title=Hauptseite/en">Talsim</a>.  The core functionality of this plugin is to calculate Hydrological Response Units (HRUs) suitable for Talsim. This feature requires three input layers, that can also be created by the plugin. Further more, it is possible to connect to a Talsim database and to edit these elements.</p>
 </div></blockquote>
 <section id="main-features">
 <h2>Main Features<a class="headerlink" href="#main-features" title="Permalink to this heading">¶</a></h2>
 <blockquote>
-<div><ul class="simple">
-<li><dl class="simple">
-<dt><strong>HRU Calculation</strong></dt><dd><p>Enables users to calculate Hydrological Response Units (HRUs).</p>
-</dd>
-</dl>
+<div><ul>
+<li><p><strong>HRU Calculation</strong></p>
+<p>Enables users to calculate Hydrological Response Units (HRUs).</p>
 </li>
-<li><p><strong>Sub-basins Preprocessing</strong>
-Calculates various parameters for each sub-basin and generates files compatible with Talsim.</p></li>
-<li><p><strong>ISRIC Soil Type Converter</strong>
-Downloads and processes data from ISRIC, creating a soil layer that includes soil type and bulk density.</p></li>
-<li><p><strong>Land Use Mapping</strong>
-If your area is in Germany, this feature allows you to convert ATKIS land use data into Talsim land use categories.</p></li>
-<li><p><strong>Connect to Talsim DB</strong>
-For users of Talsim NG5, this functionality enables a direct connection to a Talsim database, allowing you to edit system elements, sub-basins, and transport reaches.</p></li>
+<li><p><strong>Sub-basins Preprocessing</strong></p>
+<p>Calculates various parameters for each sub-basin and generates files compatible with Talsim.</p>
+</li>
+<li><p><strong>ISRIC Soil Type Converter</strong></p>
+<p>Downloads and processes data from ISRIC, creating a soil layer that includes soil type and bulk density.</p>
+</li>
+<li><p><strong>Land Use Mapping</strong></p>
+<p>If your area is in Germany, this feature allows you to convert ATKIS land use data into Talsim land use categories.</p>
+</li>
+<li><p><strong>Connect to Talsim DB</strong></p>
+<p>For users of Talsim NG5, this functionality enables a direct connection to a Talsim database, allowing you to edit system elements, sub-basins, and transport reaches.</p>
+</li>
 </ul>
 </div></blockquote>
+</section>
 <section id="contents">
-<h3>Contents<a class="headerlink" href="#contents" title="Permalink to this heading">¶</a></h3>
+<h2>Contents<a class="headerlink" href="#contents" title="Permalink to this heading">¶</a></h2>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="install_plugin.html">Install Plugin</a></li>
@@ -95,7 +98,6 @@ For users of Talsim NG5, this functionality enables a direct connection to a Tal
 </div>
 </section>
 </section>
-</section>
 
 
             <div class="clearer"></div>
@@ -104,19 +106,19 @@ For users of Talsim NG5, this functionality enables a direct connection to a Tal
       </div>
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
         <div class="sphinxsidebarwrapper">
-  <div>
-    <h3><a href="#">Table of Contents</a></h3>
-    <ul>
-<li><a class="reference internal" href="#">Welcome to QTalsim’s documentation!</a><ul>
-<li><a class="reference internal" href="#main-features">Main Features</a><ul>
-<li><a class="reference internal" href="#contents">Contents</a></li>
-</ul>
-</li>
-</ul>
-</li>
+            <p class="logo"><a href="#">
+              <img class="logo" src="_static/QTalsim_logo.png" alt="Logo"/>
+            </a></p>
+<h3><a href="#">Table of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="install_plugin.html">Install Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="doc_qtalsim.html">HRU calculation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="doc_connect_to_db.html">Connect to Talsim DB</a></li>
+<li class="toctree-l1"><a class="reference internal" href="doc_subbasin_preprocessing.html">Sub-basins preprocessing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="doc_soil.html">ISRIC Soil Type Converter</a></li>
+<li class="toctree-l1"><a class="reference internal" href="doc_landuse.html">Land use mapping</a></li>
 </ul>
 
-  </div>
 <div id="searchbox" style="display: none" role="search">
   <h3 id="searchlabel">Quick search</h3>
     <div class="searchformwrapper">
