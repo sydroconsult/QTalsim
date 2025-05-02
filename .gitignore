@@ -3,9 +3,11 @@ __pycache__/
 .DS_Store
 compile.bat
 Dockerfile
+docker-compose.yml
 .dockerignore
 .pytest_cache/
 test-plugin.yaml
 test/testdata
+tests_runner.sh
 prepare_for_push.bat
 undo_prepare_for_push.bat

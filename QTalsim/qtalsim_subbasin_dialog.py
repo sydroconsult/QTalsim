@@ -1,7 +1,7 @@
 import os
 from qgis.PyQt import uic, QtWidgets
 from qgis.PyQt.QtWidgets import  QFileDialog, QDialogButtonBox, QInputDialog
-from qgis.core import QgsProject, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsMapLayer, QgsWkbTypes, QgsRasterLayer, QgsVectorLayer, QgsRasterBandStats, QgsField, QgsVectorFileWriter, edit, Qgis, QgsProcessingFeedback, QgsProcessingException, QgsCoordinateReferenceSystem, QgsCoordinateTransform
+from qgis.core import QgsProject, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsMapLayer, QgsWkbTypes, QgsRasterLayer, QgsVectorLayer, QgsRasterBandStats, QgsField, QgsVectorFileWriter, edit, Qgis, QgsProcessingFeedback, QgsProcessingException, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRaster
 from qgis.PyQt.QtCore import pyqtSignal, QVariant
 import processing
 import webbrowser
@@ -10,6 +10,7 @@ import time
 import sys
 import shutil
 import sqlite3
+import math
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'qtalsim_subbasin.ui'))
@@ -163,6 +164,8 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.comboboxUISubBasin.clear()
                 self.fieldsSubbasinLayer = [field.name() for field in self.subBasinLayer.fields()]
                 self.comboboxUISubBasin.addItems([str(field) for field in self.fieldsSubbasinLayer])
+
+                self.comboboxNameField.clear()
                 self.comboboxNameField.addItems(["Select Name-Field"])
                 self.comboboxNameField.addItems([str(field) for field in self.fieldsSubbasinLayer])
 
@@ -250,7 +253,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.lfpFinalLayer.commitChanges()  # Commit changes
 
                 #Join the LFP length to sub-basin layer
-                self.subBasinLayerProcessed = processing.run("native:joinattributestable", {'INPUT': self.subBasinLayerProcessed,'FIELD': self.subbasinUIField,'INPUT_2': self.lfpFinalLayer,'FIELD_2':'BASINID','FIELDS_TO_COPY':[self.lengthFieldName],'METHOD':1,'DISCARD_NONMATCHING':False,'PREFIX':'','OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+                self.subBasinLayerProcessed = processing.run("native:joinattributestable", {'INPUT': self.subBasinLayerProcessed,'FIELD': self.subbasinUIField,'INPUT_2': self.lfpFinalLayer,'FIELD_2':'BASINID','FIELDS_TO_COPY':[self.lengthFieldName, "Rotation"],'METHOD':1,'DISCARD_NONMATCHING':False,'PREFIX':'','OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
             
             self.log_to_qtalsim_tab(f"Exporting the layer...", Qgis.Info)
             self.geopackage_path = os.path.join(self.outputFolder, f"Sub_basins_processed.gpkg") #Output-path
@@ -264,7 +267,8 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.subBasinLayerProcessed.deleteFeature(feature.id())
 
             self.subBasinLayerProcessed.commitChanges()
-            self.log_to_qtalsim_tab(f"Deleted following features because they do not start with A: {deleted_feature_ui}", Qgis.Info)
+            if deleted_feature_ui:
+                self.log_to_qtalsim_tab(f"Deleted following features because they do not start with A: {deleted_feature_ui}", Qgis.Info)
 
             if self.groupboxDBExport.isChecked():
                 if self.textDBName.text() is not None:
@@ -422,11 +426,80 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 except:
                     pass
             
+            #Calculate rotation
+            try:   
+                self.calculateRotation()
+            except Exception as e:
+                self.log_to_qtalsim_tab(f"Error calculating rotation: {e}. Continuing without calculating rotation.", Qgis.Warning)
+            finally:
+                self.lfpFinalLayer.commitChanges()
+
             self.log_to_qtalsim_tab(f"Finished the calculation of the longest flowpaths. Please check the longest flowpaths and edit the geometries, if necessary. The lengths will be recalculated when saving the sub-basins-layer (Button: Run).", Qgis.Info)
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
         finally:
             self.end_operation()
+
+    def calculateRotation(self):
+        '''
+            Calculates the flow direction of the longest flow path and saves it in rotation field.
+        '''
+
+        def sample_elevation(point):
+            ident = self.DEMLayer.dataProvider().identify(point, QgsRaster.IdentifyFormatValue)
+            if ident.isValid():
+                return ident.results()[1]
+            return None
+
+        self.lfpFinalLayer.startEditing()
+
+        if 'Rotation' not in [f.name() for f in self.lfpFinalLayer.fields()]:
+            self.lfpFinalLayer.dataProvider().addAttributes([QgsField('Rotation', QVariant.Double)])
+            self.lfpFinalLayer.updateFields()
+
+        rotation_field_index = self.lfpFinalLayer.fields().indexFromName('Rotation')
+
+        # Calculate rotation for each LFP
+        for feat in self.lfpFinalLayer.getFeatures():
+            geom = feat.geometry()
+            if geom.isMultipart():
+                lines = geom.asMultiPolyline()
+                if not lines or len(lines[0]) < 2:
+                    continue  # <-- was return None
+                line = lines[0]
+            else:
+                line = geom.asPolyline()
+                if len(line) < 2:
+                    continue  # <-- was return None
+
+            pt1 = line[0]
+            pt2 = line[-1]
+            dz1 = sample_elevation(pt1)
+            dz2 = sample_elevation(pt2)
+
+            if dz1 is None or dz2 is None:
+                continue
+
+            #Always treat higher point as start (flow goes downhill)
+            if dz1 >= dz2:
+                start_point, end_point = pt1, pt2
+            else:
+                start_point, end_point = pt2, pt1
+
+            dx = end_point.x() - start_point.x()
+            dy = end_point.y() - start_point.y()
+
+            #Standard compass-style bearing (0° = North, clockwise)
+            rotation = (math.degrees(math.atan2(dx, dy)) + 360) % 360
+
+            #Flip to custom convention: 0° = South
+            rotation = (rotation + 180) % 360
+
+            if rotation is not None:
+                feat.setAttribute(rotation_field_index, rotation)
+                self.lfpFinalLayer.updateFeature(feat)
+
+        #self.lfpFinalLayer.commitChanges()
 
     def createFilledDEM(self, sub_basins_layer, dem_layer, water_network_layer, output_path):
         '''
@@ -798,15 +871,17 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 #Convert to WKT MultiPolygon
                 wkt_multipolygon = geometry.asWkt()
 
+                rotation = feature['Rotation'] if 'Rotation' in fields else 0
+
                 #Insert into SystemElement table
                 cursor.execute("""
                     INSERT INTO SystemElement (
                         ScenarioId, ElementIdentifier, Name, ElementType, ElementTypeCharacter,
-                        Latitude, Longitude, Geometry
+                        Latitude, Longitude, Geometry, Rotation
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (scenario_id, element_identifier, name, 2, "A", 
-                    latitude, longitude, wkt_multipolygon))
+                    latitude, longitude, wkt_multipolygon, rotation))
 
                 #Get the created SystemElementId
                 system_element_id = cursor.lastrowid

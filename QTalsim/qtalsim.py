@@ -25,14 +25,22 @@ from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon, QCursor, QMovie
 from qgis.PyQt.QtWidgets import QMainWindow, QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton, QDockWidget, QMessageBox, QApplication, QDialog, QPushButton, QGroupBox
 from qgis.PyQt.QtCore import QVariant, QTimer, pyqtSignal, QEvent, QObject
-# Initialize Qt resources from file resources.py
-from .resources import *
-# Import the code for the dialog
-from .qtalsim_dialog import QTalsimDialog
-from .qtalsim_sqllite_dialog import SQLConnectDialog
-from .qtalsim_subbasin_dialog import SubBasinPreprocessingDialog
-from .qtalsim_soil_dialog import SoilPreprocessingDialog
-from .qtalsim_landuse_dialog import LanduseAssignmentDialog
+try:
+    from .resources import *
+except:
+    from resources import *
+try:
+    from .qtalsim_dialog import QTalsimDialog
+    from .qtalsim_sqllite_dialog import SQLConnectDialog
+    from .qtalsim_subbasin_dialog import SubBasinPreprocessingDialog
+    from .qtalsim_soil_dialog import SoilPreprocessingDialog
+    from .qtalsim_landuse_dialog import LanduseAssignmentDialog
+except:
+    from qtalsim_dialog import QTalsimDialog
+    from qtalsim_sqllite_dialog import SQLConnectDialog
+    from qtalsim_subbasin_dialog import SubBasinPreprocessingDialog
+    from qtalsim_soil_dialog import SoilPreprocessingDialog
+    from qtalsim_landuse_dialog import LanduseAssignmentDialog
 import os.path
 from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsRasterLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest, QgsMapLayer, QgsFields, QgsTask, QgsTaskManager, QgsApplication, QgsExpression
 from qgis.analysis import QgsGeometrySnapper
@@ -2620,7 +2628,9 @@ class QTalsim:
         '''
             Performs intersection of the three input layers after processing them in the previous steps.
         '''
+        print(f"starting performIntersect")
         try:
+            print(f"starting performIntersect")
             self.start_operation()
             if self.ezgLayer is None:
                 self.log_to_qtalsim_tab("Sub-basins Layer does not exist.", Qgis.Critical)
@@ -2687,6 +2697,7 @@ class QTalsim:
             dissolve_list.append(self.ezgUniqueIdentifier)
             dissolve_list.extend(self.selected_landuse_parameters)
             dissolve_list.extend(self.soilFieldNames)
+            print(dissolve_list)
             resultDissolve = processing.run("native:dissolve", {'INPUT': intersectedLayer,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback = None)
             intersectedDissolvedLayer = resultDissolve['OUTPUT']
             
@@ -3230,6 +3241,7 @@ class QTalsim:
             self.log_to_qtalsim_tab(f"Finished intersection of layers.", Qgis.Info)
         
         except Exception as e:
+            print(f"Error: {e}")
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
             #self.dlg.progressbar.setValue(0)
         finally:
@@ -3937,6 +3949,7 @@ class QTalsim:
             self.log_to_qtalsim_tab(f"File was saved to this folder: {self.outputFolder}", Qgis.Info)
 
         except Exception as e:
+            
             self.log_to_qtalsim_tab(f"Error: {e}", Qgis.Critical)
 
         finally:
@@ -4057,14 +4070,17 @@ class QTalsim:
                     rasterLayers.append(layer)
         return layers, rasterLayers
     
+    def init_dialog(self):
+        if not hasattr(self, 'dlg'):
+            self.dlg = QTalsimDialog()
+
     def run(self):
         '''
             Run method that performs all the real work.
         '''
         #Only create GUI ONCE in callback, so that it will only load when the plugin is started
-        if not hasattr(self, 'dlg'):
-            self.dlg = QTalsimDialog()
-            #self.iface.mainWindow().setWindowTitle("HRU Calculation")
+        self.init_dialog()
+        #self.iface.mainWindow().setWindowTitle("HRU Calculation")
 
         #Define the group boxes and their custom messages
         current_path = os.path.dirname(os.path.abspath(__file__))
