@@ -15,7 +15,7 @@ __copyright__ = 'Copyright 2023, SYDRO Consult GmbH'
 import os
 import sys
 import unittest
-from PyQt5.QtCore import QSettings
+from qgis.PyQt.QtCore import QSettings
 from unittest.mock import MagicMock
 
 #from .utilities import get_qgis_app
@@ -111,11 +111,11 @@ class QTalsimDialogTest(unittest.TestCase):
     '''
     def test_dialog_cancel(self):
         """Test we can click cancel."""
-        button = self.dialog.finalButtonBox.button(QDialogButtonBox.Cancel)
+        button = self.dialog.finalButtonBox.button(QDialogButtonBox.StandardButton.Cancel)
         if button:  
             button.click()
             result = self.dialog.result()
-            self.assertEqual(result, QDialog.Rejected)
+            self.assertEqual(result, QDialog.DialogCode.Rejected)
 
     def test_layers_loaded(self):
         """Simple test that layers are valid and loaded."""

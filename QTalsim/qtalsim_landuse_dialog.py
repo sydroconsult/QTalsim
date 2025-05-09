@@ -38,7 +38,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         self.connectButtontoFunction(self.onInputFolder, self.selectInputFolder) 
         self.connectButtontoFunction(self.onOutputFolder, self.selectOutputFile)
         self.connectButtontoFunction(self.onCreateLanduseLayer, self.landuseMapping)
-        self.connectButtontoFunction(self.onHelp.button(QDialogButtonBox.Help), self.openDocumentation)
+        self.connectButtontoFunction(self.onHelp.button(QDialogButtonBox.StandardButton.Help), self.openDocumentation)
         
         current_path = os.path.dirname(os.path.abspath(__file__))
         landuseAssignmentPath = os.path.join(current_path, "talsim_parameter", "atkis_talsim_zuordnung.csv")
@@ -76,7 +76,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         if self.inputFolder:
             self.inputPath.setText(self.inputFolder)
 
-            self.log_to_qtalsim_tab(f"Selected input folder: {self.inputFolder}", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Selected input folder: {self.inputFolder}", Qgis.MessageLevel.Info)
 
     def selectOutputFile(self):
         '''
@@ -167,7 +167,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 else:
                     self.landuseLayer = self.merged_layer
         except Exception as e:
-            self.log_to_qtalsim_tab("Error during merging and clipping: " + str(e), Qgis.Critical)
+            self.log_to_qtalsim_tab("Error during merging and clipping: " + str(e), Qgis.MessageLevel.Critical)
         
         
     def landuseMapping(self):
@@ -176,14 +176,14 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
         try:
             self.start_operation()
-            self.log_to_qtalsim_tab("Starting land use mapping", Qgis.Info)
+            self.log_to_qtalsim_tab("Starting land use mapping", Qgis.MessageLevel.Info)
             self.mergeAndClip()
             self.atkisToTalsimMapping()
             self.exportGeopackage()
-            self.log_to_qtalsim_tab("Land use mapping finished", Qgis.Info)
+            self.log_to_qtalsim_tab("Land use mapping finished", Qgis.MessageLevel.Info)
 
         except Exception as e:
-            self.log_to_qtalsim_tab("Error during land use mapping: " + str(e), Qgis.Critical)
+            self.log_to_qtalsim_tab("Error during land use mapping: " + str(e), Qgis.MessageLevel.Critical)
 
         finally:
             self.end_operation()
@@ -274,7 +274,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                         if code_val == 'leer':
                             feature["OBJART_NEU"] = landuse
                             matched = True
-                            self.log_to_qtalsim_tab(f"Could not find the code {feature_code} and assigned ATKIS land use {objart_txt} with code {feature_code} to Talsim land use {landuse}.", Qgis.Warning)
+                            self.log_to_qtalsim_tab(f"Could not find the code {feature_code} and assigned ATKIS land use {objart_txt} with code {feature_code} to Talsim land use {landuse}.", Qgis.MessageLevel.Warning)
                             break
                         else:
                             continue
@@ -288,12 +288,12 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             #If not matched, optionally leave as is or assign fallback
             if not matched:
                 feature["OBJART_NEU"] = objart_txt
-                self.log_to_qtalsim_tab(f"Could not find a match for {objart_txt}", Qgis.Warning)
+                self.log_to_qtalsim_tab(f"Could not find a match for {objart_txt}", Qgis.MessageLevel.Warning)
 
             self.landuseLayer.updateFeature(feature)
         
         self.landuseLayer.commitChanges()
-        self.log_to_qtalsim_tab("ATKIS land use mapping completed", Qgis.Info)
+        self.log_to_qtalsim_tab("ATKIS land use mapping completed", Qgis.MessageLevel.Info)
     
     def exportGeopackage(self):
         '''
@@ -305,7 +305,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         options.fileEncoding = "UTF-8"
         layer_name_in_gpkg = "Landuse"
         options.layerName = layer_name_in_gpkg  #Name of the layer inside the GeoPackage
-        options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteFile
+        options.actionOnExistingFile = QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteFile
 
         result, error_message = QgsVectorFileWriter.writeAsVectorFormatV2(
             self.landuseLayer,
@@ -314,8 +314,8 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             options
         )
 
-        if result == QgsVectorFileWriter.NoError:
-            self.log_to_qtalsim_tab(f"Exported to {self.gpkgOutputPath}", Qgis.Info)
+        if result == QgsVectorFileWriter.WriterError.NoError:
+            self.log_to_qtalsim_tab(f"Exported to {self.gpkgOutputPath}", Qgis.MessageLevel.Info)
 
         exported_layer = QgsVectorLayer(f"{self.gpkgOutputPath}|layername={layer_name_in_gpkg}", layer_name_in_gpkg, "ogr")
         if exported_layer.isValid():
@@ -342,7 +342,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         options.driverName = "GPKG"
         options.fileEncoding = "UTF-8"
         options.layerName = layer_name_dissolved
-        options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer  # Add as new layer
+        options.actionOnExistingFile = QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteLayer  # Add as new layer
 
         result, error_message = QgsVectorFileWriter.writeAsVectorFormatV2(
             landuseLayerDissolved,
@@ -351,13 +351,13 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             options
         )
 
-        if result == QgsVectorFileWriter.NoError:
+        if result == QgsVectorFileWriter.WriterError.NoError:
             uri = f"{self.gpkgOutputPath}|layername={layer_name_dissolved}"
             dissolved_layer = QgsVectorLayer(uri, layer_name_dissolved, "ogr")
 
             if dissolved_layer.isValid():
                 QgsProject.instance().addMapLayer(dissolved_layer)
 
-                self.log_to_qtalsim_tab(f"Exported dissolved layer with layer name {layer_name_dissolved} to {self.gpkgOutputPath}", Qgis.Info)       
+                self.log_to_qtalsim_tab(f"Exported dissolved layer with layer name {layer_name_dissolved} to {self.gpkgOutputPath}", Qgis.MessageLevel.Info)       
 
         
