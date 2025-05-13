@@ -507,8 +507,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 Burns and fills the DEM
         '''
 
-        #resultDissolve = processing.run("native:dissolve", {'INPUT':sub_basins_layer,'FIELD':[],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})
-
+        #Necessary for small gaps?
         result = processing.run("qgis:deleteholes", {
                 'INPUT': sub_basins_layer,
                 'OUTPUT': 'TEMPORARY_OUTPUT'

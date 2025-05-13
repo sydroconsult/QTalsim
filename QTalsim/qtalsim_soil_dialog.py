@@ -414,6 +414,15 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 #If bounding box layer is vector layer:
                 if isinstance(self.layerBoundingBox, QgsVectorLayer):
+                    if not current_crs.ellipsoidAcronym() == 'WGS84':
+                        params1 = {
+                            'INPUT': self.layerBoundingBox,
+                            'TARGET_CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
+                            'OUTPUT': 'memory:',
+                            'TRANSFORM_CONTEXT': QgsProject.instance().transformContext()
+                        }
+                        result1 = processing.run("native:reprojectlayer", params1)
+                        self.layerBoundingBox = result1['OUTPUT']
                     params = {
                         'INPUT': self.layerBoundingBox,
                         'TARGET_CRS': homolosine_crs,
@@ -426,6 +435,24 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 
                 #If bounding box layer is raster layer
                 elif isinstance(self.layerBoundingBox, QgsRasterLayer): 
+                    if not current_crs.ellipsoidAcronym() == 'WGS84':
+                        params = {
+                            'INPUT': self.layerBoundingBox,
+                            'TARGET_CRS': QgsCoordinateReferenceSystem('EPSG:4326'),  #Use the CRS object for Homolosine
+                            'RESAMPLING': 0,  #Choose the resampling method (0=nearest neighbor, 1=bilinear, etc.)
+                            'NODATA': None,  #Handle NoData values if needed
+                            'TARGET_RESOLUTION': None,  #Set if you want to specify a resolution
+                            'OPTIONS': '',
+                            'DATA_TYPE': 0,  #Keep the data type (0=Byte, 1=Int16, etc.)
+                            'TARGET_EXTENT': None,  #Use None to keep the same extent
+                            'TARGET_EXTENT_CRS': None,  #If extent is specified, its CRS should be provided
+                            'MULTITHREADING': False,
+                            'OUTPUT': 'TEMPORARY_OUTPUT' #Store the reprojected raster in memory
+                        }
+
+                        #Reproject the raster layer
+                        reprojectedLayerResult = processing.run("gdal:warpreproject", params)
+                        self.layerBoundingBox = reprojectedLayerResult['OUTPUT']
                     params = {
                         'INPUT': self.layerBoundingBox,
                         'TARGET_CRS': homolosine_crs,  #Use the CRS object for Homolosine
@@ -904,7 +931,6 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         nodata_value = -9999 #Qgis interprets this as nodata
         #Get dimensions
         rows, cols = array.shape
-        print(rows,cols)
         #Create an in-memory GDAL dataset with the correct dimensions
         driver = gdal.GetDriverByName('MEM')
         dataset = driver.Create('', cols, rows, 1, gdal.GDT_Float32)
