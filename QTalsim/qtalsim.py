@@ -3666,6 +3666,13 @@ class QTalsim:
                     else:
                         cur.execute(f"DELETE FROM {table} WHERE ScenarioId = ?", (scenario_id,))
 
+                    #Check if the table is now empty
+                    cur.execute(f"SELECT COUNT(*) FROM {table}")
+                    remaining = cur.fetchone()[0]
+                    #If the table is empty, reset AUTOINCREMENT counter
+                    if remaining == 0:
+                        cur.execute("DELETE FROM sqlite_sequence WHERE name = ?", (table,))
+
                 conn.commit()
                 conn.close()
 
@@ -3726,6 +3733,9 @@ class QTalsim:
             request = QgsFeatureRequest()
             request.setOrderBy(orderby)
 
+            '''
+                SoilType
+            '''
             features = self.soilTypeFinal.getFeatures(request)
 
             for feature in features:
