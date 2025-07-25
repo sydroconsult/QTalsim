@@ -2297,7 +2297,7 @@ class QTalsim:
             self.landuseGaps = self.checkGaps(self.landuseTalsim, self.clippingEZG)
 
             #Add checkmark when process is finished
-            current_text = self.dlg.onLanduseTypeDelete.text()
+            current_text = self.dlg.onCheckGapsLanduse.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onCheckGapsLanduse.setText(f"{current_text} ✓")
         except Exception as e:
@@ -2377,6 +2377,7 @@ class QTalsim:
             
             if self.landuseLayer:
                 QgsProject.instance().removeMapLayer(self.landuseLayer)
+                self.landuseLayer = None
             self.landuseTalsim.setName("Talsim Landuse")
             QgsProject.instance().addMapLayer(self.landuseTalsim)
 

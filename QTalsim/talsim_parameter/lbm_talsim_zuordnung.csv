@@ -1,0 +1,40 @@
+﻿Code;Name;Versiegelungsgrad (=SIE);SIE untere Grenze;SIE obere Grenze;Beschreibung;Talsim Landnutzung
+B110;Bebauung;>= 70;70;;;IndustrieUndGewerbe
+B110;Bebauung;> 15 & < 70;;70;;Wohnbauflaeche
+B121;Anlagen;;;;;IndustrieUndGewerbe
+B122;Versiegelte gebäudelose Flächen;;;;u.a. Straßen;Strassenverkehr
+B242;Mischflächen (regelmäßige Struktur);>= 0 & < 30;;30;"nur 3 Flächen im Süden von NRW; Grünland mit Gebüsch/Bäumen";ParkanlagenUndObstplantagen
+B242;Mischflächen;>= 30 & <= 50;30;;;Wohnbauflaeche
+B211;Ackerland;;;;;Ackerland
+B221;Weinbau;;;;;ParkanlagenUndObstplantagen
+B222;Obst- und Beerenobst;;;;;ParkanlagenUndObstplantagen
+B224;Hopfen;;;;;Ackerland
+B231;homogenes Grünland;>= 30 & <= 50;30;;;Wohnbauflaeche
+B231;homogenes Grünland;>= 0 & < 30;;30;;WieseUndWeide
+B321;inhomogenes Grünland;;;;;WieseUndWeide
+B233;Grasland mit Bäumen (<50%);;30;;;Wohnbauflaeche
+B233;Grasland mit Bäumen (<50%);;;30;;Gehoelz
+B322;Zwergsträucher (Heide);;;;;Heide
+B324;Büsche und Sträucher;>= 30 & <= 50;30;;;Wohnbauflaeche
+B324;Büsche und Sträucher;>= 0 & < 30;;30;;Gehoelz
+B310;Aufforstung;;;;;Gehoelz
+B311;Laubbäume;>= 30 & <= 50;30;;;Wohnbauflaeche
+B311;Laubbäume;>= 0 & < 30;;30;;Laubwald
+B312;Nadelbäume;>= 30 & <= 50;30;;;Wohnbauflaeche
+B312;Nadelbäume;>= 0 & < 30;;30;;Nadelwald
+B313;Laub- und Nadelbäume;>= 30 & <= 50;30;;;Wohnbauflaeche
+B313;Laub- und Nadelbäume;>= 0 & < 30;;30;;Mischwald
+B330;Sand, Steine, Erde;;;;;Vegetationslos
+B332;Fels;;;;;Vegetationslos
+B334;Brandfläche;;;;;Vegetationslos
+B335;Schnee (permanent) und Eis;;;;;Vegetationslos
+B411;Sumpf;;;;;Sumpf
+B412;Moor;;;;;Moor
+B413;Sumpf mit Büschen/Bäumen < 50%;;;;;Sumpf
+B414;Moor mit Büschen/Bäumen < 50%;;;;;Moor
+B423;Watt;;;;;Wasserflaeche
+B511;Wasserlauf;;;;;Wasserflaeche
+B512;Wasserfläche;;;;;Wasserflaeche
+B521;Lagune;;;;;Wasserflaeche
+B522;Mündungstrichter;;;;;Wasserflaeche
+B523;Offenes Meer;;;;;Wasserflaeche

@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import MagicMock
 import os
 import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -23,5 +24,6 @@ class TestQTalsim(unittest.TestCase):
     
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
+
 if __name__ == '__main__':
     unittest.main()
