@@ -7,7 +7,6 @@ Land use mapping
 * **ATKIS** - Automatisiertes Topographisch-Kartographisches Informationssystem (e.g. `ATKIS NRW <https://www.bezreg-koeln.nrw.de/geobasis-nrw/produkte-und-dienste/landschaftsmodelle/aktuelle-landschaftsmodelle/digitales-basis>`_)
 * **LBM-DE (2021)** - `Digitales Landbedeckungsmodell für Deutschland, Stand 2021 <http://bit.ly/46K4sfd>`_
 
-   The mapping can be found here
 Executing the Plugin
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -15,25 +14,30 @@ ATKIS Data
 ----------
 
    **Input Requirements:**
+
    Provide a folder containing all relevant ATKIS layers (e.g., ``veg01_f``, ``sie01_f``, etc.)
 
    **Processing:**
-   * Plugin automatically detects and merges necessary files into a single land use layer
-   * Optional: Specify a clipping layer to limit the spatial extent
-   * Maps the ATKIS land use types to Talsim-compatible categories using the fields "OBJART_TXT", "FKT", and "VEG". Find the complete `ATKIS to Talsim mapping table here <https://github.com/sydroconsult/QTalsim/blob/main/QTalsim/talsim_parameter/atkis_talsim_zuordnung.csv>`_.
+
+   - Plugin automatically detects and merges necessary files into a single land use layer
+   - Optional: Specify a clipping layer to limit the spatial extent
+   - Maps the ATKIS land use types to Talsim-compatible categories using the fields "OBJART_TXT", "FKT", and "VEG". Find the complete `ATKIS to Talsim mapping table here <https://github.com/sydroconsult/QTalsim/blob/main/QTalsim/talsim_parameter/atkis_talsim_zuordnung.csv>`_.
    
    |Screenshot Land use mapping ATKIS|
 
-   LBM-DE (2021) Data  
-   ------------------
+LBM-DE (2021) Data  
+------------------
+
    **Input Requirements:**
+
    Download data from the link above and add the layer to your current QGIS project
 
 
    **Processing:**
-   * Specify the layer containing LBM data
-   * Optional: Apply a clipping layer to limit the input extent
-   * Mapping uses fields "LB_AKT" (land cover type) and "SIE_AKT" (imperviousness). Find the complete `LBM to Talsim mapping table here <https://github.com/sydroconsult/QTalsim/blob/main/QTalsim/talsim_parameter/lbm_talsim_zuordnung.csv>`_.
+
+   - Specify the layer containing LBM data
+   - Optional: Apply a clipping layer to limit the input extent
+   - Mapping uses fields "LB_AKT" (land cover type) and "SIE_AKT" (imperviousness). Find the complete `LBM to Talsim mapping table here <https://github.com/sydroconsult/QTalsim/blob/main/QTalsim/talsim_parameter/lbm_talsim_zuordnung.csv>`_.
 
    |Screenshot Land use mapping LBM| 
 
