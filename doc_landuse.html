@@ -5,16 +5,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Land use mapping &#8212; QTalsim 1.6.3 documentation</title>
+    <title>Land use mapping &#8212; QTalsim 1.6.4 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
     
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=675ad08d"></script>
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=acd34040"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
     
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Connect to Talsim DB" href="doc_connect_to_db.html" />
     <link rel="prev" title="ISRIC Soil Type Converter" href="doc_soil.html" /> 
   </head><body>
     <div class="related" role="navigation" aria-label="related navigation">
@@ -24,9 +25,12 @@
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
+          <a href="doc_connect_to_db.html" title="Connect to Talsim DB"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
           <a href="doc_soil.html" title="ISRIC Soil Type Converter"
              accesskey="P">previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.3 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.4 documentation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Land use mapping</a></li> 
       </ul>
     </div>  
@@ -39,20 +43,47 @@
   <section id="land-use-mapping">
 <h1>Land use mapping<a class="headerlink" href="#land-use-mapping" title="Permalink to this heading">¶</a></h1>
 <blockquote>
-<div><p>This plugin feature offers the functionality to map land use data to Talsim land use categories. Currently, only the mapping of ATKIS land use data is implemented.</p>
+<div><p>This plugin feature offers the functionality to map land use datasets to Talsim land use categories. This plugin currently supports two German data sources:</p>
 </div></blockquote>
+<ul>
+<li><p><strong>ATKIS</strong> - Automatisiertes Topographisch-Kartographisches Informationssystem (e.g. <a class="reference external" href="https://www.bezreg-koeln.nrw.de/geobasis-nrw/produkte-und-dienste/landschaftsmodelle/aktuelle-landschaftsmodelle/digitales-basis">ATKIS NRW</a>)</p></li>
+<li><p><strong>LBM-DE (2021)</strong> - <a class="reference external" href="http://bit.ly/46K4sfd">Digitales Landbedeckungsmodell für Deutschland, Stand 2021</a></p>
+<blockquote>
+<div><p>The mapping can be found here</p>
+</div></blockquote>
+</li>
+</ul>
 <section id="executing-the-plugin">
 <h2>Executing the Plugin<a class="headerlink" href="#executing-the-plugin" title="Permalink to this heading">¶</a></h2>
+<section id="atkis-data">
+<h3>ATKIS Data<a class="headerlink" href="#atkis-data" title="Permalink to this heading">¶</a></h3>
 <blockquote>
-<div><p>The user must provide a folder containing all relevant ATKIS layers (e.g., veg01_f, sie01_f, etc.). The plugin automatically detects the necessary files and merges them into a single land use layer. Optionally, the user can specify a clipping layer to limit the extent of the merged result.</p>
-<p>Once merged (and optionally clipped), the plugin maps ATKIS land use types to Talsim-compatible categories using the fields “OBJART_TXT”, “FKT”, and “VEG”.</p>
-<p>The output is a GeoPackage containing two land use layers:</p>
+<div><p><strong>Input Requirements:</strong>
+Provide a folder containing all relevant ATKIS layers (e.g., <code class="docutils literal notranslate"><span class="pre">veg01_f</span></code>, <code class="docutils literal notranslate"><span class="pre">sie01_f</span></code>, etc.)</p>
+<p><strong>Processing:</strong>
+* Plugin automatically detects and merges necessary files into a single land use layer
+* Optional: Specify a clipping layer to limit the spatial extent
+* Maps the ATKIS land use types to Talsim-compatible categories using the fields “OBJART_TXT”, “FKT”, and “VEG”. Find the complete <a class="reference external" href="https://github.com/sydroconsult/QTalsim/blob/main/QTalsim/talsim_parameter/atkis_talsim_zuordnung.csv">ATKIS to Talsim mapping table here</a>.</p>
+<p><img alt="Screenshot Land use mapping ATKIS" src="_images/landuseMappingFeature.png" /></p>
+<p><strong>Input Requirements:</strong>
+Download data from the link above and add the layer to your current QGIS project</p>
+<p><strong>Processing:</strong>
+* Specify the layer containing LBM data
+* Optional: Apply a clipping layer to limit the input extent
+* Mapping uses fields “LB_AKT” (land cover type) and “SIE_AKT” (imperviousness). Find the complete <a class="reference external" href="https://github.com/sydroconsult/QTalsim/blob/main/QTalsim/talsim_parameter/lbm_talsim_zuordnung.csv">LBM to Talsim mapping table here</a>.</p>
+<p><img alt="Screenshot Land use mapping LBM" src="_images/landuseMappingFeatureLBM.png" /></p>
+</div></blockquote>
+<section id="output-results">
+<h4>Output Results<a class="headerlink" href="#output-results" title="Permalink to this heading">¶</a></h4>
+<blockquote>
+<div><p>The output is a GeoPackage containing two land use layers:</p>
 <ul class="simple">
 <li><p>One layer with all land use polygons, where the mapped Talsim land use type is stored in the column “OBJART_NEU”.</p></li>
 <li><p>A second, dissolved layer where polygons with the same land use type are aggregated. This layer can be used as input for the HRU Calculation.</p></li>
 </ul>
-<p><img alt="Screenshot Land use mapping" src="_images/landuseMappingFeature.png" /></p>
 </div></blockquote>
+</section>
+</section>
 </section>
 </section>
 
@@ -70,13 +101,13 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="install_plugin.html">Install Plugin</a></li>
 <li class="toctree-l1"><a class="reference internal" href="doc_qtalsim.html">HRU calculation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="doc_connect_to_db.html">Connect to Talsim DB</a></li>
 <li class="toctree-l1"><a class="reference internal" href="doc_subbasin_preprocessing.html">Sub-basins preprocessing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="doc_soil.html">ISRIC Soil Type Converter</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Land use mapping</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#executing-the-plugin">Executing the Plugin</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="doc_connect_to_db.html">Connect to Talsim DB</a></li>
 </ul>
 
 <div id="searchbox" style="display: none" role="search">
@@ -100,9 +131,12 @@
           <a href="genindex.html" title="General Index"
              >index</a></li>
         <li class="right" >
+          <a href="doc_connect_to_db.html" title="Connect to Talsim DB"
+             >next</a> |</li>
+        <li class="right" >
           <a href="doc_soil.html" title="ISRIC Soil Type Converter"
              >previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.3 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.4 documentation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Land use mapping</a></li> 
       </ul>
     </div>
