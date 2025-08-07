@@ -1211,8 +1211,19 @@ class QTalsim:
             self.dlg.soilGroupBox.setEnabled(True)
             self.dlg.landuseGroupBox.setEnabled(True)
 
+            #Rename the UI field of input layer so no problems arise later on
+            rename_params = {
+                'INPUT': self.ezgLayer,
+                'FIELD': self.ezgUniqueIdentifier,  #Current field name
+                'NEW_NAME': 'ID_SubB',
+                'OUTPUT': 'memory:'
+            }
+            self.ezgLayer = processing.run('native:renametablefield', rename_params)['OUTPUT']
+            self.ezgUniqueIdentifier = 'ID_SubB' #Update variable to reference the new field name
+
             self.ezgLayer.setName("Sub-basins")
             QgsProject.instance().addMapLayer(self.ezgLayer)
+
             #self.dlg.progressbar.setValue(0)
             self.log_to_qtalsim_tab(f"Successfully selected and clipped sub-basin layer: {self.ezgLayer.name()}.", Qgis.Info) 
 
@@ -2830,11 +2841,11 @@ class QTalsim:
                 #Eliminate with mode specified by user
                 tempLayersplit.selectByIds(ids_to_eliminate)
                 mode = 0 
-                if self.dlg.comboboxModeEliminateSoil.currentText() == 'Smallest Area':
+                if self.dlg.comboboxEliminateModes.currentText() == 'Smallest Area':
                     mode = 1
-                elif self.dlg.comboboxModeEliminateSoil.currentText() == 'Largest Common Boundary':
+                elif self.dlg.comboboxEliminateModes.currentText() == 'Largest Common Boundary':
                     mode = 2
-                elif self.dlg.comboboxModeEliminateSoil.currentText() == 'Largest Area':
+                elif self.dlg.comboboxEliminateModes.currentText() == 'Largest Area':
                     mode = 0
                 tempLayerSplitEliminated = processing.run("qgis:eliminateselectedpolygons", {'INPUT':tempLayersplit,'MODE':mode,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
                 tempLayerSplitEliminated = processing.run("native:multiparttosingleparts", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
@@ -2959,8 +2970,8 @@ class QTalsim:
             j = 1
             for feature in self.finalLayer.getFeatures():
                 for i in range(1, self.number_soilLayers + 1):
-                    combination = tuple(feature[f"{field.name()}_soillayer{i}"] for field in new_fields if field.name() != self.IDSoil) #combination without id (id for each combination for each combination of soil layers)
-                    if str(feature[f"{self.nameSoil}_soillayer{i}"]).strip().upper() != 'NULL':
+                    combination = tuple(feature[f"{field.name()}_soillayer{i}"] for field in new_fields if field.name() != self.IDSoil) #combination without id (id for each combination of soil layers)
+                    if str(feature[f"{self.nameSoil}_soillayer{i}"]).strip().upper() != 'NULL' and str(feature[f"{self.nameSoil}_soillayer{i}"]).strip().upper() != '':
                         if combination not in unique_combinations: 
                             unique_combinations.add(combination)
                             #Create new feature for each soil layer
@@ -3103,7 +3114,7 @@ class QTalsim:
                 self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
                 #Define the parameters for the spatial join
                 params = {
-                    'INPUT': self.finalLayer,  
+                    'INPUT': self.finalLayer,
                     'JOIN': soilTypeFinalSingleParts,  
                     'PREDICATE': [0],  
                     'JOIN_FIELDS': ['ID'],  
@@ -3124,7 +3135,7 @@ class QTalsim:
                 if field.name() == 'ID': 
                     self.finalLayer.renameAttribute(self.finalLayer.fields().indexOf('ID'), self.hruSoilTypeId)  #Rename it
             self.finalLayer.commitChanges()
-
+            
             #Delete features without geometry
             features_to_delete = []
             for feature in self.finalLayer.getFeatures():

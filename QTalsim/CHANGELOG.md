@@ -1,5 +1,17 @@
 # Changelog
 
+## \[1.6.5] - 2025-08-07
+
+* Fixes
+
+  * HRU Calculation
+  
+    * BOA / Soil Texture: No features are created when all values are null/0 
+	* Soil Layer / Sub-basins Layer: Naming the unique identifier field of the sub-basins layer "Id" does not lead to errors anymore
+  
+  * Land use Mapping
+    * Now also works with no clipping layer being selected
+  
 ## \[1.6.4] - 2025-07-25
 
 * Enhancement

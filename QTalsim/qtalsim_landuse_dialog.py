@@ -172,10 +172,13 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             #Merge the layers
             result_merge = processing.run("native:mergevectorlayers", {'LAYERS': layersToMerge,  'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)
             self.merged_layer = result_merge['OUTPUT']
-            QgsProject.instance().addMapLayer(self.merged_layer)
-            clipped_layer = None
-            clipped_layer = self.clipLanduseLayer(self.merged_layer)
             
+            clipped_layer = None
+            clipping_layer_name = self.comboboxClippingLayer.currentText()
+            if not clipping_layer_name == "Select Clipping Layer":
+                clipped_layer = self.clipLanduseLayer(self.merged_layer)
+            else:
+                self.log_to_qtalsim_tab("No Clipping Layer selected. Using the full extent of the input ATKIS layer.", Qgis.Warning)
             if clipped_layer:
                 self.landuseLayer = clipped_layer
             else:
@@ -195,7 +198,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         else:
             clipping_layer = QgsProject.instance().mapLayersByName(clipping_layer_name)[0] #Get the clipping layer
 
-            #Clip the merged ATKIS-layer
+            #Clip the land use/cover layer
             try:
                 clippedLayer = processing.run("native:clip", {
                         'INPUT': layer_to_clip,
@@ -241,8 +244,14 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             elif self.comboboxLanduseSource.currentText() == self.lbmLandcover:
                 selected_layer_lbm = self.comboboxLayerLandbedeckung.currentText()
                 self.lbmLayer = QgsProject.instance().mapLayersByName(selected_layer_lbm)[0]
-                
-                self.landuseLayer = self.clipLanduseLayer(self.lbmLayer)
+                self.landuseLayer = None
+                clipping_layer_name = self.comboboxClippingLayer.currentText()
+
+                if not clipping_layer_name == "Select Clipping Layer":
+                    self.landuseLayer = self.clipLanduseLayer(self.lbmLayer)
+                elif clipping_layer_name == "Select Clipping Layer":
+                    self.log_to_qtalsim_tab("No Clipping Layer selected. Using the full extent of the input LBM layer.", Qgis.Warning)
+                    self.landuseLayer = self.lbmLayer
                 self.landbedeckungToTalsimMapping()
 
             self.exportGeopackage()
