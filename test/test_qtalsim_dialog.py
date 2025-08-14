@@ -6,10 +6,7 @@ from qgis.core import QgsApplication
 from qgis.analysis import QgsNativeAlgorithms
 from processing.core.Processing import Processing
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox
-from qtalsim_subbasin_dialog import SubBasinPreprocessingDialog
-from qtalsim_landuse_dialog import LanduseAssignmentDialog
-from qtalsim_soil_dialog import SoilPreprocessingDialog
-from qtalsim_sqllite_dialog import SQLConnectDialog
+
 
 # Initialize QGIS (once)
 qgs = QgsApplication([], False)
@@ -21,8 +18,12 @@ QgsApplication.processingRegistry().addProvider(QgsNativeAlgorithms())
 plugin_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, plugin_dir)
 
-from qtalsim import QTalsim
+from QTalsim.qtalsim import QTalsim #remove QTalsim. for local testing
 from test.utilities import get_qgis_app
+from QTalsim.qtalsim_subbasin_dialog import SubBasinPreprocessingDialog
+from QTalsim.qtalsim_landuse_dialog import LanduseAssignmentDialog
+from QTalsim.qtalsim_soil_dialog import SoilPreprocessingDialog
+from QTalsim.qtalsim_sqllite_dialog import SQLConnectDialog
 
 class QTalsimDialogTest(unittest.TestCase):
     def setUp(self):
