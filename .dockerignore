@@ -1,0 +1,5 @@
+test_qtalsim_functionality.py
+test_init.py
+test_qgis_environment.py
+test_qtalsim_dialog.py
+test_translations.py

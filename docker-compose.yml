@@ -1,0 +1,9 @@
+services:
+  qtalsim-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/tests_directory
+    working_dir: /tests_directory
+    entrypoint: ["bash", "-c", "bash /tests_directory/tests_runner.sh"]

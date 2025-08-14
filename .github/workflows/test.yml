@@ -1,0 +1,27 @@
+name: QGIS Plugin Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build Docker image
+      run: docker-compose build
+    
+    - name: Run tests
+      run: docker-compose run --rm qtalsim-tests
+    
+    - name: Clean up
+      run: docker-compose down

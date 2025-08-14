@@ -32,9 +32,9 @@ B411;Sumpf;;;;;Sumpf
 B412;Moor;;;;;Moor
 B413;Sumpf mit Büschen/Bäumen < 50%;;;;;Sumpf
 B414;Moor mit Büschen/Bäumen < 50%;;;;;Moor
-B423;Watt;;;;;Wasserflaeche
-B511;Wasserlauf;;;;;Wasserflaeche
-B512;Wasserfläche;;;;;Wasserflaeche
-B521;Lagune;;;;;Wasserflaeche
-B522;Mündungstrichter;;;;;Wasserflaeche
-B523;Offenes Meer;;;;;Wasserflaeche
+B423;Watt;;;;;Gewaesser
+B511;Wasserlauf;;;;;Gewaesser
+B512;Wasserfläche;;;;;Gewaesser
+B521;Lagune;;;;;Gewaesser
+B522;Mündungstrichter;;;;;Gewaesser
+B523;Offenes Meer;;;;;Gewaesser

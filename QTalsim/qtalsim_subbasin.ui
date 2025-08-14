@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>789</width>
-    <height>449</height>
+    <height>458</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -443,7 +443,7 @@ p, li { white-space: pre-wrap; }
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:8pt; font-weight:600;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8pt;&quot;&gt;This feature calculates different parameters for all sub-basins in the input layer. &lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:8pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8pt;&quot;&gt;Optional: First, it calculates the longest flow path (using &lt;/span&gt;&lt;span style=&quot; font-family:'sans-serif'; font-size:8pt; color:#000000; background-color:#ffffff;&quot;&gt;SAGA GIS and WhiteboxTools) for each sub-basin (Button &amp;quot;Calculate Longest Flowpath&amp;quot;) using the DEM layer and the water network layer. You can check the longest flowpaths and edit the geometries, if necessary. The changes of the length will be reflected in the output layer. &lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8pt;&quot;&gt;Optional: First, it calculates the longest flow path (using&lt;/span&gt;&lt;span style=&quot; font-family:'sans-serif'; font-size:8pt; color:#000000; background-color:#ffffff;&quot;&gt; WhiteboxTools) for each sub-basin (Button &amp;quot;Calculate Longest Flowpath&amp;quot;) using the DEM layer and the water network layer. You can check the longest flowpaths and edit the geometries, if necessary. The changes of the length will be reflected in the output layer. &lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'sans-serif'; font-size:8pt; color:#000000; background-color:#ffffff;&quot;&gt; &lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'sans-serif'; font-size:8pt; color:#000000; background-color:#ffffff;&quot;&gt;When pressing &amp;quot;Run&amp;quot;-button the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin are calculated. All parameters are added as columns to the sub-basins-layer. Additionally, the length of the longest flowpath is also added to the layer as a parameter.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
