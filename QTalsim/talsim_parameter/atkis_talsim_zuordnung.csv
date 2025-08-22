@@ -9,19 +9,19 @@ AX_Landwirtschaft;1013;Spargel;veg01_f;Ackerland;VEG
 AX_Landwirtschaft;1014;Hanf;veg01_f;Ackerland;VEG
 AX_Gehoelz;-;"Fläche, die mit einzelnen Bäumen, Baumgruppen, Büschen, Hecken und
 Sträuchern bestockt ist";veg03_f;Gehoelz;
-AX_Fliessgewaesser;-;Kennung Hyd gibt an, ob das Gewässer ganzjährig Wasser führt;gew01_f;Gewaesser;
-AX_Hafenbecken;-;Teil des Gewässers;gew01_f;Gewaesser;
-AX_Meer;-;Teil des Gewässers;gew01_f;Gewaesser;
-AX_StehendesGewaesser;-;Teil des Gewässers;gew01_f;Gewaesser;
+AX_FliessWasserflaeche;-;Kennung Hyd gibt an, ob das Gewässer ganzjährig Wasser führt;gew01_f;Wasserflaeche;
+AX_Hafenbecken;-;Teil des Gewässers;gew01_f;Wasserflaeche;
+AX_Meer;-;Teil des Gewässers;gew01_f;Wasserflaeche;
+AX_StehendesWasserflaeche;-;Teil des Gewässers;gew01_f;Wasserflaeche;
 AX_Heide;-;typischen Sträuchern, Gräsern und geringwertigem Baumbestand.;veg03_f;Heide;
 AX_IndustrieUndGewerbeflaeche;-;Unterkategorien über Funktion der Fläche vorhanden (zB Werft, Handel, Gärtnerei, Kläranlage, Deponie…);sie02_f;IndustrieUndGewerbe;
-AX_Wald;1100;Laubholz;veg02_f;Laubholz;VEG
+AX_Wald;1100;Laubwald;veg02_f;Laubwald;VEG
 AX_Abschnitt;-;Teil des Straßennetzes;ver07_l;löschen;
 AX_Ast;-;Teil des Straßennetzes;ver07_l;löschen;
 AX_Bahnstrecke;-;;ver03_l;löschen;
 AX_Bahnverkehrsanlage;-;überlappend mit Verkehrsflächen;ver06_f;löschen;
 AX_BauwerkeEinrichtungenUndSonstigeAngaben;-;"Überkategorie; sollte in OBJART_TXT nicht vorkommen";;löschen;
-AX_BauwerkImGewaesserbereich;-;überlappend mit Verkehrsflächen;ver06_f;löschen;
+AX_BauwerkImWasserflaechebereich;-;überlappend mit Verkehrsflächen;ver06_f;löschen;
 AX_BauwerkImVerkehrsbereich;-;überlappend mit Verkehrsflächen;ver06_f;löschen;
 AX_BauwerkOderAnlageFuerIndustrieUndGewerbe;-;überlappend mit anderen Flächen (zB Siedlung/Vegetation);sie03_f;löschen;
 AX_BauwerkOderAnlageFuerSportFreizeitUndErholung;-;überlappend mit anderen Flächen (zB Siedlung/Vegetation);sie03_f;löschen;
@@ -40,9 +40,9 @@ AX_Flugverkehrsanlage;-;überlappend mit Verkehrsflächen;ver06_f;löschen;
 AX_Gebietsgrenze;-;;geb01_l;löschen;
 AX_Gelaendekante;-;;rel01_l;löschen;
 AX_Gemeindekennzeichen;-;;;löschen;
-AX_Gewaesserachse;-;;gew01_l;löschen;
-AX_Gewaessermerkmal;-;;gew02_p;löschen;
-AX_Gewaesserstationierungsachse;-;;gew03_l;löschen;
+AX_Wasserflaecheachse;-;;gew01_l;löschen;
+AX_Wasserflaechemerkmal;-;;gew02_p;löschen;
+AX_Wasserflaechestationierungsachse;-;;gew03_l;löschen;
 AX_Grenzuebergang;-;;;löschen;
 AX_Hafen;-;nicht so genau wie ver05_f und ist teilweise überlappend mit anderen Flächen (zB Gewässerflächen);sie04_f;löschen;
 AX_HistorischesBauwerkOderHistorischeEinrichtung;-;überlappend mit anderen Flächen (zB Siedlung/Vegetation);sie03_f;löschen;
@@ -80,7 +80,7 @@ AX_WegPfadSteig;-;;ver03_l;löschen;
 AX_Wohnplatz;-;;geb02_p;löschen;
 AX_Wald;1300;Laub- und Nadelholz;veg02_f;Mischwald;VEG
 AX_Moor;-;unkultivierte Fläche, deren obere Schicht aus vertorften oder zersetzten Pflanzenresten besteht.;veg03_f;Moor;
-AX_Wald;1200;Nadelholz;veg02_f;Nadelholz;VEG
+AX_Wald;1200;Nadelwald;veg02_f;Nadelwald;VEG
 AX_Friedhof;-;;sie02_f;ParkanlagenUndObstplantagen;
 AX_Landwirtschaft;1011;Streuobstacker;veg01_f;ParkanlagenUndObstplantagen;VEG
 AX_Landwirtschaft;1021;Streuobstwiese;veg01_f;ParkanlagenUndObstplantagen;VEG

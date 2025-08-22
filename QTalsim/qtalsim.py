@@ -2008,6 +2008,12 @@ class QTalsim:
             self.log_to_qtalsim_tab(f"Starting Land use Mapping.", Qgis.Info) 
             self.landuseTalsim = None
 
+            #Get Talsim land use parameter values
+            current_path = os.path.dirname(os.path.abspath(__file__))
+            landuseValuesTalsimPath = os.path.join(current_path, "talsim_parameter", "landuseParameterValues.csv")
+            self.dfLanduseParameterValuesTalsim = pd.read_csv(landuseValuesTalsimPath, delimiter = ';')
+            print(self.dfLanduseParameterValuesTalsim) #hier weitermachen - nan values Problem - evtl. unten mal alle ausgeben lassen if nan then None
+
             #Create Layer
             self.landuseTalsim = QgsVectorLayer(f"Polygon?crs={self.landuseLayer.crs().authid()}", "LanduseLayerEdited", "memory")
 
@@ -2029,11 +2035,10 @@ class QTalsim:
             for row in range(self.dlg.tableLanduseMapping.rowCount()): #Loop over all entries of the Land use Mapping Table
                 old_field = self.dlg.tableLanduseMapping.cellWidget(row, 1).currentText() #Current Text of Combo-Box specified by user
                 
-                #new_field = self.dlg.tableLanduseMapping.item(row, 0).text() #Get Talsim parameter
-                full_text = self.dlg.tableLanduseMapping.item(row, 0).text() #
+                full_text = self.dlg.tableLanduseMapping.item(row, 0).text() 
                 #Remove the unit from the text of the field name
                 new_field = full_text.split()[0] #save only the field name without the unit
-                value_mapping[old_field] = new_field
+                value_mapping[new_field] = old_field
                 if fieldType[row].strip() == 'string':
                     type = QVariant.String
                 elif fieldType[row].strip() == 'float':
@@ -2050,10 +2055,9 @@ class QTalsim:
                         self.log_to_qtalsim_tab(f'You entered {old_field} for Talsim parameter {new_field}. Your field has type {QVariant.typeToName(type_old)}, when it should have type {QVariant.typeToName(type)}.', Qgis.Warning)
                         fields_wrong_datatype.append(old_field)
             #self.dlg.progressbar.setValue(20)      
-            
             self.landuseTalsim.dataProvider().addAttributes(new_fields) #Create new fields with the talsim parameters
             self.landuseTalsim.updateFields()
-
+            print(value_mapping)
             #Populate landuse parameter fields in land use layer
             total_features = self.landuseTalsim.featureCount()
             self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)  
@@ -2065,7 +2069,7 @@ class QTalsim:
             else:
                 end_progress = 80
             progress_range = end_progress - last_logged_progress
-
+            print(self.dfLanduseParameterValuesTalsim.columns)
             request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
             self.landuseTalsim.startEditing()
             try:
@@ -2077,9 +2081,21 @@ class QTalsim:
                         last_logged_progress = progress
                         #self.dlg.progressbar.setValue(int(progress))
                         self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
-                    for old_field, new_field in value_mapping.items():
+                    old_field = value_mapping['Name']
+                    input_landuse = str(feature[old_field]).strip().lower()
+                    for new_field, old_field in value_mapping.items():
                         if old_field == 'Parameter not available' and not str(new_field).startswith('pTAW'):
-                            feature[new_field] = None 
+                            print(new_field)
+                            if new_field in self.dfLanduseParameterValuesTalsim.columns:
+                                #Assign the saved talsim land use parameters to the land use features
+                                print("hier")
+                                mask = self.dfLanduseParameterValuesTalsim['Name'].str.strip().str.lower() == input_landuse.strip().lower()
+                                if mask.any():
+                                    val = self.dfLanduseParameterValuesTalsim.loc[mask, new_field].iloc[0]
+                                    feature[new_field] = None if pd.isna(val) else val
+                                    print(feature[new_field])
+                            else:
+                                feature[new_field] = None 
                         elif old_field == 'Parameter not available' and str(new_field).startswith('pTAW'):
                             feature[new_field] = 0.5
                         elif old_field == 'Feature IDs of Land use Layer':
