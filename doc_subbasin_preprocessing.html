@@ -78,7 +78,12 @@
 <blockquote>
 <div><ul class="simple">
 <li><p>Choose the correct polygon layer for the sub-basin layer.</p></li>
-<li><p>Select the field that contains the unique identifier for the sub-basins.</p></li>
+<li><p>Select the field that contains the unique identifier for the sub-basins.</p>
+<ul>
+<li><p>The unique identifier field should not be named ‘fid’ (possible name e.g. ‘Talsim_ID’).</p></li>
+<li><p>The unique identifiers must start with an ‘A’ (e.g. ‘A001).</p></li>
+</ul>
+</li>
 <li><p>Select the field that contains the names of the sub-basins.</p></li>
 <li><p>Select the DEM layer (raster layer) and the water network layer (line layer). The water network layer is only necessary for calculating LFP.</p></li>
 <li><p>Optional: Select a layer containing impervious areas (<a class="reference external" href="https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862">Example data set</a>).</p>
