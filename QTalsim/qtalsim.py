@@ -1808,6 +1808,10 @@ class QTalsim:
             self.start_operation()
             #self.dlg.progressbar.setValue(0)
             #Dissolve the layer using the talsim soil parameters
+            if not self.soilLayerIntermediate:
+                self.log_to_qtalsim_tab("Soil layer was deleted or not yet created. Please create the soil layer.", Qgis.Critical)
+                self.end_operation()
+                return
             try:
                 resultDissolve = processing.run("native:dissolve", {'INPUT':self.soilLayerIntermediate,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
                 self.soilTalsim = resultDissolve['OUTPUT']
@@ -2386,6 +2390,10 @@ class QTalsim:
         '''
         try:
             self.start_operation()
+            if not self.landuseTalsim:
+                self.log_to_qtalsim_tab("Land use layer was deleted or not yet created. Please create the land use layer.", Qgis.Critical)
+                self.end_operation()
+                return
             #Dissolve the layer using the talsim landuse parameters
             try:
                 resultDissolve = processing.run("native:dissolve", {'INPUT':self.landuseTalsim,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'})

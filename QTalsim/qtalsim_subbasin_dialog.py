@@ -70,6 +70,8 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Fill Comboboxes
         self.comboboxUISubBasin.clear()
         self.comboboxNameField.clear()
+        self.comboboxImperviousnessField.setVisible(False)
+        self.labelImperviousnessField.setVisible(False)
         self.fillLayerComboboxes()
 
     def safeConnect(self, signal: pyqtSignal, slot):
@@ -146,10 +148,13 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.comboboxWaterNetwork.addItem(self.noLayerSelected)
         self.comboboxWaterNetwork.addItems([layer.name() for layer in self.lineLayers])
 
-        #Imperviousness layer
+        #Imperviousness layer - raster and vector
         self.comboboxImperviousness.clear()
         self.comboboxImperviousness.addItem(self.noLayerSelected)
         self.comboboxImperviousness.addItems([layer.name() for layer in self.rasterLayers])
+        self.comboboxImperviousness.addItems([layer.name() for layer in self.polygonLayers])
+        self.safeConnect(self.comboboxImperviousness.currentIndexChanged, self.on_imperviousness_layer_changed)
+        self.comboboxImperviousnessField
 
     def on_subbasin_layer_changed(self):
         '''
@@ -168,6 +173,27 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.comboboxNameField.clear()
                 self.comboboxNameField.addItems(["Select Name-Field"])
                 self.comboboxNameField.addItems([str(field) for field in self.fieldsSubbasinLayer])
+
+    def on_imperviousness_layer_changed(self):
+        '''
+            If the imperviousness layer is a vector layer, fill the field-combobox with the fields of this layer.
+        '''
+        selected_layer_name = self.comboboxImperviousness.currentText() #Get the selected layer name
+            
+        if selected_layer_name is not None and selected_layer_name != self.noLayerSelected: #imperviousness is optional
+            self.imperviousnessLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+            if self.imperviousnessLayer.type() == QgsMapLayer.RasterLayer: #check if raster
+                self.comboboxImperviousnessField.setVisible(False)
+                self.labelImperviousnessField.setVisible(False)
+            elif self.imperviousnessLayer.type() == QgsMapLayer.VectorLayer:
+                self.comboboxImperviousnessField.setVisible(True)
+                self.labelImperviousnessField.setVisible(True)
+                self.comboboxImperviousnessField.clear()
+                field_names = [field.name() for field in self.imperviousnessLayer.fields()]
+                self.comboboxImperviousnessField.addItems(field_names)
+        else:
+            self.comboboxImperviousnessField.setVisible(False)
+            self.labelImperviousnessField.setVisible(False)
 
     def runSubBasinPreprocessing(self):
         '''
@@ -334,7 +360,85 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
             Calculates average impervious area per sub-basin.
         '''
-        self.subBasinLayerProcessed = processing.run("native:zonalstatisticsfb", {'INPUT': sub_basins_layer,'INPUT_RASTER': imperviousness_layer,'RASTER_BAND':1,'COLUMN_PREFIX':'Imp_','STATISTICS':[2],'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']            
+        if imperviousness_layer.type() == QgsMapLayer.VectorLayer:
+            fieldNameImperviousness = self.comboboxImperviousnessField.currentText()
+            intersection_result = processing.run(
+                "native:intersection",
+                {
+                    "INPUT": sub_basins_layer,
+                    "OVERLAY": imperviousness_layer,
+                    "INPUT_FIELDS": [],
+                    "OUTPUT": "memory:"
+                }
+            )
+            intersection_layer = intersection_result["OUTPUT"]
+
+            #Calculate area & weighted imperviousness for each polygon
+            intersection_layer.startEditing()
+            if "weighted_imp" not in [f.name() for f in intersection_layer.fields()]:
+                intersection_layer.dataProvider().addAttributes([
+                    QgsField("weighted_imp", QVariant.Double),
+                    QgsField("area_m2", QVariant.Double)
+                ])
+                intersection_layer.updateFields()
+
+            for feature in intersection_layer.getFeatures():
+                geom = feature.geometry()
+                area = geom.area()
+                imperv_val = feature[fieldNameImperviousness]
+                if imperv_val is None:
+                    imperv_val = 0
+                feature["area_m2"] = area
+                feature["weighted_imp"] = area * float(imperv_val)
+                intersection_layer.updateFeature(feature)
+            intersection_layer.commitChanges()
+
+            #Aggregate by sub-basin ID 
+            aggregate_result = processing.run(
+                "native:aggregate",
+                {
+                    "INPUT": intersection_layer,
+                    "GROUP_BY": self.subbasinUIField,
+                    "AGGREGATES": [
+                        {"aggregate": "first_value", "delimiter": ",", "input": self.subbasinUIField, "length": 50, "precision": 0, "name": self.subbasinUIField, 'type': 10, 'type_name': 'text', "sub_type": 0},
+                        {"aggregate": "sum", "delimiter": ",", "input": "weighted_imp", "length": 10, "precision": 3, "name": "sum_weighted", "type": 6, "type_name": "double precision", "sub_type": 0},
+                        {"aggregate": "sum", "delimiter": ",", "input": "area_m2", "length": 10, "precision": 3, "name": "sum_area", "type": 6, "type_name": "double precision", "sub_type": 0}
+                    ],
+                    "OUTPUT": "TEMPORARY_OUTPUT"
+                }
+            )
+            aggregate_layer = aggregate_result["OUTPUT"]
+            #Calculate mean imperviousness and join to sub-basins
+            aggregate_layer.startEditing()
+            if self.imperviousFieldName not in [f.name() for f in aggregate_layer.fields()]:
+                aggregate_layer.dataProvider().addAttributes([QgsField(self.imperviousFieldName, QVariant.Double)])
+                aggregate_layer.updateFields()
+
+            for feature in aggregate_layer.getFeatures():
+                sum_area = feature["sum_area"]
+                sum_weighted = feature["sum_weighted"]
+                if sum_area and sum_area > 0:
+                    feature[self.imperviousFieldName] = sum_weighted / sum_area
+                else:
+                    feature[self.imperviousFieldName] = 0
+                aggregate_layer.updateFeature(feature)
+            aggregate_layer.commitChanges()
+
+            joinResult = processing.run(
+                "native:joinattributestable",
+                {
+                    "INPUT": sub_basins_layer,
+                    "FIELD": self.subbasinUIField,
+                    "INPUT_2": aggregate_layer,
+                    "FIELD_2": self.subbasinUIField,
+                    "FIELDS_TO_COPY": [self.imperviousFieldName],
+                    "METHOD": 1, 
+                    "OUTPUT": 'TEMPORARY_OUTPUT'
+                }
+            )
+            self.subBasinLayerProcessed = joinResult['OUTPUT']
+        elif imperviousness_layer.type() == QgsMapLayer.RasterLayer:
+            self.subBasinLayerProcessed = processing.run("native:zonalstatisticsfb", {'INPUT': sub_basins_layer,'INPUT_RASTER': imperviousness_layer,'RASTER_BAND':1,'COLUMN_PREFIX':'Imp_','STATISTICS':[2],'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']            
 
         return self.subBasinLayerProcessed
     
