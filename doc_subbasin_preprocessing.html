@@ -5,11 +5,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Sub-basins preprocessing &#8212; QTalsim 1.6.5 documentation</title>
+    <title>Sub-basins preprocessing &#8212; QTalsim 1.6.6 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
     
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=08abc459"></script>
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=3f534e33"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
     
@@ -30,7 +30,7 @@
         <li class="right" >
           <a href="hrus_step_by_step.html" title="Step by Step"
              accesskey="P">previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.5 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.6 documentation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Sub-basins preprocessing</a></li> 
       </ul>
     </div>  
@@ -81,14 +81,16 @@
 <li><p>Select the field that contains the unique identifier for the sub-basins.</p>
 <ul>
 <li><p>The unique identifier field should not be named ‘fid’ (possible name e.g. ‘Talsim_ID’).</p></li>
-<li><p>The unique identifiers must start with an ‘A’ (e.g. ‘A001).</p></li>
+<li><p>The unique identifiers must start with an ‘A’ (e.g. ‘A001’).</p></li>
 </ul>
 </li>
 <li><p>Select the field that contains the names of the sub-basins.</p></li>
 <li><p>Select the DEM layer (raster layer) and the water network layer (line layer). The water network layer is only necessary for calculating LFP.</p></li>
-<li><p>Optional: Select a layer containing impervious areas (<a class="reference external" href="https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862">Example data set</a>).</p>
+<li><p>Optional: Select either a raster or vector layer containing impervious areas</p>
 <ul>
 <li><p>Values should be expressed as percentages</p></li>
+<li><p><cite>Example data set raster &lt;https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862&gt;</cite></p></li>
+<li><p><cite>Example data set vector layer &lt;https://gdz.bkg.bund.de/index.php/default/digitales-landbedeckungsmodell-deutschland-stand-2021-lbm-de.html</cite> (column ‘SIE_AKT’)</p></li>
 </ul>
 </li>
 </ul>
@@ -176,7 +178,7 @@ It then applies Whitebox’ “FillDepressionsWangAndLiu” tool to fill any sin
         <li class="right" >
           <a href="hrus_step_by_step.html" title="Step by Step"
              >previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.5 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.6.6 documentation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Sub-basins preprocessing</a></li> 
       </ul>
     </div>
