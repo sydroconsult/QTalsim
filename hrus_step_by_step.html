@@ -219,20 +219,13 @@ also removed.</p>
 <p><img alt="Select Land use Layer" src="_images/SelectLanduseLayer.png" /></p>
 </li>
 <li><p><strong>Land use Mapping</strong></p>
-<dl class="simple">
-<dt>The land use mapping table is populated similarily to the soil mapping table. The first column contains Talsim land use parameters and the second column contains drop-down menus with all field names of the input land use layer.</dt><dd><p>Here, you must match each Talsim parameter (in the first column) with the corresponding field in the input layer (in the second column).</p>
-</dd>
-</dl>
-<p>The table below shows the necessary types for these parameters. Additionally, it also shows the required unit and restrictions of the parameters. If the user-mapped field has a different datatype, the plugin,
-where possible, converts the field’s values to the parameter’s type.</p>
+<p>The land use mapping table is populated similarily to the soil mapping table. The first column contains Talsim land use parameters and the second column contains drop-down menus with all field names of the input land use layer.  Here, you must match each Talsim parameter (in the first column) with the corresponding field in the input layer (in the second column).</p>
 <blockquote>
-<div><blockquote>
-<div><p>If ‘Parameter not available’ is selected, the plugin is trying to fill those parameters with Talsim parameters using the “Name”-field. The list with land use names and their parameters can be found here:</p>
+<div><p>The table below shows the necessary types for these parameters. Additionally, it also shows the required unit and restrictions of the parameters. If the user-mapped field has a different datatype, the plugin,</p>
 </div></blockquote>
-<dl class="simple">
-<dt><a class="reference download internal" download="" href="_downloads/b9ec32475823716427280e737b3a0049/landuseParameterValues.csv"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">land</span> <span class="pre">use</span> <span class="pre">parameters</span> <span class="pre">file</span></code></a>.</dt><dd><p>If the land use name is not found, that parameter will be added with null values. Only for pTAW 0,5 is used as default value, if the user does not insert a parameter.</p>
-</dd>
-</dl>
+<p>where possible, converts the field’s values to the parameter’s type.</p>
+<blockquote>
+<div><p>If ‘Parameter not available’ is selected, the plugin is trying to fill those parameters with Talsim parameters using the “Name”-field. The list with land use names and their parameters can be found here: <a class="reference download internal" download="" href="_downloads/b9ec32475823716427280e737b3a0049/landuseParameterValues.csv"><code class="xref download docutils literal notranslate"><span class="pre">Land</span> <span class="pre">use</span> <span class="pre">parameters</span> <span class="pre">file</span></code></a>. If the land use name is not found, that parameter will be added with null values. Only for pTAW 0,5 is used as default value, if the user does not insert a parameter.</p>
 </div></blockquote>
 <p>After completing the mapping, click ‘Confirm Landuse Mapping’ to create a new
 layer containing the input fields from your layer and the
@@ -380,10 +373,10 @@ QGIS project.</p>
 <div><p>In the final step, users can choose to export the processed layers in either ASCII format (for Talsim NG4), SQLite format (for Talsim NG5), or both.</p>
 <ul>
 <li><p>ASCII-Export</p>
-<p>To export in ASCII format, users need to specify only the ASCII file name. The plugin will generate all relevant files with the appropriate extensions (.EFL, .BOD, .BOA, .LNZ), ensuring compatibility with Talsim NG4.</p>
+<p>To export in ASCII format, users need to specify only the ASCII file name. The plugin will generate all relevant files with the appropriate extensions (.EFL, .BOD, .BOA, .LNZ, .JGG), ensuring compatibility with Talsim 4.</p>
 </li>
 <li><p>SQLite Export</p>
-<p>For SQLite export, users must select an existing Talsim database (e.g., one created using QTalsim – Sub-basins preprocessing) and specify the scenario to which the data should be assigned. Tables HydrologicalReponseUnit, SoilType, SoilTexture and LandUse of the specified scenario will be filled. This export is compatible with Talsim NG5.</p>
+<p>For SQLite export, users must select an existing Talsim database (e.g., one created using QTalsim – Sub-basins preprocessing) and specify the scenario to which the data should be assigned. Tables HydrologicalReponseUnit, SoilType, SoilTexture, LandUse, Pattern and PatternNumberValue of the specified scenario will be filled. This export is compatible with Talsim 5.</p>
 </li>
 </ul>
 <p>After configuring the desired export options, users must click ‘Select Output Folder’ to choose the directory where all outputs will be saved. This includes both the ASCII files and the GeoPackage export.</p>
