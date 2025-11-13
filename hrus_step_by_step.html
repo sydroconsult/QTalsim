@@ -220,14 +220,13 @@ also removed.</p>
 </li>
 <li><p><strong>Land use Mapping</strong></p>
 <p>The land use mapping table is populated similarily to the soil mapping table. The first column contains Talsim land use parameters and the second column contains drop-down menus with all field names of the input land use layer.  Here, you must match each Talsim parameter (in the first column) with the corresponding field in the input layer (in the second column).</p>
+</li>
+</ul>
 <blockquote>
-<div><p>The table below shows the necessary types for these parameters. Additionally, it also shows the required unit and restrictions of the parameters. If the user-mapped field has a different datatype, the plugin,</p>
-</div></blockquote>
-<p>where possible, converts the field’s values to the parameter’s type.</p>
+<div><p>The table below shows the necessary types for these parameters. Additionally, it also shows the required unit and restrictions of the parameters. If the user-mapped field has a different datatype, the plugin, where possible, converts the field’s values to the parameter’s type.</p>
+<p>If ‘Parameter not available’ is selected, the plugin is trying to fill those parameters with Talsim parameters using the “Name”-field. The list with land use names and their parameters can be found here: <a class="reference download internal" download="" href="_downloads/b9ec32475823716427280e737b3a0049/landuseParameterValues.csv"><code class="xref download docutils literal notranslate"><span class="pre">Land</span> <span class="pre">use</span> <span class="pre">parameters</span> <span class="pre">file</span></code></a>. If the land use name is not found, that parameter will be added with null values. Only for pTAW 0,5 is used as default value, if the user does not insert a parameter.</p>
 <blockquote>
-<div><p>If ‘Parameter not available’ is selected, the plugin is trying to fill those parameters with Talsim parameters using the “Name”-field. The list with land use names and their parameters can be found here: <a class="reference download internal" download="" href="_downloads/b9ec32475823716427280e737b3a0049/landuseParameterValues.csv"><code class="xref download docutils literal notranslate"><span class="pre">Land</span> <span class="pre">use</span> <span class="pre">parameters</span> <span class="pre">file</span></code></a>. If the land use name is not found, that parameter will be added with null values. Only for pTAW 0,5 is used as default value, if the user does not insert a parameter.</p>
-</div></blockquote>
-<p>After completing the mapping, click ‘Confirm Landuse Mapping’ to create a new
+<div><p>After completing the mapping, click ‘Confirm Landuse Mapping’ to create a new
 layer containing the input fields from your layer and the
 Talsim parameter values. If the user defines area/percentage thresholds, land use features below these thresholds are
 deleted during this step. The user can set a minimum size of
@@ -311,7 +310,9 @@ percentage share are deleted and filled using the ‘Eliminate’-tool.</p>
 </tbody>
 </table>
 <p><img alt="Land use Mapping" src="_images/LanduseMapping.png" /></p>
-</li>
+</div></blockquote>
+</div></blockquote>
+<ul>
 <li><p><strong>Optional Editing Steps for Land use Layer</strong></p>
 <p>After confirming the land use mapping you have the option to
 perform additional editing steps, such as deleting overlapping
