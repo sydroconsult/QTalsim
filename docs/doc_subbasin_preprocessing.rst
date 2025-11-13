@@ -43,8 +43,8 @@ Select Layers
    -  Optional: Select either a raster or vector layer containing impervious areas 
    
       -  Values should be expressed as percentages
-      -  `Example data set raster <https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862>`
-      -  `Example data set vector layer <https://gdz.bkg.bund.de/index.php/default/digitales-landbedeckungsmodell-deutschland-stand-2021-lbm-de.html` (column 'SIE_AKT')
+      -  `Example data set raster <https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862>`__
+      -  `Example data set vector layer <https://gdz.bkg.bund.de/index.php/default/digitales-landbedeckungsmodell-deutschland-stand-2021-lbm-de.html>`__ (column 'SIE_AKT')
 
 Calculation of LongestFlowPath
 ------------------------------
