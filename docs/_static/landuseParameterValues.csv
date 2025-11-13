@@ -1,0 +1,16 @@
+﻿ID_LNZ;Name;Beschreibung;RootDepth;RootDepthAnnualPatternId;PlantCoverage;PlantCoverageAnnualPatternId;LeafAreaIndex;LeafAreaIndexAnnualPatternId
+1;Ackerland;;0,6;5;90;3;3;4
+2;Gehoelz;;0,6;;95;;5;12
+3;Heide;;0,3;17;100;;4;16
+4;IndustrieUndGewerbe;;0,3;;10;;1;14
+5;Laubwald;;1,2;;90;1;6;2
+6;Mischwald;;1;;90;6;8;7
+7;Moor;;0,3;;80;;4;18
+8;Nadelwald;;0,8;;90;;10;10
+9;ParkanlagenUndObstplantagen;Grünfläche mit Bäumen;1,2;;80;;4;11
+10;Strassenverkehr;;0,3;;10;;1;15
+11;Sumpf;;0,3;;80;;4;19
+12;Vegetationslos;Bergbau, Fels, Steine, Schotter, Sand, etc.;0,3;;10;;0,8;13
+13;Wasserflaeche;;0,3;;0,1;;0,1;
+14;WieseUndWeide;Grünfläche ohne Bäume;0,3;9;100;;4;8
+15;Wohnbauflaeche;;0,6;;50;;2,5;20

@@ -36,13 +36,15 @@ Select Layers
    -  Select the field that contains the unique identifier for the sub-basins.
 
       - The unique identifier field should not be named 'fid' (possible name e.g. 'Talsim_ID').
-      - The unique identifiers must start with an 'A' (e.g. 'A001). 
+      - The unique identifiers must start with an 'A' (e.g. 'A001'). 
 
    -  Select the field that contains the names of the sub-basins.
    -  Select the DEM layer (raster layer) and the water network layer (line layer). The water network layer is only necessary for calculating LFP. 
-   -  Optional: Select a layer containing impervious areas (`Example data set <https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862>`__). 
-      
+   -  Optional: Select either a raster or vector layer containing impervious areas 
+   
       -  Values should be expressed as percentages
+      -  `Example data set raster <https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862>`
+      -  `Example data set vector layer <https://gdz.bkg.bund.de/index.php/default/digitales-landbedeckungsmodell-deutschland-stand-2021-lbm-de.html` (column 'SIE_AKT')
 
 Calculation of LongestFlowPath
 ------------------------------

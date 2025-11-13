@@ -1,17 +1,31 @@
 # Changelog
 
+## \[1.6.6] - 2025-11-13
+
+* Enhancement
+
+  * HRU Calculation
+
+    * Land use: Parameters are now automatically joined with the land use layer if none are specified. The land use name must match the name defined internally by Qtalsim to ensure the join works correctly. Annual patterns are generated and saved either as a .JGG file (for Talsim 4) or directly to the Talsim database (for Talsim 5).
+
+  * Sub-basin preprocessing
+  
+	* The impervious layer can now also be provided as a vector layer. 
+
+
 ## \[1.6.5] - 2025-08-07
 
 * Fixes
 
   * HRU Calculation
-  
-    * BOA / Soil Texture: No features are created when all values are null/0 
-	* Soil Layer / Sub-basins Layer: Naming the unique identifier field of the sub-basins layer "Id" does not lead to errors anymore
-  
+
+    * BOA / Soil Texture: No features are created when all values are null/0
+    * Soil Layer / Sub-basins Layer: Naming the unique identifier field of the sub-basins layer "Id" does not lead to errors anymore
+
   * Land use Mapping
+
     * Now also works with no clipping layer being selected
-  
+
 ## \[1.6.4] - 2025-07-25
 
 * Enhancement

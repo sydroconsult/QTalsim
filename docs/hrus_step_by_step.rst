@@ -142,12 +142,13 @@ Select and Edit Land use layer
       -  **Land use Mapping**
 
          The land use mapping table is populated similarily to the soil mapping table. The first column contains Talsim land use parameters and the second column contains drop-down menus with all field names of the input land use layer. 
-         Here, you must match each Talsim parameter (in the first column) with the corresponding field in the input layer (in the second column).
+		 Here, you must match each Talsim parameter (in the first column) with the corresponding field in the input layer (in the second column).
          The table below shows the necessary types for these parameters. Additionally, it also shows the required unit and restrictions of the parameters. If the user-mapped field has a different datatype, the plugin,
-         where possible, converts the field’s values to the parameter’s
-         type. If ‘Parameter not available’ is selected, that parameter
-         will be added with null values. Only for pTAW 0,5 is used as default value, if the user does not insert a parameter. 
-
+         where possible, converts the field’s values to the parameter’s type. 
+		 If ‘Parameter not available’ is selected, the plugin is trying to fill those parameters with Talsim parameters using the "Name"-field. The list with land use names and their parameters can be found here: 
+		:download:`Download land use parameters file <_static/landuseParameterValues.csv>`.  
+		 If the land use name is not found, that parameter will be added with null values. Only for pTAW 0,5 is used as default value, if the user does not insert a parameter. 
+		
          After completing the mapping, click ‘Confirm Landuse Mapping’ to create a new
          layer containing the input fields from your layer and the
          Talsim parameter values. If the user defines area/percentage thresholds, land use features below these thresholds are
@@ -179,7 +180,7 @@ Select and Edit Land use layer
          |Land use Mapping|
 
       -  **Optional Editing Steps for Land use Layer**
-
+		
          After confirming the land use mapping you have the option to
          perform additional editing steps, such as deleting overlapping
          features and filling gaps. For more detailed information on

@@ -3605,6 +3605,52 @@ class QTalsim:
                 with open(outputPathLnz, 'w', encoding='iso-8859-1', errors='replace') as outputLnz:
                     outputLnz.writelines(completeContentLnz)
 
+                '''
+                    JGG
+                '''
+                jggPath = os.path.join(current_path, "talsim_parameter", "talsim.JGG")
+                outputPathLnz = os.path.join(self.outputFolder, f"{filename}.JGG")
+                pattern_fields = [
+                    "RootDepthAnnualPatternId",
+                    "PlantCoverageAnnualPatternId",
+                    "LeafAreaIndexAnnualPatternId",
+                    "KcCoeffAnnualPatternId",
+                    "KyYieldAnnualPatternId"
+                ]
+
+                clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
+                orderby = QgsFeatureRequest.OrderBy([clause])
+                request = QgsFeatureRequest()
+                request.setOrderBy(orderby)
+
+                ids_to_keep = set()  # use a set to avoid duplicates
+
+                for f in self.landuseFinal.getFeatures(request):
+                    for field in pattern_fields:
+                        val = f[field]
+                        if val not in (None, ''):
+                            ids_to_keep.add(int(val))
+
+                id_pattern = re.compile(r'^\s*\|(\d+)\s+(\d+)\s*\|') 
+
+                with open(jggPath, "r", encoding='iso-8859-1') as f:
+                    lines = f.readlines()
+
+                keep_lines = []
+                current_id = None
+                keep_block = False
+
+                for line in lines:
+                    match = id_pattern.match(line)
+                    if match:
+                        current_id = int(match.group(2)) # Id Jahresgang
+                        keep_block = current_id in ids_to_keep
+                    if keep_block or line.strip().startswith('*'):  
+                        keep_lines.append(line)
+
+                with open(outputPathLnz, "w", encoding="utf-8") as f:
+                    f.writelines(keep_lines)
+
                 self.log_to_qtalsim_tab(f"ASCII-files were saved to this folder: {self.outputFolder}",Qgis.Info)
                 
                 #Add checkmark when process is finished
@@ -3658,7 +3704,9 @@ class QTalsim:
                         FROM HydrologicalResponseUnit hru
                         JOIN SystemElement se ON hru.SystemElementId = se.Id
                         WHERE se.ScenarioId = ?
-                    """
+                    """,
+                    "PatternNumberValue": f"SELECT COUNT(*) FROM PatternNumberValue pn JOIN Pattern p ON pn.PatternId = p.Id WHERE p.ScenarioId = ?",
+                    "Pattern": f"SELECT COUNT(*) FROM Pattern WHERE ScenarioId = ?"
                 }
 
                 tables_with_data = []
@@ -3697,6 +3745,14 @@ class QTalsim:
                             DELETE FROM HydrologicalResponseUnit
                             WHERE SystemElementId IN (
                                 SELECT Id FROM SystemElement WHERE ScenarioId = ?
+                            )
+                        """, (scenario_id,))
+                    elif table == "PatternNumberValue":
+                        #Delete PatternNumberValue by joining with Pattern
+                        cur.execute("""
+                            DELETE FROM PatternNumberValue
+                            WHERE PatternId IN (
+                                SELECT Id FROM Pattern WHERE ScenarioId = ?
                             )
                         """, (scenario_id,))
                     else:
@@ -3888,6 +3944,130 @@ class QTalsim:
             self.log_to_qtalsim_tab(f"Finished inserting land use data into Talsim DB", Qgis.Info)
 
             '''
+                Insert land use patterns to DB
+            '''
+            current_path = os.path.dirname(os.path.abspath(__file__))
+            jggPath = os.path.join(current_path, "talsim_parameter", "talsim.JGG")
+            with open(jggPath, "r", encoding='iso-8859-1') as f:
+                lines = f.readlines()
+
+            pattern_fields = [
+                "RootDepthAnnualPatternId",
+                "PlantCoverageAnnualPatternId",
+                "LeafAreaIndexAnnualPatternId",
+                "KcCoeffAnnualPatternId",
+                "KyYieldAnnualPatternId"
+            ]
+
+            clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
+            orderby = QgsFeatureRequest.OrderBy([clause])
+            request = QgsFeatureRequest()
+            request.setOrderBy(orderby)
+
+            ids_to_keep = set()
+
+            for f in self.landuseFinal.getFeatures(request):
+                for field in pattern_fields:
+                    val = f[field]
+                    if val not in (None, ''):
+                        ids_to_keep.add(int(val))
+                            
+            header_re = re.compile(r'^\s*\|(\d+)\s+(\d+)\s*\|\s*([0-9.,]+)?\s*\|\s*(.*)$')
+            cont_re   = re.compile(r'^\s*\|\s*\|\s*([0-9.,]+)\s*\|\s*(.*)$')
+
+            records = []
+            current_id = None
+            line_no = 0
+            group_no = None
+
+            for line in lines:
+                line = line.rstrip("\n")
+
+                # Match header (|group id|)
+                m = header_re.match(line)
+                if m:
+                    group_no = int(m.group(1))
+                    pattern_id = int(m.group(2))
+                    raw_val = m.group(3) or ""
+                    val = float(raw_val.replace(",", ".")) if raw_val.strip() else None
+                    name = m.group(4).strip()
+
+                    # Skip if not in our ID list
+                    if ids_to_keep and pattern_id not in ids_to_keep:
+                        current_id = None
+                        continue
+
+                    current_id = pattern_id
+                    line_no = 1
+                    records.append({
+                        "Id": current_id,
+                        "line_no": line_no,
+                        "value": val,
+                        "name": name,
+                        "group": group_no,
+                    })
+                    continue
+
+                m2 = cont_re.match(line)
+                if m2 and current_id is not None:
+                    line_no += 1
+                    raw_val = m2.group(1) or ""
+                    val = float(raw_val.replace(",", ".")) if raw_val.strip() else None
+                    name = m2.group(2).strip()
+                    records.append({
+                        "Id": current_id,
+                        "line_no": line_no,
+                        "value": val,
+                        "name": name,
+                        "group": group_no,
+                    })
+            df = pd.DataFrame(records, columns=["Id", "line_no", "value", "name", "group"])
+
+            df["name"] = df.groupby("Id")["name"].transform(lambda x: x.replace("", x.iloc[0]))
+
+            # Insert into Pattern table
+            conn = sqlite3.connect(self.file_path_db)
+            cur = conn.cursor()
+
+            df_pattern = df.drop_duplicates(subset=["Id"]).copy()
+
+            pattern_rows = [
+                (
+                    int(row["Id"]),
+                    str(row["name"]),
+                    0,          # IsFlexible
+                    0,          # IsInterpolated
+                    1,          # PatternType
+                    scenario_id
+                )
+                for _, row in df_pattern.iterrows()
+            ]
+
+            cur.executemany("""
+                INSERT OR REPLACE INTO Pattern
+                (Id, Description, IsFlexible, IsInterpolated, PatternType, ScenarioId)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, pattern_rows)
+
+            # Insert into PatternNumberValue table
+            pattern_values_rows = [
+                (
+                    int(row["Id"]),
+                    int(row["line_no"]),
+                    float(row["value"]) if row["value"] is not None else None
+                )
+                for _, row in df.iterrows()
+            ]
+            cur.executemany("""
+                INSERT INTO PatternNumberValue
+                (PatternId, Number, Value)
+                VALUES (?, ?, ?)
+            """, pattern_values_rows)
+
+            conn.commit()
+            conn.close()
+
+            '''
                 EFL
             '''
             conn = sqlite3.connect(self.file_path_db)
@@ -3937,6 +4117,8 @@ class QTalsim:
             
             conn.commit()
             conn.close()
+
+
             self.log_to_qtalsim_tab(f"Finished inserting HRUs into Talsim DB", Qgis.Info)
 
             current_text_groupbox = self.dlg.groupboxASCIIExport.title()
