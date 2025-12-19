@@ -808,10 +808,7 @@ class QTalsim:
         for feature in gapsLayer.getFeatures():
             feature['gapFeature'] = 1  # Set identifier
             gapsLayer.updateFeature(feature)
-        gapsLayer.commitChanges()
-
-        self.log_to_qtalsim_tab("Existing gaps are represented in temporary layer 'Gaps'.",Qgis.Info)
-        QgsProject.instance().addMapLayer(gapsLayer)
+        gapsLayer.commitChanges()        
 
         return gapsLayer
     
@@ -943,7 +940,7 @@ class QTalsim:
             'INPUT': merged_layer,
             'MODE': mode,  
             'OUTPUT': 'TEMPORARY_OUTPUT'
-        },feedback=self.feedback)
+        }, feedback=self.feedback)
         layer_without_gaps = result_eliminate['OUTPUT']
 
         layer_without_gaps, _ = self.make_geometries_valid(layer_without_gaps)
@@ -1739,7 +1736,9 @@ class QTalsim:
             self.log_to_qtalsim_tab("QTalsim is currently loading, checking for gaps in soil layer.", Qgis.Info)
             self.start_operation()
             self.soilGaps = self.checkGaps(self.soilLayerIntermediate, self.clippingEZG)
-
+            self.soilGaps.setName('GapsSoil')
+            QgsProject.instance().addMapLayer(self.soilGaps)
+            self.log_to_qtalsim_tab("Existing gaps are represented in temporary layer 'GapsSoil'.",Qgis.Info)
             #Add checkmark when process is finished
             current_text = self.dlg.onCheckGapsSoil.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
@@ -2323,12 +2322,14 @@ class QTalsim:
             Checks for gaps in the land use layer and adds a layer representing the gaps.
         '''
         try:
-            self.log_to_qtalsim_tab("QTalsim is currently loading, checking for gaps in soil layer.", Qgis.Info)
+            self.log_to_qtalsim_tab("QTalsim is currently loading, checking for gaps in land use layer.", Qgis.Info)
             self.start_operation()
             self.landuseGaps = self.checkGaps(self.landuseTalsim, self.clippingEZG)
-
+            self.landuseGaps.setName('GapsLanduse')
+            QgsProject.instance().addMapLayer(self.landuseGaps)
             #Add checkmark when process is finished
             current_text = self.dlg.onCheckGapsLanduse.text()
+            self.log_to_qtalsim_tab("Existing gaps are represented in temporary layer 'GapsLanduse'.", Qgis.Info)
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onCheckGapsLanduse.setText(f"{current_text} ✓")
         except Exception as e:
@@ -4409,54 +4410,9 @@ class QTalsim:
         self.dlg.show()
 
         #Run the dialog event loop
-        result = self.dlg.exec_()
+        #result = self.dlg.exec_()
         if self.dialog_status == 'Reset':
             return
-
-        #See if OK was pressed
-        '''
-        if result:
-            
-                Saving to Geopackage.
-            
-            try:
-                geopackage_name, ok = QInputDialog.getText(None, "GeoPackage Name", "Enter the name of the GeoPackage:")
-                self.geopackage_path = os.path.join(self.outputFolder, f"{geopackage_name}.gpkg")
-                self.start_operation()
-                self.log_to_qtalsim_tab(f"Saving the layers to {self.outputFolder}.", Qgis.Info)
-                def create_gpkg_save_layer(layer, gpkg_path, layer_name):
-                    params = {
-                        'INPUT': layer,
-                        'OUTPUT': gpkg_path,
-                        'LAYER_NAME': layer_name,
-                        'OVERWRITE': True,
-                    }
-                    processing.run("native:savefeatures", params)
-                    
-                def add_layers_to_gpkg(layer, gpkg_path, layer_name):    
-                    params = {'INPUT': layer,
-                            'OPTIONS': f'-update -nln {layer_name} -nlt MULTIPOLYGON', #added -nlt MULTIPOLYGON
-                            'OUTPUT': gpkg_path}
-                    processing.run("gdal:convertformat", params)
-                
-                gpkg_path = self.geopackage_path
-                if os.path.exists(gpkg_path): 
-                    try:
-                        os.remove(gpkg_path)
-                    except Exception as e:
-                        self.log_to_qtalsim_tab(f"Failed to delete existing GeoPackage: {e}",Qgis.Critical)
-                create_gpkg_save_layer(self.eflLayer, gpkg_path,'hru') 
-                add_layers_to_gpkg(self.landuseFinal, gpkg_path, 'landuse')
-                add_layers_to_gpkg(self.soilTextureFinal, gpkg_path, 'soiltexture') 
-                add_layers_to_gpkg(self.soilTypeFinal, gpkg_path, 'soiltype') 
-                self.log_to_qtalsim_tab(f"File was saved to this folder: {self.outputFolder}", Qgis.Info)
-
-            except Exception as e:
-                self.log_to_qtalsim_tab(f"Error: {e}", Qgis.Critical)
-
-            finally:
-                self.end_operation()
-        '''
 
     def open_sql_connect_dock(self):
         '''
@@ -4483,10 +4439,11 @@ class QTalsim:
     def open_sub_basin_window(self):
         if self.first_start:
             self.first_start = False
-        if not hasattr(self, 'subBasinWindow'):
-            self.subBasinWindow = QMainWindow(self.iface.mainWindow())
+        if not hasattr(self, 'subBasinWindow') or self.subBasinWindow is None:
+            self.subBasinWindow = QMainWindow()
             self.subBasinWindow.setWindowTitle("Sub-basin preprocessing")
-            self.subBasinDialog = SubBasinPreprocessingDialog(self.iface.mainWindow(), self)
+            self.subBasinWindow.setAttribute(Qt.WA_DeleteOnClose)
+            self.subBasinDialog = SubBasinPreprocessingDialog(self.subBasinWindow, self)
             self.subBasinWindow.setCentralWidget(self.subBasinDialog)
         else:
             self.subBasinDialog.initialize_parameters()
@@ -4498,9 +4455,10 @@ class QTalsim:
     def open_soil_window(self):
         if self.first_start:
             self.first_start = False
-        if not hasattr(self, 'soilWindow'):
-            self.soilWindow = QMainWindow(self.iface.mainWindow())
+        if not hasattr(self, 'soilWindow') or self.soilWindow is None:
+            self.soilWindow = QMainWindow()
             self.soilWindow.setWindowTitle("ISRIC Soil Type Converter")
+            self.soilWindow.setAttribute(Qt.WA_DeleteOnClose)
             self.soilDialog = SoilPreprocessingDialog(self.iface.mainWindow(), self)
             self.soilWindow.setCentralWidget(self.soilDialog)
         else:
@@ -4513,9 +4471,10 @@ class QTalsim:
     def open_landuse_window(self):
         if self.first_start:
             self.first_start = False
-        if not hasattr(self, 'landuseWindow'):
-            self.landuseWindow = QMainWindow(self.iface.mainWindow())
+        if not hasattr(self, 'landuseWindow') or self.landuseWindow is None:
+            self.landuseWindow = QMainWindow()
             self.landuseWindow.setWindowTitle("Land use mapping")
+            self.landuseWindow.setAttribute(Qt.WA_DeleteOnClose)
             self.landuseDialog = LanduseAssignmentDialog(self.iface.mainWindow(), self)
             self.landuseWindow.setCentralWidget(self.landuseDialog)
         else:

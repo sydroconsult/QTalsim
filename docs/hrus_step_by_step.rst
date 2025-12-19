@@ -145,15 +145,15 @@ Select and Edit Land use layer
          
 	The table below shows the necessary types for these parameters. Additionally, it also shows the required unit and restrictions of the parameters. If the user-mapped field has a different datatype, the plugin, where possible, converts the field’s values to the parameter’s type. 
 
-	If ‘Parameter not available’ is selected, the plugin is trying to fill those parameters with Talsim parameters using the "Name"-field. The list with land use names and their parameters can be found here: :download:`Land use parameters file <_static/landuseParameterValues.csv>`. If the land use name is not found, that parameter will be added with null values. Only for pTAW 0,5 is used as default value, if the user does not insert a parameter. 
+	If ‘Parameter not available’ is selected, the plugin is trying to fill those parameters with Talsim parameters using the "Name"-field. If you used QTalsim "Land Use Mapping" for creating the land use layer, the name is stored in the field "OBJART_NEU" The list with land use names and their parameters can be found here: :download:`Land use parameters file <_static/landuseParameterValues.csv>`. If the land use name is not found, that parameter will be added with null values. Only for pTAW 0,5 is used as default value, if the user does not insert a parameter. 
 		
-         After completing the mapping, click ‘Confirm Landuse Mapping’ to create a new
-         layer containing the input fields from your layer and the
-         Talsim parameter values. If the user defines area/percentage thresholds, land use features below these thresholds are
-	 deleted during this step. The user can set a minimum size of
-         the land use features [m²] and a minimum percentage of the land use features relative to the
-         corresponding sub-basin's area. Land use features that fall below the specified size or
-         percentage share are deleted and filled using the ‘Eliminate’-tool.
+	After completing the mapping, click ‘Confirm Landuse Mapping’ to create a new
+	layer containing the input fields from your layer and the
+	Talsim parameter values. If the user defines area/percentage thresholds, land use features below these thresholds are
+	deleted during this step. The user can set a minimum size of
+	the land use features [m²] and a minimum percentage of the land use features relative to the
+	corresponding sub-basin's area. Land use features that fall below the specified size or
+	percentage share are deleted and filled using the ‘Eliminate’-tool.
 
 
          ==============================     ======     =====     =====================
