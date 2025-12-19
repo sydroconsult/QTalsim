@@ -61,7 +61,8 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.connectButtontoFunction(self.onDownloadData, self.downloadData)
         self.connectButtontoFunction(self.onCalculateSoilTypes, self.calculateSoilTypes)
         self.connectButtontoFunction(self.onSelectCRS, self.selectCrs)
-        self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)        
+        self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
+        self.checkboxResample.toggled.connect(self.on_resample_toggled)        
 
         self.fillLayerComboboxes()
 
@@ -527,14 +528,19 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             gdal.SetConfigOption("GDAL_HTTP_UNSAFESSL", "True")
 
             igh = "+proj=igh +lat_0=0 +lon_0=0 +datum=WGS84 +units=m +no_defs" # proj string for Homolosine projection
-            res = 250 
+            res_download = 250 # download in original resolution
+            if self.checkboxResample.isChecked():
+                res = int(self.spinboxResample.value())
+            else:
+                res = res_download 
+            
             sg_url = "/vsicurl/" + url
 
             kwargs = {'format': 'GTiff', 
                     'projWin': bb, 
                     'projWinSRS': igh, 
-                    'xRes': res, 
-                    'yRes': res, 
+                    'xRes': res_download, 
+                    'yRes': res_download, 
                     'creationOptions': ["TILED=YES", "COMPRESS=DEFLATE", "PREDICTOR=2", "BIGTIFF=YES"]}
 
             #Save files
@@ -546,7 +552,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     file_proj = os.path.join(self.path_proj, name + '.tif')
 
                     ds = gdal.Translate(file_orig, sg_url + loc, **kwargs)
-                    ds = gdal.Warp(file_proj, ds, dstSRS=self.dstSRS)
+                    ds = gdal.Warp(file_proj, ds, dstSRS=self.dstSRS, xRes=res, yRes=res, resampleAlg='average') #, srcNodata=-9999, dstNodata=-9999
                         
                     ds = None
                 except Exception as e:
@@ -1451,6 +1457,9 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
             #Repaint the layer to apply the filtered symbology
             gpkg_layer.triggerRepaint()
+
+    def on_resample_toggled(self, checked):
+        self.spinboxResample.setEnabled(checked)
 
     
                      
