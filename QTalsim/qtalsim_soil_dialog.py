@@ -552,8 +552,12 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     file_proj = os.path.join(self.path_proj, name + '.tif')
 
                     ds = gdal.Translate(file_orig, sg_url + loc, **kwargs)
-                    ds = gdal.Warp(file_proj, ds, dstSRS=self.dstSRS, xRes=res, yRes=res, resampleAlg='average') #, srcNodata=-9999, dstNodata=-9999
-                        
+                    if not self.checkboxResample.isChecked() or res == res_download:
+                        ds = gdal.Warp(file_proj, ds, dstSRS=self.dstSRS) #, resampleAlg='average'
+                        self.log_to_qtalsim_tab(f"Saved {name} with original resolution of {res_download} meters.", Qgis.Info)
+                    else:
+                        ds = gdal.Warp(file_proj, ds, dstSRS=self.dstSRS, xRes=res, yRes=res, resampleAlg='average') #, srcNodata=-9999, dstNodata=-9999
+                        self.log_to_qtalsim_tab(f"Saved {name} resampled to {res} meters.", Qgis.Info)
                     ds = None
                 except Exception as e:
                     self.log_to_qtalsim_tab(f"Error processing {name}: {str(e)}", Qgis.Critical)
