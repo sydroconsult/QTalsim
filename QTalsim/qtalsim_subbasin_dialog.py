@@ -1,7 +1,7 @@
 import os
 from qgis.PyQt import uic, QtWidgets
 from qgis.PyQt.QtWidgets import  QFileDialog, QDialogButtonBox, QInputDialog
-from qgis.core import QgsProject, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsMapLayer, QgsWkbTypes, QgsRasterLayer, QgsVectorLayer, QgsRasterBandStats, QgsField, QgsVectorFileWriter, edit, Qgis, QgsProcessingFeedback, QgsProcessingException, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRaster
+from qgis.core import QgsProject, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsMapLayer, QgsWkbTypes, QgsRasterLayer, QgsVectorLayer, QgsRasterBandStats, QgsField, QgsVectorFileWriter, edit, Qgis, QgsProcessingFeedback, QgsProcessingException, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRaster, QgsGeometry, QgsPointXY
 from qgis.PyQt.QtCore import pyqtSignal, QVariant
 import processing
 import webbrowser
@@ -48,6 +48,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.areaFieldName = 'Area'
         self.no_feedback = NoFeedback()
         self.subbasinUIField = None
+        self.zout_point = None
 
         #Main Functions
         self.connectButtontoFunction = self.mainPlugin.connectButtontoFunction
@@ -345,6 +346,14 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.subBasinLayerProcessed.dataProvider().addAttributes([area_field])
             self.subBasinLayerProcessed.updateFields()
         
+        # Get the outer boundary of the total area covered to retrieve the coordinates for ZOUT later
+        all_geoms = [f.geometry() for f in self.subBasinLayerProcessed.getFeatures()]
+        total_area_geom = QgsGeometry.unaryUnion(all_geoms)
+        outer_boundary = total_area_geom.constGet().boundary()
+        outer_boundary = QgsGeometry(outer_boundary)
+        min_height_val = float('inf')
+        border_subbasin = None
+
         #Calculate the area of every sub-basin
         with edit(self.subBasinLayerProcessed):
             for feature in self.subBasinLayerProcessed.getFeatures():
@@ -355,6 +364,19 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 
                 #Update the feature in the layer
                 self.subBasinLayerProcessed.updateFeature(feature)
+
+                #Get the sub_basin with the min_height
+                if feature.geometry().intersects(outer_boundary):
+                    h_min = feature['Height_min']
+                    if h_min is not None and h_min < min_height_val:
+                        min_height_val = h_min
+                        border_subbasin = feature
+        
+        if border_subbasin:
+            intersection = border_subbasin.geometry().intersection(outer_boundary)
+            self.zout_point = intersection.interpolate(0).asPoint()
+        else:
+            self.zout_point = None
 
     def calculateImperviousness(self, sub_basins_layer, imperviousness_layer):
         '''
@@ -914,50 +936,52 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             source_db = os.path.join(current_path, "DB", "QTalsim.db") 
             shutil.copy(source_db, self.DBPath)
 
-            #Insert new scenario
+            #Insert ScenarioGroup
             conn = sqlite3.connect(self.DBPath)
             cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO ScenarioGroup (Description, Name, DateCreated)
+                VALUES (?, ?, datetime('now'))
+            """, ("Output of QTalsim", str(self.scenarioName)))
+            new_group_id = cursor.lastrowid
 
+            #Insert new scenario
             cursor.execute("""
                 INSERT INTO Scenario (ScenarioGroupId, DateCreated, Name, Description, ActiveSimulationId, IsUpdateActive, OperationalInfo)
                 VALUES (?, datetime('now'), ?, ?, ?, ?, ?)
-            """, (1, str(self.scenarioName), "Output of QTalsim", None, 0, None))
+            """, (new_group_id, str(self.scenarioName), "Output of QTalsim", None, 0, None))
 
             conn.commit()
             conn.close()
 
-            conn = sqlite3.connect(self.DBPath)
-            cursor = conn.cursor()
-            #Insert ScenarioGroup
-            cursor.execute("""
-                SELECT ScenarioGroupId, Description, Name FROM Scenario 
-                ORDER BY DateCreated DESC LIMIT 1
-            """)
-            scenario_group_id, description, name = cursor.fetchone()
-
-            # Insert data into ScenarioGroup with current date
-            cursor.execute("""
-                INSERT INTO ScenarioGroup (Id, Description, Name, DateCreated)
-                VALUES (?, ?, ?, datetime('now'))
-            """, (scenario_group_id, description, name))
-
-            conn.commit()
-            conn.close()
             #Insert SystemElement table
             conn = sqlite3.connect(self.DBPath)
             cursor = conn.cursor()
 
+            #Set up the transformation
+            target_crs = QgsCoordinateReferenceSystem("EPSG:4326") #Transform sub-basin's geometry to WGS84 for Talsim
+            source_crs = self.subBasinLayerProcessed.crs()
+            transform = QgsCoordinateTransform(source_crs, target_crs, QgsProject.instance())
+            
             #Retrieve the last inserted ScenarioId
             cursor.execute("SELECT Id FROM Scenario ORDER BY DateCreated DESC LIMIT 1")
             scenario = cursor.fetchone()
-            
-            target_crs = QgsCoordinateReferenceSystem("EPSG:4326") #Transform sub-basin's geometry to WGS84 for Talsim
-            source_crs = self.subBasinLayerProcessed.crs()
-
-            #Set up the transformation
-            transform = QgsCoordinateTransform(source_crs, target_crs, QgsProject.instance())
-
             scenario_id = scenario[0]  #ScenarioId for new records
+
+            #Insert ZOUT
+            geom_zout = QgsGeometry.fromPointXY(self.zout_point)
+            geom_zout.transform(transform)
+            self.zout_point = geom_zout.asPoint()
+            wkt_zout_point = geom_zout.asWkt() #to EPSG:4326
+            latitude, longitude = self.zout_point.y(), self.zout_point.x()
+            cursor.execute("""
+                INSERT INTO SystemElement (
+                    ScenarioId, ElementIdentifier, Name, ElementType, ElementTypeCharacter, Latitude, Longitude, Geometry
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (scenario_id, "OUT", "ZOUT", 6, "Z",latitude, longitude, wkt_zout_point,))
+            conn.commit()
+
             fields = [field.name() for field in self.subBasinLayerProcessed.fields()]
             for feature in self.subBasinLayerProcessed.getFeatures():
                 element_identifier = feature[self.subbasinUIField][1:] if isinstance(feature[self.subbasinUIField], str) and feature[self.subbasinUIField] else None # ElementIdentifier & Name

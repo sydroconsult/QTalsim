@@ -1,7 +1,7 @@
 import os
 from qgis.PyQt import uic, QtWidgets
 from qgis.PyQt.QtWidgets import  QFileDialog, QDialogButtonBox, QMessageBox
-from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsFeature, QgsGeometry, Qgis, QgsPointXY, QgsPoint, QgsFields, QgsLayerTreeLayer, QgsWkbTypes, QgsMapLayer, QgsLayerTreeGroup, QgsCoordinateReferenceSystem
+from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsFeature, QgsGeometry, Qgis, QgsPointXY, QgsPoint, QgsFields, QgsLayerTreeLayer, QgsWkbTypes, QgsMapLayer, QgsLayerTreeGroup, QgsMapLayerProxyModel
 from qgis.PyQt.QtCore import QVariant, pyqtSignal, QTimer
 from qgis.gui import QgsMessageBar
 
@@ -40,12 +40,28 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                                     self.comboboxFieldMinHeight, self.comboboxFieldFlowLength]
         self.comboboxesTransportReaches = [self.comboboxFieldTRName, self.comboboxFieldTRDescription,
                                             self.comboboxFieldTRRotation, self.comboboxFieldTRLength]
-        
+
+        self.comboboxesSystemLogic = [
+            self.comboboxUISystemLogic,
+            self.comboboxDS1, 
+            self.comboboxDS2, 
+            self.comboboxDS3
+        ]
+
         for box in self.comboboxesSubBasins:
             box.clear()
         
         for box in self.comboboxesTransportReaches:
             box.clear()
+
+        for box in self.comboboxesSystemLogic:
+            box.clear()
+
+        for box in self.comboboxesSystemLogic:  
+            if box != self.comboboxUISystemLogic:
+                box.setAllowEmptyFieldName(True)
+            box.setLayer(self.maplayerComboboxSystemLogic.currentLayer())     
+        self.maplayerComboboxSystemLogic.layerChanged.connect(self.on_system_logic_layer_changed)
 
         self.comboboxPolygonLayer.clear()
         self.comboboxUIFieldPolygon.clear()
@@ -60,6 +76,9 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.updateFieldName = 'Updated'
         self.layerGroup = None
 
+        self.maplayerComboboxSystemLogic.setFilters(QgsMapLayerProxyModel.VectorLayer)
+        self.maplayerComboboxSystemLogic.setAllowEmptyLayer(True, self.noLayerSelected)
+        self.maplayerComboboxSystemLogic.setLayer(None)
         #Functions
         self.connectButtontoFunction = self.mainPlugin.connectButtontoFunction
         self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
@@ -73,6 +92,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.connectButtontoFunction(self.onLoadExternalSubBasinsinDB, self.updateFromExternalSubBasinsLayer) #self.loadUpdatedFeaturesinDB
         self.connectButtontoFunction(self.onLoadExternalTransportReachinDB, self.updateFromExternalTransportReachLayer)
+        self.connectButtontoFunction(self.onLoadExternalOutflowsinDB, self.updateOutflowsFromExternalLayer)
         self.connectButtontoFunction(self.onReconnectToDB, self.reconnectTriggeredByButton)
 
         self.root = QgsProject.instance().layerTreeRoot()
@@ -487,7 +507,6 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.cur.execute(sql_query)
 
         self.transportReachData = self.cur.fetchall()
-        print(self.transportReachData)
         self.transportReachLayer = QgsVectorLayer(f"MultiLineString?crs=epsg:{self.epsg}", "TransportReach", "memory")
         
         dp = self.transportReachLayer.dataProvider()
@@ -510,7 +529,6 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                 geom = QgsGeometry.fromWkt(wkt_string)
                 fet.setGeometry(geom)
                 dp.addFeatures([fet]) 
-                print(geom)
         
         self.transportReachLayer.updateExtents()
         self.transportReachLayer.commitChanges()
@@ -707,6 +725,21 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         else:
             self.externalTransportReachLayer = None
 
+    def on_system_logic_layer_changed(self):
+        '''
+            If user changes the external system-logic layer, get the field names.
+        '''
+        self.externalSystemLogicLayer = self.maplayerComboboxSystemLogic.currentLayer()
+        if self.externalSystemLogicLayer and self.externalSystemLogicLayer.name() != self.noLayerSelected:
+            self.comboboxUISystemLogic.clear()
+            self.fieldsExternalSystemLogicLayer = [field.name() for field in self.externalSystemLogicLayer.fields()]
+            for box in self.comboboxesSystemLogic:  
+                if box != self.comboboxUISystemLogic:
+                    box.setAllowEmptyFieldName(True)
+                box.setLayer(self.maplayerComboboxSystemLogic.currentLayer())     
+        else:
+            self.externalSystemLogicLayer = None
+
     def updateFromExternalSubBasinsLayer(self):
         
         try:
@@ -785,6 +818,136 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.reconnectTriggeredByButton()
 
+    def updateOutflowsFromExternalLayer(self):
+        #If the input layer does not have the required crs - reproject the layer
+        try:
+            #desiredEPSG = f"EPSG:{self.epsg}"
+            self.externalSystemLogicLayer = self.maplayerComboboxSystemLogic.currentLayer()
+            self.cur.execute("""
+                SELECT Id, ElementIdentifier, ElementTypeCharacter FROM SystemElement 
+                WHERE ScenarioId = ? AND (Outflow1 IS NOT NULL OR Outflow2 IS NOT NULL OR Outflow3 IS NOT NULL)
+                
+                UNION
+                
+                SELECT se.Id, se.ElementIdentifier, se.ElementTypeCharacter FROM SystemElement se 
+                JOIN SubBasin sb ON se.Id = sb.SystemElementId
+                WHERE se.ScenarioId = ? AND (
+                    sb.QBaseflowOutletSystemElementId IS NOT NULL OR 
+                    sb.QDeepBaseflowOutletSystemElementId IS NOT NULL OR 
+                    sb.QDeepInterflowOutletSystemElementId IS NOT NULL OR 
+                    sb.QInterflowOutletSystemElementId IS NOT NULL OR 
+                    sb.QNaturalOutletSystemElementId IS NOT NULL OR 
+                    sb.QUrbanOutletSystemElementId IS NOT NULL
+                )
+            """, (self.scenarioId, self.scenarioId, )) # Wichtig: scenarioId muss zweimal übergeben werden
+
+            existing_outflows = self.cur.fetchall()
+            if existing_outflows:
+                #Ask user for confirmation to delete table entries
+                outflow_strings = [f"{row[1]} ({row[2]})" for row in existing_outflows]
+                display_list = outflow_strings[:20]
+                outflow_summary = ", ".join(display_list)
+                if len(outflow_strings) > 20:
+                    outflow_summary += " ..."
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Warning)
+                msg.setWindowTitle("Existing Data Found")
+                msg.setText(f"There are existing outflows for the following elements in scenario {self.scenarioId}:\n\n" +
+                            outflow_summary +
+                            "\n\nYou can only continue if all outflows are deleted.")
+                msg.setInformativeText(f"Would you like to delete all outflows and reload the outflows from layer {self.externalSystemLogicLayer.name()}?")
+                msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                msg.setDefaultButton(QMessageBox.No)
+                response = msg.exec_()
+                if response == QMessageBox.No:
+                    self.log_to_qtalsim_tab("Operation cancelled by user.", Qgis.Info)
+                    return
+                else:
+                    #Delete existing outflows
+                    self.cur.execute("""
+                        UPDATE SystemElement
+                        SET Outflow1 = NULL, Outflow2 = NULL, Outflow3 = NULL
+                        WHERE ScenarioId = ?
+                    """, (self.scenarioId,))
+
+                    self.cur.execute("""
+                        UPDATE SubBasin
+                        SET QBaseflowOutletSystemElementId = NULL,
+                            QDeepBaseflowOutletSystemElementId = NULL,
+                            QDeepInterflowOutletSystemElementId = NULL,
+                            QInterflowOutletSystemElementId = NULL,
+                            QNaturalOutletSystemElementId = NULL,
+                            QUrbanOutletSystemElementId = NULL
+                        WHERE SystemElementId IN (
+                            SELECT Id FROM SystemElement WHERE ScenarioId = ?
+                        )
+                    """, (self.scenarioId,))
+
+                    self.conn.commit()
+                    self.log_to_qtalsim_tab(f"Existing outflows for scenario {self.scenarioId} have been deleted.", Qgis.Info)
+                    self.reconnectDatabase()
+            # Insert the outflows
+            subbasin_system_logic_ui_field = self.comboboxUISystemLogic.currentField()
+            idx1 = self.externalSystemLogicLayer.fields().indexOf(self.comboboxDS1.currentField())
+            idx2 = self.externalSystemLogicLayer.fields().indexOf(self.comboboxDS2.currentField())
+            idx3 = self.externalSystemLogicLayer.fields().indexOf(self.comboboxDS3.currentField())
+
+            def get_se_id(outflow_val, scenario_id, cur):
+                if not isinstance(outflow_val, str) or not outflow_val:
+                    return None
+                uiSystemLogic = outflow_val if isinstance(outflow_val, str) and outflow_val else None
+                element_identifier = outflow_val[1:] if isinstance(outflow_val, str) and outflow_val else None # ElementIdentifier & Name
+                key = outflow_val[0] if isinstance(outflow_val, str) and outflow_val else None
+                cur.execute("""
+                    SELECT Id FROM SystemElement 
+                    WHERE ElementIdentifier = ? and ElementTypeCharacter = ? and ScenarioId = ?
+                """, (element_identifier, key, scenario_id,))
+                result = cur.fetchone()
+                return result[0] if result else None 
+            
+            #self.conn = sqlite3.connect(self.file_path_db) # noch kontrollieren
+            #self.cursor = self.conn.cursor()
+            updates_to_run = []
+            for feature in self.externalSystemLogicLayer.getFeatures():
+                uiSystemLogic = feature[subbasin_system_logic_ui_field] if isinstance(feature[subbasin_system_logic_ui_field], str) and feature[subbasin_system_logic_ui_field] else None
+                element_identifier = feature[subbasin_system_logic_ui_field][1:] if isinstance(feature[subbasin_system_logic_ui_field], str) and feature[subbasin_system_logic_ui_field] else None # ElementIdentifier & Name
+                key = feature[subbasin_system_logic_ui_field][0] if isinstance(feature[subbasin_system_logic_ui_field], str) and feature[subbasin_system_logic_ui_field] else None
+                self.cur.execute("""
+                    SELECT Id FROM SystemElement 
+                    WHERE ElementIdentifier = ? and ElementTypeCharacter = ? and ScenarioId = ?
+                """, (element_identifier, key, self.scenarioId,))
+                system_element_result = self.cur.fetchone()
+                if not system_element_result: #if this systemelement does not exist
+                    self.log_to_qtalsim_tab(f"Warning: No matching SystemElement found for SystemLogic ElementIdentifier: {uiSystemLogic}", Qgis.Warning)
+                    continue
+                system_element_id = system_element_result[0]
+                outflow1 = feature[idx1] if idx1 != -1 else None
+                outflow2 = feature[idx2] if idx2 != -1 else None
+                outflow3 = feature[idx3] if idx3 != -1 else None
+                id1 = get_se_id(outflow1, self.scenarioId, self.cur)
+                id2 = get_se_id(outflow2, self.scenarioId, self.cur)
+                id3 = get_se_id(outflow3, self.scenarioId, self.cur)
+                updates_to_run.append((id1, id2, id3, system_element_id))
+                
+                self.cur.execute("""
+                        UPDATE SystemElement
+                        SET Outflow1 = ?, Outflow2 = ?, Outflow3 = ?
+                        WHERE Id = ?
+                    """, (id1, id2, id3, system_element_id,))
+            if not updates_to_run:
+                self.conn.commit()
+                self.cur.executemany("""
+                    UPDATE SystemElement
+                    SET Outflow1 = ?, Outflow2 = ?, Outflow3 = ?
+                    WHERE Id = ?
+                """, updates_to_run)
+            
+            self.conn.commit()
+            #self.reconnectDatabase()
+            self.reconnectTriggeredByButton()
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"An error occurred while updating Outflows from external SystemLogic layer: {e}", Qgis.Critical)
+            
     def createUpdateLayer(self, layer, checkbox):
         '''
             Creates a layer that holds all features that will be edited/inserted in DB by a new external layer.
@@ -1044,7 +1207,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                     update_params_systemelements.append(systemElementId)
                 self.cur.execute(sql_query, tuple(update_params_systemelements))
                 self.conn.commit()
-             #Identifier muss noch hinzugefügt werden, die Spalte gibt es so ja nicht (auch oben)
+            #Identifier muss noch hinzugefügt werden, die Spalte gibt es so ja nicht (auch oben)
             #Edit features of other table (SubBasin)
             update_params = []
             
