@@ -936,18 +936,18 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             source_db = os.path.join(current_path, "DB", "QTalsim.db") 
             shutil.copy(source_db, self.DBPath)
 
-            #Insert ScenarioGroup
+            #Insert ScenarioFolder
             conn = sqlite3.connect(self.DBPath)
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO ScenarioGroup (Description, Name, DateCreated)
+                INSERT INTO ScenarioFolder (Description, Name, DateCreated)
                 VALUES (?, ?, datetime('now'))
             """, ("Output of QTalsim", str(self.scenarioName)))
             new_group_id = cursor.lastrowid
 
             #Insert new scenario
             cursor.execute("""
-                INSERT INTO Scenario (ScenarioGroupId, DateCreated, Name, Description, ActiveSimulationId, IsUpdateActive, OperationalInfo)
+                INSERT INTO Scenario (ScenarioFolderId, DateCreated, Name, Description, ActiveSimulationId, IsUpdateActive, OperationalInfo)
                 VALUES (?, datetime('now'), ?, ?, ?, ?, ?)
             """, (new_group_id, str(self.scenarioName), "Output of QTalsim", None, 0, None))
 
