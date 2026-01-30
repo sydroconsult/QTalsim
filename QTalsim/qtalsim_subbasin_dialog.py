@@ -1,6 +1,6 @@
 import os
 from qgis.PyQt import uic, QtWidgets
-from qgis.PyQt.QtWidgets import  QFileDialog, QDialogButtonBox, QInputDialog
+from qgis.PyQt.QtWidgets import  QFileDialog, QDialogButtonBox, QMessageBox
 from qgis.core import QgsProject, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsMapLayer, QgsWkbTypes, QgsRasterLayer, QgsVectorLayer, QgsRasterBandStats, QgsField, QgsVectorFileWriter, edit, Qgis, QgsProcessingFeedback, QgsProcessingException, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRaster, QgsGeometry, QgsPointXY
 from qgis.PyQt.QtCore import pyqtSignal, QVariant
 import processing
@@ -214,16 +214,45 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.DEMLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
                 else:
                     self.log_to_qtalsim_tab("Please select a DEM layer to process the sub-basins.", Qgis.Critical)
+            
+            #Get the sub-basin UI field
+            if not self.subbasinUIField:
+                self.subbasinUIField = self.comboboxUISubBasin.currentText()
 
+            #Check if any key is a duplicate
+            subbasinUiSet = set()
+            duplicatesSet = set()
+            for feature in self.subBasinLayer.getFeatures():
+                feature_ui = feature[self.subbasinUIField]
+                if feature_ui in subbasinUiSet:
+                    duplicatesSet.add(feature_ui)
+                else:
+                    subbasinUiSet.add(feature_ui)
+            
+            #Message box to inform user that the duplicate sub-basin-id must be deleted
+            if duplicatesSet:
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Warning)
+                msg.setWindowTitle("Existing Data Found")
+                msg.setText(
+                    f"Duplicate Sub-basin IDs in column '{self.subbasinUIField}' found:\n"
+                    f"{', '.join(map(str, sorted(duplicatesSet)))}\n\n"
+                    "This will lead to errors when importing in Talsim."
+                )
+                msg.setInformativeText(f"Do you still want to continue?")
+                msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                msg.setDefaultButton(QMessageBox.No)
+                response = msg.exec_()
+                if response == QMessageBox.No:
+                    self.log_to_qtalsim_tab("Process cancelled by user due to duplicate Sub-basin IDs.", Qgis.Warning)
+                    return
+                if response == QMessageBox.Yes:
+                    self.log_to_qtalsim_tab("Continuing despite duplicate Sub-basin IDs.", Qgis.Warning)
             self.log_to_qtalsim_tab(f"Calculating the max- and min-height and area of each sub-basin...", Qgis.Info)
             self.calculateHeightandAreaSubBasins()
             
             #Convert the subbasinUIField to string (needed for join to LFP)
             self.subBasinLayerProcessed.startEditing()
-
-            #Get the original field index
-            if not self.subbasinUIField:
-                self.subbasinUIField = self.comboboxUISubBasin.currentText()
 
             original_field_name = self.subbasinUIField
             original_field_index = self.subBasinLayerProcessed.fields().indexOf(original_field_name)
