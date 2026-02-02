@@ -3,7 +3,7 @@ Connect to Talsim DB
 ====================
    
       The second functionality of QTalsim allows users to connect to a Talsim Database, load system elements, sub-basins, outflows and transport reaches. 
-      Moreover, users can edit all existing system-elements and the geometries of sub-basins and transport reaches. It is also possible to import sub-basins and transport reaches from 	external layers.
+      Moreover, users can edit all existing system-elements and the geometries of sub-basins and transport reaches. It is also possible to import sub-basins, transport reaches and outflows from 	external layers.
 	
    |DB Connection Overview|
    
@@ -73,6 +73,18 @@ External TransportReaches Layer
 
 	|External TP Layer|
 
+
+External Outflows Layer 
+-------------------------------
+.. _external-transport-reach-layer:
+
+	Similarly to inserting external sub-basins and transport reaches, the plugin provides functionality to insert outflows between existing system elements using the corresponding window-tab. The user selects a layer containing the outflows to be imported from the list of external layers. The user has to map input fields to Talsim fields.
+
+	By clicking 'Save New/Updated Features in DB,' the outflows are saved to the database.
+
+	|External Outflows|
+
+
 Update Coordinates to Center of Geometry
 ----------------------------------------
 .. _update-coordinates:
@@ -95,6 +107,9 @@ Update Coordinates to Center of Geometry
 
 .. |Update Coordinates| image:: qtalsim_screenshots/db_updateAllCoordinates.png
    :target: qtalsim_screenshots/db_updateAllCoordinates.png
+
+.. |External Outflows| image:: qtalsim_screenshots/db_externalOutflowsLayer.png
+   :target: qtalsim_screenshots/db_externalOutflowsLayer.png
 
 
 
