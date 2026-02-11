@@ -162,7 +162,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.cur.execute(sql_check_version)
             self.migrationId = self.cur.fetchall()[0][0]
             
-            if self.migrationId[:8] < '20251201':  # Check version of Talsim DB
+            if self.migrationId[:8] < '20250630':  # 20251201 Check version of Talsim DB
                 message = f"Talsim DB with date {self.migrationId[:8]} is too old. Please use a more recent version."
                 raise Exception(message)
             elif self.migrationId[:8] > '20251201':
