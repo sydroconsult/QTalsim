@@ -42,7 +42,7 @@ except:
     from qtalsim_soil_dialog import SoilPreprocessingDialog
     from qtalsim_landuse_dialog import LanduseAssignmentDialog
 import os.path
-from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsRasterLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest, QgsMapLayer, QgsFields, QgsTask, QgsTaskManager, QgsApplication, QgsExpression
+from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsRasterLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest, QgsMapLayer, QgsFields, QgsMapLayerProxyModel
 from qgis.analysis import QgsGeometrySnapper
 import processing
 import pandas as pd
@@ -386,40 +386,37 @@ class QTalsim:
         '''
         #Get Layers
         layers, rasterLayers = self.getAllLayers(QgsProject.instance().layerTreeRoot())
-        current_text = self.dlg.comboboxEZGLayer.currentText()
-        self.dlg.comboboxEZGLayer.clear() #clear combobox EZG from previous runs
-        self.dlg.comboboxEZGLayer.addItem(self.noLayerSelected)
-        self.dlg.comboboxEZGLayer.addItems([layer.name() for layer in layers])
-        index = self.dlg.comboboxEZGLayer.findText(current_text)
-        if index != -1:
-            self.dlg.comboboxEZGLayer.setCurrentIndex(index)
 
-        self.safeConnect(self.dlg.comboboxEZGLayer.currentIndexChanged, self.on_ezg_changed)
+        # Sub-basin layer
+        self.dlg.comboboxSubBasinLayer.setFilters(
+            QgsMapLayerProxyModel.PolygonLayer
+        )
+        self.dlg.comboboxSubBasinLayer.layerChanged.connect(self.on_ezg_changed)
 
         #Soil Layer
-        current_text = self.dlg.comboboxSoilLayer.currentText()
-        self.dlg.comboboxSoilLayer.clear() #clear combobox soil from previous runs
-        self.dlg.comboboxSoilLayer.addItems([layer.name() for layer in layers])
-        index = self.dlg.comboboxSoilLayer.findText(current_text)
-        if index != -1:
-            self.dlg.comboboxSoilLayer.setCurrentIndex(index)
+        self.dlg.comboboxSoilLayer.setFilters(
+            QgsMapLayerProxyModel.PolygonLayer
+        )
 
         #Land use layer
-        current_text = self.dlg.comboboxLanduseLayer.currentText()
-        self.dlg.comboboxLanduseLayer.clear() #clear combobox Landuse from previous runs
-        self.dlg.comboboxLanduseLayer.addItems([layer.name() for layer in layers])
-        index = self.dlg.comboboxLanduseLayer.findText(current_text)
-        if index != -1:
-            self.dlg.comboboxLanduseLayer.setCurrentIndex(index)
+        self.dlg.comboboxLanduseLayer.setFilters(
+            QgsMapLayerProxyModel.PolygonLayer
+        )
+
 
         #DEM Layer
-        current_text = self.dlg.comboboxDEMLayer.currentText()
-        self.dlg.comboboxDEMLayer.clear() #clear combobox Landuse from previous runs
-        self.dlg.comboboxDEMLayer.addItem("Optional: Upload DEM Layer") 
-        self.dlg.comboboxDEMLayer.addItems([layer.name() for layer in rasterLayers])
-        index = self.dlg.comboboxDEMLayer.findText(current_text)
-        if index != -1:
-            self.dlg.comboboxDEMLayer.setCurrentIndex(index)
+        self.dlg.comboboxDEMLayer.setAllowEmptyLayer(True)
+        self.dlg.comboboxDEMLayer.setPlaceholderText("Optional: Upload DEM Layer")
+        self.dlg.comboboxDEMLayer.setFilters(
+            QgsMapLayerProxyModel.RasterLayer
+        )
+        # current_text = self.dlg.comboboxDEMLayer.currentText()
+        # self.dlg.comboboxDEMLayer.clear() #clear combobox Landuse from previous runs
+        # self.dlg.comboboxDEMLayer.addItem("Optional: Upload DEM Layer") 
+        # self.dlg.comboboxDEMLayer.addItems([layer.name() for layer in rasterLayers])
+        # index = self.dlg.comboboxDEMLayer.findText(current_text)
+        # if index != -1:
+        #     self.dlg.comboboxDEMLayer.setCurrentIndex(index)
 
     def update_layer_name(self, layer_name, function):
         '''
@@ -1083,31 +1080,23 @@ class QTalsim:
             If the user changes the sub-basin's layer, the field comboboxes to select UI and slope field are updated. 
         '''
         try:
-            current_text = self.dlg.comboboxEZGLayer.currentText() 
-
+            self.ezgLayerCombobox = self.dlg.comboboxSubBasinLayer.currentLayer()
             current_text_comboboxui = self.dlg.comboboxUICatchment.currentText() #if the current field name exists in new layer - leave this field
             index_ui = -1
-            
-            layers = QgsProject.instance().mapLayersByName(current_text)
-            
-            if not layers: #if the layer does not exist
-                return
-            
-            if current_text is not None and current_text != self.noLayerSelected:
-                index = self.dlg.comboboxEZGLayer.findText(current_text)
-                if index == -1:
-                    return
-                self.dlg.comboboxEZGLayer.setCurrentIndex(index)
-                self.ezgLayerCombobox = QgsProject.instance().mapLayersByName(current_text)[0]
-                
-                self.dlg.comboboxUICatchment.clear() #clear combobox EZG from previous runs
-                self.dlg.comboboxUICatchment.addItems([field.name() for field in self.ezgLayerCombobox.fields()])
-                if current_text_comboboxui is not None:
-                    index_ui = self.dlg.comboboxUICatchment.findText(current_text_comboboxui)
-                    if index_ui != -1:
-                        self.dlg.comboboxUICatchment.setCurrentIndex(index_ui) 
+                        
+            self.dlg.comboboxUICatchment.clear()
 
-        except:
+            # Add new fields
+            self.dlg.comboboxUICatchment.addItems(
+                [field.name() for field in self.ezgLayerCombobox.fields()]
+            )
+            # Restore previously selected field if it still exists
+            index_ui = self.dlg.comboboxUICatchment.findText(current_text_comboboxui)
+            if index_ui != -1:
+                self.dlg.comboboxUICatchment.setCurrentIndex(index_ui)
+
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"Error updating sub-basin layer fields: {e}", Qgis.Critical)
             return
 
     def on_input_db_changed(self): 
@@ -1246,18 +1235,18 @@ class QTalsim:
             #self.dlg.progressbar.setValue(0)
             self.log_to_qtalsim_tab(f"Starting the clipping process of the Soil Layer.", Qgis.Info) 
             if self.clippingEZG is None:
-                selected_layer_soil = None
+                self.soilLayer = None
                 raise Exception("User has not selected a sub-basins layer.")
             
             #Select Layer
-            selected_layer_soil = self.dlg.comboboxSoilLayer.currentText()
-            self.soilLayer = QgsProject.instance().mapLayersByName(selected_layer_soil)[0]
-            
+            self.soilLayer = None
+            self.soilLayer = self.dlg.comboboxSoilLayer.currentLayer()
+
             #Create field with the feature-id
             self.soilFieldInputID = 'fid_qta'
             existing_field_names = [field.name() for field in self.soilLayer.fields()]
             if self.soilFieldInputID in existing_field_names:
-                self.log_to_qtalsim_tab(f"Please rename field {self.soilFieldInputID} of layer {selected_layer_soil} or delete the field.", Qgis.Critical)
+                self.log_to_qtalsim_tab(f"Please rename field {self.soilFieldInputID} of layer {self.soilLayer.name()} or delete the field.", Qgis.Critical)
                 return
             #self.dlg.progressbar.setValue(10)
             self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
@@ -1299,9 +1288,9 @@ class QTalsim:
             #self.dlg.progressbar.setValue(0)
 
         finally:
-            if selected_layer_soil:
+            if self.soilLayer:
                 #Remove the created soil-ID-field from the input layer
-                layer = QgsProject.instance().mapLayersByName(selected_layer_soil)[0]
+                layer = self.soilLayer
                 layer.startEditing()
                 field_index = layer.fields().indexFromName(self.soilFieldInputID)
 
@@ -1874,8 +1863,8 @@ class QTalsim:
             if self.clippingEZG is None:
                 selected_layer_name = None
                 raise Exception("User has not selected a sub-basins layer.")
-            selected_layer_name = self.dlg.comboboxLanduseLayer.currentText()
-            self.landuseLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+            
+            self.landuseLayer = self.dlg.comboboxLanduseLayer.currentLayer()
             
             #Create field with the feature-id
             self.landuseFieldInputID = 'fid_qta' 
@@ -2630,8 +2619,9 @@ class QTalsim:
         '''
 
         #Get DEM Layer
-        selected_layer_name = self.dlg.comboboxDEMLayer.currentText()
-        self.demLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+        self.demLayer = self.dlg.comboboxDEMLayer.currentLayer()
+        #selected_layer_name = self.dlg.comboboxDEMLayer.currentText()
+        #self.demLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
         
         #Calculate Slope Layer
         slope_layer_path = processing.run("native:slope", {'INPUT':self.demLayer, 'Z_FACTOR':1,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
@@ -3203,7 +3193,7 @@ class QTalsim:
                 self.eflLayer = processing.run("native:dissolve", {'INPUT': self.eflLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
 
             #Add Fields
-            if self.dlg.comboboxDEMLayer.currentText() != "Optional: Upload DEM Layer":
+            if self.dlg.comboboxDEMLayer.currentLayer():
                 self.log_to_qtalsim_tab(f"Calculating Slope...", Qgis.Info)
                 self.eflLayer = self.calculateSlopeHRUs(self.eflLayer)    
             else:
@@ -4356,7 +4346,26 @@ class QTalsim:
         #Open help - documentation
         self.connectButtontoFunction(self.dlg.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
     
-        self.fillPolygonsCombobox()
+        # Layer comboboxes
+                # Sub-basin layer
+        self.dlg.comboboxSubBasinLayer.setFilters(
+            QgsMapLayerProxyModel.PolygonLayer
+        )
+        self.dlg.comboboxSubBasinLayer.layerChanged.connect(self.on_ezg_changed)
+        #Soil Layer
+        self.dlg.comboboxSoilLayer.setFilters(
+            QgsMapLayerProxyModel.PolygonLayer
+        )
+        #Land use layer
+        self.dlg.comboboxLanduseLayer.setFilters(
+            QgsMapLayerProxyModel.PolygonLayer
+        )
+        #DEM Layer
+        self.dlg.comboboxDEMLayer.setAllowEmptyLayer(True)
+        self.dlg.comboboxDEMLayer.setPlaceholderText("Optional: Upload DEM Layer")
+        self.dlg.comboboxDEMLayer.setFilters(
+            QgsMapLayerProxyModel.RasterLayer
+        )
 
         self.feedback = self.CustomFeedback(self.log_to_qtalsim_tab)
         
@@ -4396,8 +4405,8 @@ class QTalsim:
         #self.dlg.groupboxIntersect.setVisible(False)
         self.connectButtontoFunction(self.dlg.onPerformIntersect, self.performIntersect) 
 
-        QgsProject.instance().layersAdded.connect(self.layersAddedHandler)
-        QgsProject.instance().layersRemoved.connect(self.layersAddedHandler)
+        #QgsProject.instance().layersAdded.connect(self.layersAddedHandler)
+        #QgsProject.instance().layersRemoved.connect(self.layersAddedHandler)
 
         self.dlg.comboboxEliminateModes.clear()
         self.dlg.comboboxEliminateModes.addItems(['Largest Area', 'Smallest Area','Largest Common Boundary'])
