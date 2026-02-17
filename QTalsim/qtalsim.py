@@ -373,50 +373,6 @@ class QTalsim:
             QCoreApplication.processEvents()
         except Exception as e:
             pass
-    
-    def layersAddedHandler(self):
-        '''
-            QTimer is needed to ensure that added layers are correctly added to the comboboxes.
-        '''
-        QTimer.singleShot(100, self.fillPolygonsCombobox)
-
-    def fillPolygonsCombobox(self):
-        '''
-            Fills the combobox of sub-basins/land uses/soils layers with all polygon layers in the project.        
-        '''
-        #Get Layers
-        layers, rasterLayers = self.getAllLayers(QgsProject.instance().layerTreeRoot())
-
-        # Sub-basin layer
-        self.dlg.comboboxSubBasinLayer.setFilters(
-            QgsMapLayerProxyModel.PolygonLayer
-        )
-        self.dlg.comboboxSubBasinLayer.layerChanged.connect(self.on_ezg_changed)
-
-        #Soil Layer
-        self.dlg.comboboxSoilLayer.setFilters(
-            QgsMapLayerProxyModel.PolygonLayer
-        )
-
-        #Land use layer
-        self.dlg.comboboxLanduseLayer.setFilters(
-            QgsMapLayerProxyModel.PolygonLayer
-        )
-
-
-        #DEM Layer
-        self.dlg.comboboxDEMLayer.setAllowEmptyLayer(True)
-        self.dlg.comboboxDEMLayer.setPlaceholderText("Optional: Upload DEM Layer")
-        self.dlg.comboboxDEMLayer.setFilters(
-            QgsMapLayerProxyModel.RasterLayer
-        )
-        # current_text = self.dlg.comboboxDEMLayer.currentText()
-        # self.dlg.comboboxDEMLayer.clear() #clear combobox Landuse from previous runs
-        # self.dlg.comboboxDEMLayer.addItem("Optional: Upload DEM Layer") 
-        # self.dlg.comboboxDEMLayer.addItems([layer.name() for layer in rasterLayers])
-        # index = self.dlg.comboboxDEMLayer.findText(current_text)
-        # if index != -1:
-        #     self.dlg.comboboxDEMLayer.setCurrentIndex(index)
 
     def update_layer_name(self, layer_name, function):
         '''
@@ -1235,37 +1191,37 @@ class QTalsim:
             #self.dlg.progressbar.setValue(0)
             self.log_to_qtalsim_tab(f"Starting the clipping process of the Soil Layer.", Qgis.Info) 
             if self.clippingEZG is None:
-                self.soilLayer = None
+                self.soilLayerInput = None
                 raise Exception("User has not selected a sub-basins layer.")
             
             #Select Layer
-            self.soilLayer = None
-            self.soilLayer = self.dlg.comboboxSoilLayer.currentLayer()
+            self.soilLayerInput = None
+            self.soilLayerInput = self.dlg.comboboxSoilLayer.currentLayer()
 
             #Create field with the feature-id
             self.soilFieldInputID = 'fid_qta'
-            existing_field_names = [field.name() for field in self.soilLayer.fields()]
+            existing_field_names = [field.name() for field in self.soilLayerInput.fields()]
             if self.soilFieldInputID in existing_field_names:
                 self.log_to_qtalsim_tab(f"Please rename field {self.soilFieldInputID} of layer {self.soilLayer.name()} or delete the field.", Qgis.Critical)
                 return
             #self.dlg.progressbar.setValue(10)
             self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
 
-            self.soilLayer.startEditing()
+            self.soilLayerInput.startEditing()
             #Add a new integer field called 'ID'
             field = QgsField(self.soilFieldInputID, QVariant.Int)
-            self.soilLayer.dataProvider().addAttributes([field])
-            self.soilLayer.updateFields()
+            self.soilLayerInput.dataProvider().addAttributes([field])
+            self.soilLayerInput.updateFields()
 
             #Assign ID values to each feature
-            for i, feature in enumerate(self.soilLayer.getFeatures()):
-                self.soilLayer.changeAttributeValue(feature.id(), self.soilLayer.fields().indexFromName(self.soilFieldInputID), i + 1)
+            for i, feature in enumerate(self.soilLayerInput.getFeatures()):
+                self.soilLayerInput.changeAttributeValue(feature.id(), self.soilLayerInput.fields().indexFromName(self.soilFieldInputID), i + 1)
             #self.dlg.progressbar.setValue(25)
             self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)
-            self.soilLayer.commitChanges()
+            self.soilLayerInput.commitChanges()
 
             #Clip Layer
-            outputLayer = self.clipLayer(self.soilLayer, self.clippingEZG)
+            outputLayer = self.clipLayer(self.soilLayerInput, self.clippingEZG)
             self.log_to_qtalsim_tab(f"Progress: 80.00% done", Qgis.Info)
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': outputLayer ,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             self.soilLayer = outputLayer
@@ -1288,9 +1244,9 @@ class QTalsim:
             #self.dlg.progressbar.setValue(0)
 
         finally:
-            if self.soilLayer:
+            if self.soilLayerInput:
                 #Remove the created soil-ID-field from the input layer
-                layer = self.soilLayer
+                layer = self.soilLayerInput
                 layer.startEditing()
                 field_index = layer.fields().indexFromName(self.soilFieldInputID)
 
@@ -1861,41 +1817,40 @@ class QTalsim:
             if self.landuseLayer:
                 QgsProject.instance().removeMapLayer(self.landuseLayer)
             if self.clippingEZG is None:
-                selected_layer_name = None
                 raise Exception("User has not selected a sub-basins layer.")
             
-            self.landuseLayer = self.dlg.comboboxLanduseLayer.currentLayer()
+            self.landuseLayerInput = self.dlg.comboboxLanduseLayer.currentLayer()
             
             #Create field with the feature-id
             self.landuseFieldInputID = 'fid_qta' 
-            existing_field_names = [field.name() for field in self.landuseLayer.fields()]
+            existing_field_names = [field.name() for field in self.landuseLayerInput.fields()]
             if self.landuseFieldInputID in existing_field_names:
-                self.log_to_qtalsim_tab(f"Please rename field {self.landuseFieldInputID} of layer {selected_layer_name} or delete the field.", Qgis.Critical)
+                self.log_to_qtalsim_tab(f"Please rename field {self.landuseFieldInputID} of layer {self.landuseLayer.name()} or delete the field.", Qgis.Critical)
                 return
 
             #Start editing the layer
-            self.landuseLayer.startEditing()
+            self.landuseLayerInput.startEditing()
 
             #Add a new integer field called 'ID'
             field = QgsField(self.landuseFieldInputID, QVariant.Int)
-            self.landuseLayer.dataProvider().addAttributes([field])
-            self.landuseLayer.updateFields()
+            self.landuseLayerInput.dataProvider().addAttributes([field])
+            self.landuseLayerInput.updateFields()
 
             request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(
-                [self.landuseFieldInputID], self.landuseLayer.fields()
+                [self.landuseFieldInputID], self.landuseLayerInput.fields()
             )
 
             #Assign ID values to each feature
-            for i, feature in enumerate(self.landuseLayer.getFeatures(request)): 
-                self.landuseLayer.changeAttributeValue(feature.id(), self.landuseLayer.fields().indexFromName(self.landuseFieldInputID), i + 1)
+            for i, feature in enumerate(self.landuseLayerInput.getFeatures(request)): 
+                self.landuseLayerInput.changeAttributeValue(feature.id(), self.landuseLayerInput.fields().indexFromName(self.landuseFieldInputID), i + 1)
 
             #Commit changes
-            self.landuseLayer.commitChanges()
+            self.landuseLayerInput.commitChanges()
             #self.dlg.progressbar.setValue(10)
             self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
-            number_of_features = self.landuseLayer.featureCount()
+            number_of_features = self.landuseLayerInput.featureCount()
             #Clip Layer
-            outputLayer = self.clipLayer(self.landuseLayer, self.clippingEZG)
+            outputLayer = self.clipLayer(self.landuseLayerInput, self.clippingEZG)
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': outputLayer ,'OUTPUT':'TEMPORARY_OUTPUT'},feedback=self.feedback)['OUTPUT']
             self.landuseLayer = outputLayer
             #self.dlg.progressbar.setValue(50)
@@ -1922,9 +1877,9 @@ class QTalsim:
             #self.dlg.progressbar.setValue(0)
 
         finally:
-            if selected_layer_name:
+            if self.landuseLayerInput:
                 # Remove the created landuse-ID-field from input layer
-                layer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+                layer = self.landuseLayerInput
                 layer.startEditing()
                 field_index = layer.fields().indexFromName(self.landuseFieldInputID)
 
@@ -2004,7 +1959,6 @@ class QTalsim:
             current_path = os.path.dirname(os.path.abspath(__file__))
             landuseValuesTalsimPath = os.path.join(current_path, "talsim_parameter", "landuseParameterValues.csv")
             self.dfLanduseParameterValuesTalsim = pd.read_csv(landuseValuesTalsimPath, delimiter = ';')
-            print(self.dfLanduseParameterValuesTalsim) #hier weitermachen - nan values Problem - evtl. unten mal alle ausgeben lassen if nan then None
 
             #Create Layer
             self.landuseTalsim = QgsVectorLayer(f"Polygon?crs={self.landuseLayer.crs().authid()}", "LanduseLayerEdited", "memory")
@@ -2049,7 +2003,6 @@ class QTalsim:
             #self.dlg.progressbar.setValue(20)      
             self.landuseTalsim.dataProvider().addAttributes(new_fields) #Create new fields with the talsim parameters
             self.landuseTalsim.updateFields()
-            print(value_mapping)
             #Populate landuse parameter fields in land use layer
             total_features = self.landuseTalsim.featureCount()
             self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)  
@@ -2061,7 +2014,6 @@ class QTalsim:
             else:
                 end_progress = 80
             progress_range = end_progress - last_logged_progress
-            print(self.dfLanduseParameterValuesTalsim.columns)
             request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
             self.landuseTalsim.startEditing()
             try:
@@ -2077,15 +2029,12 @@ class QTalsim:
                     input_landuse = str(feature[old_field]).strip().lower()
                     for new_field, old_field in value_mapping.items():
                         if old_field == 'Parameter not available' and not str(new_field).startswith('pTAW'):
-                            print(new_field)
                             if new_field in self.dfLanduseParameterValuesTalsim.columns:
                                 #Assign the saved talsim land use parameters to the land use features
-                                print("hier")
                                 mask = self.dfLanduseParameterValuesTalsim['Name'].str.strip().str.lower() == input_landuse.strip().lower()
                                 if mask.any():
                                     val = self.dfLanduseParameterValuesTalsim.loc[mask, new_field].iloc[0]
                                     feature[new_field] = None if pd.isna(val) else val
-                                    print(feature[new_field])
                             else:
                                 feature[new_field] = None 
                         elif old_field == 'Parameter not available' and str(new_field).startswith('pTAW'):
@@ -2655,9 +2604,7 @@ class QTalsim:
         '''
             Performs intersection of the three input layers after processing them in the previous steps.
         '''
-        print(f"starting performIntersect")
         try:
-            print(f"starting performIntersect")
             self.start_operation()
             if self.ezgLayer is None:
                 self.log_to_qtalsim_tab("Sub-basins Layer does not exist.", Qgis.Critical)
@@ -2724,7 +2671,6 @@ class QTalsim:
             dissolve_list.append(self.ezgUniqueIdentifier)
             dissolve_list.extend(self.selected_landuse_parameters)
             dissolve_list.extend(self.soilFieldNames)
-            print(dissolve_list)
             resultDissolve = processing.run("native:dissolve", {'INPUT': intersectedLayer,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback = None)
             intersectedDissolvedLayer = resultDissolve['OUTPUT']
             
@@ -3264,11 +3210,9 @@ class QTalsim:
                 current_text_groupbox = self.dlg.groupboxIntersect.title()
                 self.dlg.groupboxIntersect.setTitle(f"{current_text_groupbox} ✓")
 
-
             self.log_to_qtalsim_tab(f"Finished intersection of layers.", Qgis.Info)
         
         except Exception as e:
-            print(f"Error: {e}")
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
             #self.dlg.progressbar.setValue(0)
         finally:
@@ -4348,6 +4292,7 @@ class QTalsim:
     
         # Layer comboboxes
                 # Sub-basin layer
+        self.dlg.comboboxSubBasinLayer.setProject(QgsProject.instance())
         self.dlg.comboboxSubBasinLayer.setFilters(
             QgsMapLayerProxyModel.PolygonLayer
         )
@@ -4361,8 +4306,10 @@ class QTalsim:
             QgsMapLayerProxyModel.PolygonLayer
         )
         #DEM Layer
-        self.dlg.comboboxDEMLayer.setAllowEmptyLayer(True)
-        self.dlg.comboboxDEMLayer.setPlaceholderText("Optional: Upload DEM Layer")
+        #self.dlg.comboboxDEMLayer.setAllowEmptyLayer(True)
+        self.dlg.comboboxDEMLayer.setAllowEmptyLayer(True, "Optional: Upload DEM Layer")
+        self.dlg.comboboxDEMLayer.setLayer(None)
+        self.dlg.comboboxDEMLayer.setCurrentIndex(0)
         self.dlg.comboboxDEMLayer.setFilters(
             QgsMapLayerProxyModel.RasterLayer
         )
