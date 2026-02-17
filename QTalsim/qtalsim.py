@@ -4053,12 +4053,11 @@ class QTalsim:
             conn.commit()
             conn.close()
 
-
             self.log_to_qtalsim_tab(f"Finished inserting HRUs into Talsim DB", Qgis.Info)
 
-            current_text_groupbox = self.dlg.groupboxASCIIExport.title()
+            current_text_groupbox = self.dlg.groupboxDBExport.title()
             if "✓" not in current_text_groupbox:  #Avoid duplicate checkmarks
-                self.dlg.groupboxASCIIExport.setTitle(f"{current_text_groupbox} ✓")
+                self.dlg.groupboxDBExport.setTitle(f"{current_text_groupbox} ✓")
             self.log_to_qtalsim_tab(f"All Data was exported to the Talsim Database: {self.file_path_db}", Qgis.Info)
         
         except Exception as e:

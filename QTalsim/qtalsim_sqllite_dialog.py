@@ -165,7 +165,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             if self.migrationId[:8] < '20250630':  # 20251201 Check version of Talsim DB
                 message = f"Talsim DB with date {self.migrationId[:8]} is too old. Please use a more recent version."
                 raise Exception(message)
-            elif self.migrationId[:8] > '20251201':
+            elif self.migrationId[:8] > '20260127':
                 self.log_to_qtalsim_tab(f"Talsim DB with date {self.migrationId[:8]} is newer than the tested version.", Qgis.Warning)
 
             sql_query = "SELECT Name, Id FROM Scenario;"
