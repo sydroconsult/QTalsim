@@ -4,19 +4,19 @@
 
 * Enhancement
   
-  * Sub-basin preprocessing, soil onverter and land use mapping: Use QMainWindow
+  * Refactored Sub-basin preprocessing, Soil Type Converter, and Land Use Mapping to use QMainWindow
   
   * ISRIC Soil Type Converter
   
-    * Add possibility to downscale resolution of ISRIC soil data from 250m x 250m
+    * Added option to reduce the spatial resolution of ISRIC soil data (from 250 m × 250 m to user-defined coarser resolutions)
 	
   * Connect to Talsim DB
   
-    * Add possibility to add system logic/outflows to existing Talsim DB
+    * Added possibility to add system logic/outflows to existing Talsim DB
 	
 * Fixes
 
-  * Change Talsim DB to v0.6.20 (migration-id 20260127100510)
+  * Updated Talsim DB to Talsim-version 0.6.20 (migration-id 20260127100510)
   
 ## \[1.6.6] - 2025-11-13
 
