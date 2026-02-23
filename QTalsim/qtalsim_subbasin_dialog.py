@@ -1008,7 +1008,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     ScenarioId, ElementIdentifier, Name, ElementType, ElementTypeCharacter, Latitude, Longitude, Geometry
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (scenario_id, "OUT", "ZOUT", 6, "Z",latitude, longitude, wkt_zout_point,))
+            """, (scenario_id, "OUT", "ZOUT", 0, "Z", latitude, longitude, wkt_zout_point,))
             conn.commit()
 
             fields = [field.name() for field in self.subBasinLayerProcessed.fields()]
