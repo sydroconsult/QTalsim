@@ -1,5 +1,11 @@
 # Changelog
 
+## \[1.7.1] - 2026-02-24
+	
+* Fixes
+
+  * Sub-basin preprocessing: Fixed system outlet element type for Talsim 5 output
+  
 ## \[1.7.0] - 2026-02-17
 
 * Enhancement
@@ -13,6 +19,10 @@
   * Connect to Talsim DB
   
     * Added possibility to add system logic/outflows to existing Talsim DB
+	
+  * Sub-basin preprocessing
+  
+    * Added system outlet element to Talsim DB
 	
 * Fixes
 
