@@ -1088,7 +1088,6 @@ class QTalsim:
             self.log_to_qtalsim_tab(f"Selecting sub-basin layer...", Qgis.Info)
             #self.dlg.progressbar.setValue(0)
             self.ezgLayer = self.ezgLayerCombobox
-            layerName = self.ezgLayer.name()
 
             self.ezgUniqueIdentifier = self.dlg.comboboxUICatchment.currentText()
 
@@ -1100,22 +1099,38 @@ class QTalsim:
                 if value is not None:
                     unique_values.add(str(value))
             
-            invalid_values = [value for value in unique_values if not value.startswith("A")]
+            invalid_start = [v for v in unique_values if not v.startswith("A")]
+            invalid_length = [v for v in unique_values if v.startswith("A") and len(v[1:]) > 4]
 
+            invalid_values = sorted(set(invalid_start + invalid_length))
             if invalid_values:
                 self.end_operation()
-                #Show warning message and ask user if they want to continue
+
+                max_show = 30
+                shown = invalid_values[:max_show]
+                remaining = len(invalid_values) - max_show
+
+                value_text = ", ".join(shown)
+                if remaining > 0:
+                    value_text += f", ... (+{remaining} more)"
+
                 message = (
-                    f"The following unique identifiers do not start with 'A':\n"
-                    f"{', '.join(invalid_values)}\n\n"
-                    "Unique identifiers of sub-basins in Talsim must start with an A. Do you want to continue?"
+                    "Some unique identifiers do not follow the Talsim naming rules.\n\n"
+                    "Rules:\n"
+                    "- Must start with 'A'\n"
+                    "- Numeric part may contain max. 4 digits\n\n"
+                    "Invalid identifiers:\n"
+                    f"{value_text}\n\n"
+                    "Do you want to continue anyway?"
                 )
+
                 reply = QMessageBox.warning(
                     None,
-                    "Warning",
+                    "Invalid sub-basin identifiers",
                     message,
                     QMessageBox.Yes | QMessageBox.No
                 )
+
                 if reply == QMessageBox.No:
                     return  #User chose not to continue
                 else:
@@ -4290,10 +4305,16 @@ class QTalsim:
         self.connectButtontoFunction(self.dlg.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
     
         # Layer comboboxes
-                # Sub-basin layer
+        # Sub-basin layer
         self.dlg.comboboxSubBasinLayer.setProject(QgsProject.instance())
         self.dlg.comboboxSubBasinLayer.setFilters(
             QgsMapLayerProxyModel.PolygonLayer
+        )
+        self.ezgLayerCombobox = self.dlg.comboboxSubBasinLayer.currentLayer()
+        self.dlg.comboboxUICatchment.clear()
+        # Add new fields
+        self.dlg.comboboxUICatchment.addItems(
+            [field.name() for field in self.ezgLayerCombobox.fields()]
         )
         self.dlg.comboboxSubBasinLayer.layerChanged.connect(self.on_ezg_changed)
         #Soil Layer
