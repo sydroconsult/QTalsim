@@ -1281,7 +1281,7 @@ class QTalsim:
             fieldsSoil = [field.name() for field in self.soilLayer.fields()]
             current_path = os.path.dirname(os.path.abspath(__file__))
             soilTalsimPath = os.path.join(current_path, "talsim_parameter", "soilParameter.csv") 
-            self.dfsoilParametersTalsim = pd.read_csv(soilTalsimPath, delimiter = ';', skiprows=[1]) #Skip ID_Soil as it is not needed as input
+            self.dfsoilParametersTalsim = pd.read_csv(soilTalsimPath, delimiter = ';', decimal = ',', skiprows=[1]) #Skip ID_Soil as it is not needed as input
 
             #Create Table
             self.dlg.tableSoilMapping.setRowCount(self.dfsoilParametersTalsim.shape[0])
@@ -1790,11 +1790,18 @@ class QTalsim:
             self.soilTalsim.updateFields()
             #self.dlg.progressbar.setValue(90)
             self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
+
+            layer_tree = QgsProject.instance().layerTreeRoot()
             if self.soilLayer:
-                QgsProject.instance().removeMapLayer(self.soilLayer)
+                node = layer_tree.findLayer(self.soilLayer.id())
+                if node:
+                    node.setItemVisibilityChecked(False)
 
             if self.soilLayerIntermediate:
-                QgsProject.instance().removeMapLayer(self.soilLayerIntermediate)
+                node = layer_tree.findLayer(self.soilLayerIntermediate.id())
+                if node:
+                    node.setItemVisibilityChecked(False)
+                    
             self.soilTalsim.setName("Talsim Soil")
             QgsProject.instance().addMapLayer(self.soilTalsim)  
             
@@ -1914,7 +1921,7 @@ class QTalsim:
             fieldsLanduse = [field.name() for field in self.landuseLayer.fields()]
             current_path = os.path.dirname(os.path.abspath(__file__))
             landuseTalsimPath = os.path.join(current_path, "talsim_parameter", "landuseParameter.csv")
-            self.dfLanduseParametersTalsim = pd.read_csv(landuseTalsimPath,delimiter = ';')
+            self.dfLanduseParametersTalsim = pd.read_csv(landuseTalsimPath, delimiter = ';', decimal = ',')
 
             #Create Table
             self.dlg.tableLanduseMapping.setRowCount(self.dfLanduseParametersTalsim.shape[0])
@@ -1973,7 +1980,7 @@ class QTalsim:
             #Get Talsim land use parameter values
             current_path = os.path.dirname(os.path.abspath(__file__))
             landuseValuesTalsimPath = os.path.join(current_path, "talsim_parameter", "landuseParameterValues.csv")
-            self.dfLanduseParameterValuesTalsim = pd.read_csv(landuseValuesTalsimPath, delimiter = ';')
+            self.dfLanduseParameterValuesTalsim = pd.read_csv(landuseValuesTalsimPath, delimiter = ';', decimal = ',')
 
             #Create Layer
             self.landuseTalsim = QgsVectorLayer(f"Polygon?crs={self.landuseLayer.crs().authid()}", "LanduseLayerEdited", "memory")
