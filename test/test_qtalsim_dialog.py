@@ -1,7 +1,7 @@
 import os
 import sys
 import unittest
-from PyQt5.QtCore import QSettings
+from PyQt6.QtCore import QSettings
 from qgis.core import QgsApplication
 from qgis.analysis import QgsNativeAlgorithms
 from processing.core.Processing import Processing

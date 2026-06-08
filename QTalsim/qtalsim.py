@@ -282,13 +282,12 @@ class QTalsim:
         
         # Add actions
         icon_path = ':/plugins/qtalsim/icon.png'
-        self.add_action(icon_path, text=self.tr(u'HRU calculation'), callback=self.run, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        #self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_secondary_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        self.add_action(icon_path, text=self.tr(u'Connect to Talsim DB'), callback=self.open_sql_connect_dock, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        self.add_action(icon_path, text=self.tr(u'Sub-basin preprocessing'), callback=self.open_sub_basin_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        self.add_action(icon_path, text=self.tr(u'ISRIC Soil Type Converter'), callback=self.open_soil_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        self.add_action(icon_path, text=self.tr(u'Land use mapping'), callback=self.open_landuse_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        
+        self.add_action(icon_path, text=self.tr(u'I) ISRIC Soil Type Converter'), callback=self.open_soil_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        self.add_action(icon_path, text=self.tr(u'I) Sub-basin preprocessing'), callback=self.open_sub_basin_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        self.add_action(icon_path, text=self.tr(u'I) Land use mapping'), callback=self.open_landuse_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        self.add_action(icon_path, text=self.tr(u'II) HRU calculation'), callback=self.run, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        self.add_action(icon_path, text=self.tr(u'III) Connect to Talsim DB'), callback=self.open_sql_connect_dock, parent=self.iface.mainWindow(), add_to_toolbar=True)
+
         self.first_start = True
         self.initialize_parameters()
 
@@ -1276,7 +1275,7 @@ class QTalsim:
             Fills the soil mapping table with the field names of the soil layer and the Talsim parameter names.
                 Is executed in function selectSoil.
         '''
-        try:
+        try:  
             self.start_operation()
             fieldsSoil = [field.name() for field in self.soilLayer.fields()]
             current_path = os.path.dirname(os.path.abspath(__file__))
@@ -1301,12 +1300,13 @@ class QTalsim:
             #Get Data from csv-file
             soilTextures = self.dfsoilParametersTalsim.loc[:,'SoilTexture']
             soilTexturesUnit = self.dfsoilParametersTalsim.loc[:,'TextureUnit']
+            soilTexturesIsricNames = self.dfsoilParametersTalsim.loc[:,'ISRICName']
             self.number_soilLayers = 6
 
             num_rows = self.dfsoilParametersTalsim.shape[0]
             analysed_rows = 0
             last_logged_progress = 30
-            
+                
             #Fill data
             for row, data in enumerate(soilTextures):
                 analysed_rows += 1
@@ -1334,6 +1334,14 @@ class QTalsim:
                     combo_box.addItems([str(field) for field in fieldsSoil])
                     i += 1
                     self.dlg.tableSoilMapping.setCellWidget(row, i, combo_box)
+
+                    # automatically fill if ISRIC soil downloader was used
+                    self.log_to_qtalsim_tab(f"{self.soilLayerInput.name()}", Qgis.Info)
+                    if self.soilLayerInput.name() == "Soil Types BDOD Combined" and data in (self.nameSoil, "BulkDensityClass", self.soilTypeThickness):
+                        layer_isric_mapping = {0 : "0-5cm", 1 : "5-15cm", 2 : "15-30cm", 3 : "30-60cm", 4 : "60-100cm", 5 : "100-200cm"}
+                        if f"{layer_isric_mapping[i-1]}_{soilTexturesIsricNames[row]}" in fieldsSoil:
+                            combo_box.setCurrentText(f"{layer_isric_mapping[i-1]}_{soilTexturesIsricNames[row]}") #Set the corresponding field name as current text of the combo box
+
             #self.dlg.progressbar.setValue(40)
             self.dlg.onCreateSoilLayer.setVisible(True)
         
@@ -1403,7 +1411,6 @@ class QTalsim:
                             self.log_to_qtalsim_tab(f'You entered {old_field} for Talsim parameter {new_field}. Your field has type {QVariant.typeToName(type_old)}, when it should have type {QVariant.typeToName(type)}.', Qgis.Warning)
                             fields_wrong_datatype.append(old_field)
                         #if new_field == 'Name' and old_field is 'Parameter not available':
-            
             #self.dlg.progressbar.setValue(20)
             
             #Get the number of soilLayers added by the user
