@@ -4320,9 +4320,10 @@ class QTalsim:
         self.ezgLayerCombobox = self.dlg.comboboxSubBasinLayer.currentLayer()
         self.dlg.comboboxUICatchment.clear()
         # Add new fields
-        self.dlg.comboboxUICatchment.addItems(
-            [field.name() for field in self.ezgLayerCombobox.fields()]
-        )
+        if self.ezgLayerCombobox:
+            self.dlg.comboboxUICatchment.addItems(
+                [field.name() for field in self.ezgLayerCombobox.fields()]
+            )
         self.dlg.comboboxSubBasinLayer.layerChanged.connect(self.on_ezg_changed)
         #Soil Layer
         self.dlg.comboboxSoilLayer.setFilters(

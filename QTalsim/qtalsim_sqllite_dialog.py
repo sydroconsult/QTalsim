@@ -1000,11 +1000,11 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.updatedElements = {1: [], 2: [], 3: []}
 
             editedFeatures = []
+            print(geometry_index)
             for point_feature in self.elementsPointLayer.getFeatures():
                 if point_feature['Identifier'][0] == self.elementTypeCharacter:
                     join_value = str(point_feature['Identifier'])
-                   
-                    #Insert Polygons to SystemElements, where no polygon exists
+                    #Insert Polygons to SystemElements, where no geometry exists
                     if join_value in geometry_index and (self.geometryFieldName not in fieldNamesPointLayer or str(point_feature[self.geometryFieldName]).strip().upper() == 'NULL' or point_feature[self.geometryFieldName] is None):
                         update_feature = QgsFeature(self.updatedElementsLayer.fields())
                         update_feature.setAttributes(point_feature.attributes())
@@ -1016,7 +1016,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                         if geometry.type() == QgsWkbTypes.PolygonGeometry and not geometry.contains(point_feature.geometry()):
                             self.log_to_qtalsim_tab(f"Spatial containment check failed: Element {join_value} is not within the target polygon. Despite this, the element was updated. ", Qgis.Warning) 
                     
-                    #Update existing polygons with external polygons
+                    #Update existing features with external features if geometry exists but is different than the geometry of the external layer
                     
                     elif join_value in geometry_index and point_feature[self.geometryFieldName] != geometry_index[join_value] and str(point_feature[self.geometryFieldName]).strip().upper() != 'NULL' and point_feature[self.geometryFieldName] is not None:
                         update_feature = QgsFeature(self.updatedElementsLayer.fields())
@@ -1093,11 +1093,14 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.updatedElements[3].append(join_value)
                 else:
                     for talsimField, externalField in self.optionalFields.items():
+                        print(talsimField, externalField)
                         if externalField != 'No Field selected': # and geometry_feature.geometry() == QgsWkbTypes.PolygonGeometry:
+                            print(talsimField, externalField)
                             for update_feature in self.updatedElementsLayer.getFeatures('"Identifier" = \'{}\''.format(join_value)):
                                 if talsimField in self.updatedElementsLayer.fields().names() and externalField in geometry_feature.fields().names():
                                     update_feature[talsimField] = geometry_feature[externalField]  
                                     self.updatedElementsLayer.updateFeature(update_feature)
+                                    print(f"Updated feature with Identifier {join_value} and field {talsimField}")
             self.updatedElementsLayer.commitChanges()
 
         except Exception as e:
@@ -1255,9 +1258,8 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
         try:
             self.reconnectDatabase()
-            
+            #elementTypeCharacter = self.mappingElementTypeTableName.get(feature['Identifier'][0], "Unknown")
             elementTypeTableName = self.mappingElementTypeTableName.get(feature['Identifier'][0], "Unknown")
-
             sql_query = f'SELECT * FROM {elementTypeTableName}'
             self.cur.execute(sql_query)
             columns = [description[0] for description in self.cur.description]
