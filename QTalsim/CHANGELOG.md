@@ -1,5 +1,21 @@
 # Changelog
 
+## \[1.8.0] - 2026-06-12
+
+* Fixes
+
+* HRU Calculation
+  * Fixed land use parameter mapping to support different system decimal separators.
+
+* Enhancements
+
+  * Land Use Mapping
+    * Added support for downloading ESA WorldCover data.
+
+  * HRU Calculation
+    * Automatically maps ISRIC soil attributes to Talsim soil attributes when the ISRIC downloader is used.
+    * Added a warning when sub-basin IDs exceed 4 characters.
+
 ## \[1.7.1] - 2026-02-24
 	
 * Fixes

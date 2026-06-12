@@ -59,6 +59,8 @@ Select & Edit Soil Layer
          where possible, converts the field’s values to the parameter’s
          type. If ‘Parameter not available’ is selected, that parameter
          will be added with null values.
+		 
+		 If the soil layer was created with the QTalsim feature "ISRIC Soil Type Converter", the correct fields are automatically chosen (Important: Do not rename the layer from "Soil Types BDOD Combined").
 
          To finalize the soil mapping, click ‘Confirm Soil Mapping’. If the user
 	 defines area/percentage thresholds, soil features below these thresholds are

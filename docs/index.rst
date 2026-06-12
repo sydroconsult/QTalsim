@@ -6,13 +6,9 @@ Welcome to QTalsim's documentation!
 Main Features
 -------------
 
-      -  **HRU Calculation** (:doc:`doc_qtalsim`)
-         
-         Enables users to calculate Hydrological Response Units (HRUs).
-
       -  **Sub-basins Preprocessing** (:doc:`doc_subbasin_preprocessing`)
          
-         Calculates various parameters for each sub-basin and generates files compatible with Talsim.
+         Calculates various parameters for each sub-basin from a provided sub-basin layer and generates files compatible with Talsim.
 
       -  **ISRIC Soil Type Converter** (:doc:`doc_soil`) 
 
@@ -21,7 +17,10 @@ Main Features
       -  **Land Use Mapping** (:doc:`doc_landuse`)
 
          If your area is in Germany, this feature allows you to convert ATKIS land use data or LBM land cover data into Talsim land use categories.
-
+		 
+      -  **HRU Calculation** (:doc:`doc_qtalsim`)
+         
+         Enables users to calculate Hydrological Response Units (HRUs).
       -  **Connect to Talsim DB** (:doc:`doc_connect_to_db`)
 
          For users of Talsim NG5, this functionality enables a direct connection to a Talsim database, allowing you to edit system elements, sub-basins, and transport reaches.

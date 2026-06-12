@@ -1336,7 +1336,6 @@ class QTalsim:
                     self.dlg.tableSoilMapping.setCellWidget(row, i, combo_box)
 
                     # automatically fill if ISRIC soil downloader was used
-                    self.log_to_qtalsim_tab(f"{self.soilLayerInput.name()}", Qgis.Info)
                     if self.soilLayerInput.name() == "Soil Types BDOD Combined" and data in (self.nameSoil, "BulkDensityClass", self.soilTypeThickness):
                         layer_isric_mapping = {0 : "0-5cm", 1 : "5-15cm", 2 : "15-30cm", 3 : "30-60cm", 4 : "60-100cm", 5 : "100-200cm"}
                         if f"{layer_isric_mapping[i-1]}_{soilTexturesIsricNames[row]}" in fieldsSoil:

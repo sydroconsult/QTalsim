@@ -1,7 +1,7 @@
 import os
 from qgis.PyQt import uic, QtWidgets
 import pandas as pd
-from qgis.core import QgsVectorLayer, QgsProject, Qgis, QgsField, QgsVectorFileWriter
+from qgis.core import QgsVectorLayer, QgsProject, Qgis, QgsField, QgsVectorFileWriter, QgsRasterLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsGeometry
 from qgis.PyQt.QtCore import QVariant
 from qgis.PyQt.QtWidgets import QFileDialog, QInputDialog, QDialogButtonBox
 import processing
@@ -38,11 +38,14 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.atkisLanduse = "ATKIS Landnutzung"
         self.lbmLandcover = "Digitales Landbedeckungsmodell"
+        self.esaWorldCover = "ESA World Cover"
         self.comboboxLanduseSource.clear()
         self.comboboxLanduseSource.addItem(self.lbmLandcover)
+        self.comboboxLanduseSource.addItem(self.esaWorldCover)
         self.comboboxLanduseSource.addItem(self.atkisLanduse)
         self.comboboxLanduseSource.currentIndexChanged.connect(self.updateInputWidget)
-        
+        self.comboboxESAChoice.addItem("Download ESA World Cover")
+        self.comboboxESAChoice.addItem("Use existing ESA World Cover layer")
         self.textHelp.setOpenExternalLinks(True)
         self.textAtkis = textwrap.dedent('''
                         This plugin feature maps ATKIS land use data to Talsim land use categories. 
@@ -56,14 +59,32 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                         You must provide a layer containing the LBM land cover data. 
                         Optionally, you can specify a clipping layer to limit the extent of the output Talsim land use layer.
                         ''').strip()
+
+        self.textESA = textwrap.dedent('''
+                        This plugin feature allows you to use ESA World Cover data as input for land use mapping.
+                        You can either download the ESA World Cover data directly through the plugin or use an existing ESA World Cover raster layer in your QGIS project. 
+                        If you choose to download the data, you have to specify the extent for the download by selecting a clipping layer.
+                                       
+                        ''')
         self.textHelp.clear()
-        self.textHelp.setHtml(self.textLBM)
+        #self.textHelp.setHtml(self.textLBM)
+        self.layout().activate()
+        self.adjustSize()
+        self.updateGeometry()
+        self.updateInputWidget()
         self.fillLayerCombobox()
         self.connectButtontoFunction(self.onInputFolder, self.selectInputFolder) 
         self.connectButtontoFunction(self.onOutputFolder, self.selectOutputFile)
+        #self.connectButtontoFunction(self.onSelectOutputESA, self.selectOutputFile)
         self.connectButtontoFunction(self.onCreateLanduseLayer, self.landuseMapping)
         self.connectButtontoFunction(self.onHelp.button(QDialogButtonBox.Help), self.openDocumentation)
-        
+        self.connectButtontoFunction(self.onHelp.button(QDialogButtonBox.Help), self.openDocumentation)
+
+        self.comboboxESAChoice.currentTextChanged.connect(
+            self.updateESALayerSelection
+        )
+        self.updateESALayerSelection()
+
         current_path = os.path.dirname(os.path.abspath(__file__))
         landuseAssignmentPathAtkis = os.path.join(current_path, "talsim_parameter", "atkis_talsim_zuordnung.csv")
         self.dfLanduseAssignmentTalsim = pd.read_csv(landuseAssignmentPathAtkis,delimiter = ';')
@@ -107,7 +128,16 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             self.textHelp.setText(self.textAtkis)
         elif self.comboboxLanduseSource.currentText() == self.lbmLandcover:
             self.textHelp.setHtml(self.textLBM)
+        elif self.comboboxLanduseSource.currentText() == self.esaWorldCover:
+            self.textHelp.setHtml(self.textESA)
             
+    def updateESALayerSelection(self):
+            use_existing = (
+                self.comboboxESAChoice.currentText()
+                == "Use existing ESA World Cover layer"
+            )
+
+            self.comboboxLayerESA.setEnabled(use_existing)
 
     def selectInputFolder(self):
         '''
@@ -127,7 +157,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         self.outputFolder = QFileDialog.getExistingDirectory(self, "Select Folder","")
         if self.outputFolder:
             #Prompt the user for the GeoPackage file name
-            self.gpkg_name, ok = QInputDialog.getText(self, "GeoPackage Name", "Enter name for the GeoPackage (without .gpkg):")
+            self.gpkg_name, ok = QInputDialog.getText(self, "GeoPackage Name", "Enter name for the output GeoPackage (without .gpkg):")
 
             if ok and self.gpkg_name.strip():
                 self.gpkg_name = self.gpkg_name.strip()
@@ -225,7 +255,189 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 }, feedback=None)['OUTPUT']
             
         return clippedLayer
-        
+    
+    def downloadESAWorldCover(self):
+        '''
+            Function to open the download page of the ESA World Cover data in the browser.
+        '''
+        try: 
+            self.start_operation()
+            self.log_to_qtalsim_tab("Starting ESA World Cover download and processing", Qgis.Info)
+            esa_folder = os.path.join(self.outputFolder, "ESA")
+            os.makedirs(esa_folder, exist_ok=True)
+
+            selected_layer_ESA = self.comboboxClippingLayer.currentText()
+            self.clippinglayerESA = QgsProject.instance().mapLayersByName(selected_layer_ESA)[0]
+            extent = self.clippinglayerESA.extent()
+
+            source_crs = self.clippinglayerESA.crs()
+            target_crs = QgsCoordinateReferenceSystem("EPSG:4326")
+
+            if source_crs != target_crs:
+                transform = QgsCoordinateTransform(
+                    source_crs,
+                    target_crs,
+                    QgsProject.instance()
+                )
+
+                extent = transform.transformBoundingBox(extent)
+
+            # bbox polygon
+            bbox = (
+                extent.xMinimum(),
+                extent.yMinimum(),
+                extent.xMaximum(),
+                extent.yMaximum()
+            )
+
+            import requests
+            grid_file = os.path.join(esa_folder, "esa_worldcover_grid.geojson")
+            grid_url = (
+                "https://esa-worldcover.s3.eu-central-1.amazonaws.com/"
+                "esa_worldcover_grid.geojson"
+            )
+
+            grid_file = os.path.join(esa_folder, "esa_worldcover_grid.geojson")
+
+            # Download once
+            response = requests.get(grid_url, timeout=60)
+            response.raise_for_status()
+
+            with open(grid_file, "wb") as f:
+                f.write(response.content)
+            
+            grid_layer = QgsVectorLayer(
+                grid_file,
+                "ESA_WorldCover_Grid",
+                "ogr"
+            )
+
+            if not grid_layer.isValid():
+                raise Exception("Failed to load ESA WorldCover grid.")
+            
+
+            aoi_geom = QgsGeometry.fromRect(extent)
+
+            tiles = []
+
+            for feat in grid_layer.getFeatures():
+
+                if feat.geometry().intersects(aoi_geom):
+
+                    # field name may be ll_tile, TILE, tile_id etc.
+                    # inspect once and adjust if necessary
+
+                    tile_name = feat["ll_tile"]
+
+                    if tile_name:
+                        tiles.append(tile_name)
+
+            if not tiles:
+                raise Exception("No ESA WorldCover tiles intersect the selected layer.")
+
+            downloaded_files = []
+
+            year = 2021
+            version = "v200" if year == 2021 else "v100"
+
+            base_url = (
+                "https://esa-worldcover.s3.eu-central-1.amazonaws.com/"
+                f"{version}/{year}/map/"
+            )
+
+            for tile in tiles:
+
+                filename = f"ESA_WorldCover_10m_{year}_{version}_{tile}_Map.tif"
+                url = base_url + filename
+
+                out_path = os.path.join(esa_folder, filename)
+
+                if os.path.exists(out_path):
+                    downloaded_files.append(out_path)
+                    continue
+
+                try:
+                    r = requests.get(url, stream=True, timeout=120)
+                    r.raise_for_status()
+
+                    with open(out_path, "wb") as f:
+                        for chunk in r.iter_content(chunk_size=1024 * 1024):
+                            if chunk:
+                                f.write(chunk)
+
+                    downloaded_files.append(out_path)
+
+                except Exception as e:
+                    print(f"Failed: {tile} -> {e}")
+
+            if downloaded_files:
+
+                from osgeo import gdal
+
+                vrt_path = os.path.join(
+                    esa_folder,
+                    "ESA_WorldCover_2021.vrt"
+                )
+
+                gdal.BuildVRT(
+                    vrt_path,
+                    downloaded_files
+                )
+
+                self.log_to_qtalsim_tab("Download finished. Clipping raster layer...", Qgis.Info)
+                # Clip Layer
+                self.esaWorldCoverLayer = QgsRasterLayer(vrt_path, "ESA WorldCover")
+                self.comboboxClippingLayer.setCurrentText(self.clippinglayerESA.name())
+                clipping_layer_name = self.comboboxClippingLayer.currentText()
+                if clipping_layer_name == "Select Clipping Layer":
+                    clipping_layer = None
+                    self.log_to_qtalsim_tab("No clipping layer selected.", Qgis.Critical)
+                else:
+                    clipping_layer = QgsProject.instance().mapLayersByName(clipping_layer_name)[0] #Get the clipping layer
+
+                # clippen des layers
+                clipped_raster = os.path.join(
+                    self.outputFolder,
+                    "ESA",
+                    "WorldCover_clipped.tif"
+                )
+
+                # CLIP BY MAS
+
+                result = processing.run(
+                    "gdal:cliprasterbymasklayer",
+                    {
+                        "INPUT": self.esaWorldCoverLayer,
+                        "MASK": clipping_layer,
+                        "CROP_TO_CUTLINE": True,
+                        "KEEP_RESOLUTION": True,
+                        "OPTIONS": "",
+                        "DATA_TYPE": 0,
+                        "NODATA": 0,
+                        "OUTPUT": clipped_raster
+                    }
+                )
+
+                # load result
+
+                clipped_layer = QgsRasterLayer(
+                    result["OUTPUT"],
+                    "ESA WorldCover Clipped"
+                )
+                self.esaWorldCoverLayer = clipped_layer
+                # Add to QGIS
+                QgsProject.instance().addMapLayer(self.esaWorldCoverLayer)
+
+            else:
+
+                raise Exception(
+                    "No WorldCover tiles could be downloaded."
+                )
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"Error downloading ESA World Cover: {e}", Qgis.Critical)
+        finally:
+            self.end_operation()
+
     def landuseMapping(self):
         '''
             Function to perform the land use mapping process.
@@ -253,6 +465,15 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.log_to_qtalsim_tab("No Clipping Layer selected. Using the full extent of the input LBM layer.", Qgis.Warning)
                     self.landuseLayer = self.lbmLayer
                 self.landbedeckungToTalsimMapping()
+            
+            elif self.comboboxLanduseSource.currentText() == self.esaWorldCover:
+                #ESAWidgetPage1
+                if self.comboboxESAChoice.currentText() == "Download ESA World Cover":
+                    self.downloadESAWorldCover()
+                else:
+                    self.esaWorldCoverLayer = QgsProject.instance().mapLayersByName(self.comboboxLayerESA.currentText())[0]
+                self.esaWorldCoverToTalsimMapping()
+                
 
             self.exportGeopackage()
             self.log_to_qtalsim_tab("Land use mapping finished", Qgis.Info)
@@ -335,7 +556,110 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             
         self.landuseLayer.commitChanges()
             
-      
+    def esaWorldCoverToTalsimMapping(self):
+        '''
+            Function to map the ESA World Cover land cover to Talsim land use.
+             (https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_Map_COG.tif)
+        '''
+        try:
+            self.start_operation()
+            if not self.esaWorldCoverLayer:
+                self.log_to_qtalsim_tab("ESA World Cover layer not found. Please download and select the ESA World Cover layer first.", Qgis.Critical)
+                return
+
+            esa_folder = os.path.join(self.outputFolder, "ESA")
+            os.makedirs(esa_folder, exist_ok=True)
+
+            self.log_to_qtalsim_tab("Polygonizing ESA World Cover raster layer...", Qgis.Info)
+            #polygonize raster layer 
+            poly_result = processing.run(
+                "gdal:polygonize",
+                {
+                    "INPUT": self.esaWorldCoverLayer.source(),
+                    "BAND": 1,
+                    "FIELD": "class",
+                    "EIGHT_CONNECTEDNESS": False,
+                    "OUTPUT": "TEMPORARY_OUTPUT"
+                }
+            )
+
+            poly_layer = poly_result["OUTPUT"]
+
+            dissolve_path = os.path.join(
+                esa_folder,
+                "WorldCover_dissolved.gpkg"
+            )
+            
+            self.log_to_qtalsim_tab("Dissolving ESA World Cover vector layer...", Qgis.Info)
+
+            dissolve_result = processing.run(
+                "native:dissolve",
+                {
+                    "INPUT": poly_layer,
+                    "FIELD": ["class"],
+                    "OUTPUT": dissolve_path
+                }
+            )
+    
+            self.landuseLayer = QgsVectorLayer(
+                dissolve_result["OUTPUT"],
+                "landuse",
+                "ogr"
+            )
+
+            self.log_to_qtalsim_tab("Mapping ESA World Cover to Talsim land use...", Qgis.Info)
+            # Add ESA Name and Talsim Landuse to the layer based on the class code using the csv file with the mapping
+            current_path = os.path.dirname(os.path.abspath(__file__))
+            csv_path = os.path.join(
+                current_path,
+                "talsim_parameter",
+                "esa_talsim_zuordnung.csv"
+            )
+
+            esa_name_map = {}
+            talsim_map = {}
+
+            reader = pd.read_csv(csv_path, delimiter=";")
+
+            provider = self.landuseLayer.dataProvider()
+
+            provider.addAttributes([
+                QgsField("esa_name", QVariant.String),
+                QgsField("OBJART_NEU", QVariant.String)
+            ])
+
+            self.landuseLayer.updateFields()
+
+            for _, row in reader.iterrows():
+
+                code = int(row["ESA Code"])
+
+                esa_name_map[code] = row["ESA Name"]
+                talsim_map[code] = row["Talsim Landuse"]
+
+            self.landuseLayer.startEditing()
+            for feat in self.landuseLayer.getFeatures():
+
+                code = feat["class"]
+
+                feat["esa_name"] = esa_name_map.get(code, "unknown")
+                feat["OBJART_NEU"] = talsim_map.get(code, "unknown")
+
+                self.landuseLayer.updateFeature(feat)
+            self.landuseLayer.commitChanges()
+
+            self.landuseLayer.triggerRepaint()
+            if not self.landuseLayer.isValid():
+                raise Exception("Failed to load polygonized layer")
+
+            QgsProject.instance().addMapLayer(self.landuseLayer)
+
+            self.log_to_qtalsim_tab("ESA World Cover mapping completed.", Qgis.Info)
+        except Exception as e:
+            self.log_to_qtalsim_tab("Error during ESA World Cover mapping: " + str(e), Qgis.Critical)
+        finally:
+            self.end_operation()
+
     def atkisToTalsimMapping(self):
         '''
             Function to map the ATKIS landuse to Talsim land use

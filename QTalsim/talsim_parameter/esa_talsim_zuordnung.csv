@@ -1,0 +1,12 @@
+﻿ESA Code;ESA Name;Talsim Landuse
+10;Tree cover;Mischwald
+20;Shrubland;Heide
+30;Grassland;WieseUndWeide
+40;Cropland;Ackerland
+50;Built-up;Strassenverkehr
+60;Bare / sparse vegetation;Vegetationslos
+70;Snow and ice;Vegetationslos
+80;Permanent water bodies;Wasserflaeche
+90;Herbaceous wetland;Sumpf
+95;Mangroves;Moor
+100;Moss and lichen;Moor
