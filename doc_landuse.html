@@ -5,11 +5,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Land use mapping &#8212; QTalsim 1.7.1 documentation</title>
+    <title>Land use mapping &#8212; QTalsim 1.8.0 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
     
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=850f94a7"></script>
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=9764bf3a"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
     
@@ -30,7 +30,7 @@
         <li class="right" >
           <a href="doc_soil.html" title="ISRIC Soil Type Converter"
              accesskey="P">previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.7.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.8.0 documentation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Land use mapping</a></li> 
       </ul>
     </div>  
@@ -47,6 +47,7 @@
 <ul class="simple">
 <li><p><strong>ATKIS</strong> - Automatisiertes Topographisch-Kartographisches Informationssystem (e.g. <a class="reference external" href="https://www.bezreg-koeln.nrw.de/geobasis-nrw/produkte-und-dienste/landschaftsmodelle/aktuelle-landschaftsmodelle/digitales-basis">ATKIS NRW</a>)</p></li>
 <li><p><strong>LBM-DE (2021)</strong> - <a class="reference external" href="http://bit.ly/46K4sfd">Digitales Landbedeckungsmodell für Deutschland, Stand 2021</a></p></li>
+<li><p><strong>ESA World Cover</strong> - <a class="reference external" href="https://esa-worldcover.org/en/data-access">ESA World Cover 10m 2021</a></p></li>
 </ul>
 </div></blockquote>
 <section id="executing-the-plugin">
@@ -77,6 +78,21 @@
 <li><p>Mapping uses fields “LB_AKT” (land cover type) and “SIE_AKT” (imperviousness). Find the complete <a class="reference external" href="https://github.com/sydroconsult/QTalsim/blob/main/QTalsim/talsim_parameter/lbm_talsim_zuordnung.csv">LBM to Talsim mapping table here</a>.</p></li>
 </ul>
 <p><img alt="Screenshot Land use mapping LBM" src="_images/landuseMappingFeatureLBM.png" /></p>
+</div></blockquote>
+</section>
+<section id="esa-world-cover-data">
+<h3>ESA World Cover Data<a class="headerlink" href="#esa-world-cover-data" title="Permalink to this heading">¶</a></h3>
+<blockquote>
+<div><p><strong>Input Requirements:</strong>
+You can either
+- Download the ESA World Cover data with the QGIS plugin by providing a layer with the extent of interest or
+Download the ESA World Cover data from the link above and add the layer to your current QGIS project</p>
+<p><strong>Processing:</strong></p>
+<ul class="simple">
+<li><p>Provide the extent for downloading the data with the plugin or specify the layer containing ESA World Cover data</p></li>
+<li><p>Apply a clipping layer to limit the input extent</p></li>
+<li><p>Mapping uses the “class” field, which contains the ESA land cover class code.</p></li>
+</ul>
 </div></blockquote>
 <section id="output-results">
 <h4>Output Results<a class="headerlink" href="#output-results" title="Permalink to this heading">¶</a></h4>
@@ -141,7 +157,7 @@
         <li class="right" >
           <a href="doc_soil.html" title="ISRIC Soil Type Converter"
              >previous</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.7.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QTalsim 1.8.0 documentation</a> &#187;</li>
         <li class="nav-item nav-item-this"><a href="">Land use mapping</a></li> 
       </ul>
     </div>

@@ -6,6 +6,7 @@ Land use mapping
 
    * **ATKIS** - Automatisiertes Topographisch-Kartographisches Informationssystem (e.g. `ATKIS NRW <https://www.bezreg-koeln.nrw.de/geobasis-nrw/produkte-und-dienste/landschaftsmodelle/aktuelle-landschaftsmodelle/digitales-basis>`_)
    * **LBM-DE (2021)** - `Digitales Landbedeckungsmodell für Deutschland, Stand 2021 <http://bit.ly/46K4sfd>`_
+   * **ESA World Cover** - `ESA World Cover 10m 2021 <https://esa-worldcover.org/en/data-access>`_
 
 Executing the Plugin
 ^^^^^^^^^^^^^^^^^^^^
@@ -40,6 +41,20 @@ LBM-DE (2021) Data
    - Mapping uses fields "LB_AKT" (land cover type) and "SIE_AKT" (imperviousness). Find the complete `LBM to Talsim mapping table here <https://github.com/sydroconsult/QTalsim/blob/main/QTalsim/talsim_parameter/lbm_talsim_zuordnung.csv>`_.
 
    |Screenshot Land use mapping LBM| 
+
+ESA World Cover Data
+----------------------
+
+   **Input Requirements:**
+   You can either
+   - Download the ESA World Cover data with the QGIS plugin by providing a layer with the extent of interest or
+   Download the ESA World Cover data from the link above and add the layer to your current QGIS project
+
+   **Processing:**
+
+   - Provide the extent for downloading the data with the plugin or specify the layer containing ESA World Cover data
+   - Apply a clipping layer to limit the input extent
+   - Mapping uses the "class" field, which contains the ESA land cover class code.
 
 Output Results
 ==============
