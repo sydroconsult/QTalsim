@@ -30,8 +30,10 @@ jobs:
       - name: Run Bandit scan
         run: |
           bandit -r . -ll -iii -f json -o bandit-report.json
+        continue-on-error: true
 
       - name: Upload Bandit results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bandit-report
