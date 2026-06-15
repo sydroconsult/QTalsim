@@ -4,8 +4,8 @@
 
 * Fixes
 
-* HRU Calculation
-  * Fixed land use parameter mapping to support different system decimal separators.
+  * HRU Calculation
+    * Fixed land use parameter mapping to support different system decimal separators.
 
 * Enhancements
 

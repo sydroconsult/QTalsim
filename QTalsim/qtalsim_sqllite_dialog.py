@@ -9,7 +9,7 @@ import sqlite3
 import webbrowser
 import sys
 import processing
-import xml.etree.ElementTree as ET
+from xml.etree import ElementTree as ET
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'qtalsim_sqllite.ui'))
@@ -187,8 +187,12 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.scenarioName = self.scenariosAvailable[scenarioComboId][0]
             #scenarioName = scenarioCombo.split(" (", 1)[0]
             self.scenarioId = self.scenariosAvailable[scenarioComboId][1]
-            sql_query = f"SELECT Distinct ElementTypeCharacter FROM SystemElement WHERE scenarioId = {self.scenarioId}"
-            self.cur.execute(sql_query)
+            sql_query = """
+                SELECT DISTINCT ElementTypeCharacter
+                FROM SystemElement
+                WHERE scenarioId = ?
+                """
+            self.cur.execute(sql_query, (self.scenarioId,))
             self.elementTypes = self.cur.fetchall()
             #self.comboboxElementType.addItems([elementType[0] for elementType in self.elementTypes])
 
@@ -253,7 +257,10 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.safeConnect(self.comboboxTransportReachLayer.currentIndexChanged, self.on_transport_reach_layer_changed) #Refill the other comboboxes whenever user selects different layer
     
     def changeSymbolsSymbology(self, pathSymbology, svg_base_path):  
-        tree = ET.parse(pathSymbology)
+        from xml.etree import ElementTree as ET
+
+        with open(pathSymbology, "rb") as f:
+            tree = ET.parse(f)
         root = tree.getroot()
         for svg_option in root.findall(".//layer[@class='SvgMarker']/Option/Option[@name='name']"):
             old_path = svg_option.get('value')  # Get the current (old) SVG path

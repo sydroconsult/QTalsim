@@ -3659,17 +3659,22 @@ class QTalsim:
 
                 #Tables and queries with Scenario filtering
                 table_queries = {
-                    "SoilType": f"SELECT COUNT(*) FROM SoilType WHERE ScenarioId = ?",
-                    "SoilTexture": f"SELECT COUNT(*) FROM SoilTexture WHERE ScenarioId = ?",
-                    "Landuse": f"SELECT COUNT(*) FROM Landuse WHERE ScenarioId = ?",
+                    "SoilType": "SELECT COUNT(*) FROM SoilType WHERE ScenarioId = ?",
+                    "SoilTexture": "SELECT COUNT(*) FROM SoilTexture WHERE ScenarioId = ?",
+                    "Landuse": "SELECT COUNT(*) FROM Landuse WHERE ScenarioId = ?",
                     "HydrologicalResponseUnit": """
-                        SELECT COUNT(*) 
+                        SELECT COUNT(*)
                         FROM HydrologicalResponseUnit hru
                         JOIN SystemElement se ON hru.SystemElementId = se.Id
                         WHERE se.ScenarioId = ?
                     """,
-                    "PatternNumberValue": f"SELECT COUNT(*) FROM PatternNumberValue pn JOIN Pattern p ON pn.PatternId = p.Id WHERE p.ScenarioId = ?",
-                    "Pattern": f"SELECT COUNT(*) FROM Pattern WHERE ScenarioId = ?"
+                    "PatternNumberValue": """
+                        SELECT COUNT(*)
+                        FROM PatternNumberValue pn
+                        JOIN Pattern p ON pn.PatternId = p.Id
+                        WHERE p.ScenarioId = ?
+                    """,
+                    "Pattern": "SELECT COUNT(*) FROM Pattern WHERE ScenarioId = ?"
                 }
 
                 tables_with_data = []
@@ -3700,6 +3705,22 @@ class QTalsim:
                     conn.close()
                     return False
 
+                # tables hardcoded, as dynamic coding results in security issues
+                DELETE_QUERIES = {
+                    "SoilType": "DELETE FROM SoilType WHERE ScenarioId = ?",
+                    "SoilTexture": "DELETE FROM SoilTexture WHERE ScenarioId = ?",
+                    "Landuse": "DELETE FROM Landuse WHERE ScenarioId = ?",
+                    "Pattern": "DELETE FROM Pattern WHERE ScenarioId = ?"
+                }
+
+                COUNT_QUERIES = {
+                    "SoilType": "SELECT COUNT(*) FROM SoilType",
+                    "SoilTexture": "SELECT COUNT(*) FROM SoilTexture",
+                    "Landuse": "SELECT COUNT(*) FROM Landuse",
+                    "HydrologicalResponseUnit": "SELECT COUNT(*) FROM HydrologicalResponseUnit",
+                    "PatternNumberValue": "SELECT COUNT(*) FROM PatternNumberValue",
+                    "Pattern": "SELECT COUNT(*) FROM Pattern"
+                }
                 #Delete entries with the matching scenario_id
                 for table in tables_with_data:
                     if table == "HydrologicalResponseUnit":
@@ -3718,11 +3739,15 @@ class QTalsim:
                                 SELECT Id FROM Pattern WHERE ScenarioId = ?
                             )
                         """, (scenario_id,))
-                    else:
-                        cur.execute(f"DELETE FROM {table} WHERE ScenarioId = ?", (scenario_id,))
+
+                    elif table in DELETE_QUERIES:
+                        cur.execute(
+                            DELETE_QUERIES[table],
+                            (scenario_id,)
+                        )
 
                     #Check if the table is now empty
-                    cur.execute(f"SELECT COUNT(*) FROM {table}")
+                    cur.execute(COUNT_QUERIES[table])
                     remaining = cur.fetchone()[0]
                     #If the table is empty, reset AUTOINCREMENT counter
                     if remaining == 0:
