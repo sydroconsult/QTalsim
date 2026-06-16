@@ -257,10 +257,8 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.safeConnect(self.comboboxTransportReachLayer.currentIndexChanged, self.on_transport_reach_layer_changed) #Refill the other comboboxes whenever user selects different layer
     
     def changeSymbolsSymbology(self, pathSymbology, svg_base_path):  
-        from xml.etree import ElementTree as ET
-
         with open(pathSymbology, "rb") as f:
-            tree = ET.parse(f)
+            tree = ET.parse(f)  # nosec B314 - parsing trusted local QGIS .qml files only
         root = tree.getroot()
         for svg_option in root.findall(".//layer[@class='SvgMarker']/Option/Option[@name='name']"):
             old_path = svg_option.get('value')  # Get the current (old) SVG path
