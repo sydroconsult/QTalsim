@@ -389,20 +389,31 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.esaWorldCoverLayer = QgsRasterLayer(vrt_path, "ESA WorldCover")
                 self.comboboxClippingLayer.setCurrentText(self.clippinglayerESA.name())
                 clipping_layer_name = self.comboboxClippingLayer.currentText()
+                
                 if clipping_layer_name == "Select Clipping Layer":
                     clipping_layer = None
                     self.log_to_qtalsim_tab("No clipping layer selected.", Qgis.Critical)
                 else:
+                    self.source_crs = self.clippinglayerESA.crs()
+                    target_crs = QgsCoordinateReferenceSystem("EPSG:4326")
                     clipping_layer = QgsProject.instance().mapLayersByName(clipping_layer_name)[0] #Get the clipping layer
-
+                    if self.source_crs != target_crs:
+                        params = {
+                            'INPUT': clipping_layer,
+                            'TARGET_CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
+                            'OUTPUT': 'memory:',
+                            'TRANSFORM_CONTEXT': QgsProject.instance().transformContext()
+                        }
+                        result = processing.run("native:reprojectlayer", params)
+                        clipping_layer = result['OUTPUT']
+                        QgsProject.instance().addMapLayer(clipping_layer)                    
+                
                 # clippen des layers
                 clipped_raster = os.path.join(
                     self.outputFolder,
                     "ESA",
                     "WorldCover_clipped.tif"
                 )
-
-                # CLIP BY MAS
 
                 result = processing.run(
                     "gdal:cliprasterbymasklayer",
@@ -417,9 +428,36 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                         "OUTPUT": clipped_raster
                     }
                 )
-
+                    
+                if not os.path.exists(clipped_raster):
+                    has_multipart = False
+                    for feature in clipping_layer.getFeatures():
+                        geom = feature.geometry()
+                        if geom.isMultipart():
+                            has_multipart = True
+                            break
+                        
+                    if has_multipart:
+                        clipping_layer = processing.run("native:multiparttosingleparts", {'INPUT': clipping_layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                        clipping_layer, _ = self.make_geometries_valid(clipping_layer)
+                    clipping_layer = processing.run("native:fixgeometries", {'INPUT': clipping_layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
+                    result = processing.run(
+                        "gdal:cliprasterbymasklayer",
+                        {
+                            "INPUT": self.esaWorldCoverLayer,
+                            "MASK": clipping_layer,
+                            "CROP_TO_CUTLINE": True,
+                            "KEEP_RESOLUTION": True,
+                            "OPTIONS": "",
+                            "DATA_TYPE": 0,
+                            "NODATA": 0,
+                            "OUTPUT": clipped_raster
+                        }
+                    )
+                    self.log_to_qtalsim_tab("Clipping after fixing geometries of clipping layersuccessful.", Qgis.Info)
+                else:
+                    self.log_to_qtalsim_tab("Clipping successful.", Qgis.Info)
                 # load result
-
                 clipped_layer = QgsRasterLayer(
                     result["OUTPUT"],
                     "ESA WorldCover Clipped"
@@ -585,6 +623,15 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
 
             poly_layer = poly_result["OUTPUT"]
 
+            self.log_to_qtalsim_tab(f"Dissolving layer...", Qgis.Info)
+            
+            poly_layer, _ = self.make_geometries_valid(poly_layer)
+
+            poly_layer = processing.run("native:multiparttosingleparts", {
+                'INPUT': poly_layer,
+                'OUTPUT': 'memory:'
+            },feedback=None)['OUTPUT']
+            
             dissolve_path = os.path.join(
                 esa_folder,
                 "WorldCover_dissolved.gpkg"
@@ -649,6 +696,18 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             self.landuseLayer.commitChanges()
 
             self.landuseLayer.triggerRepaint()
+
+            # reproject layer back to initial crs
+            target_crs = target_crs = QgsCoordinateReferenceSystem("EPSG:4326")
+            if self.source_crs != target_crs:
+                params = {
+                    'INPUT': self.landuseLayer,
+                    'TARGET_CRS': self.source_crs,
+                    'OUTPUT': 'memory:',
+                    'TRANSFORM_CONTEXT': QgsProject.instance().transformContext()
+                }
+                result = processing.run("native:reprojectlayer", params)
+                self.landuseLayer = result['OUTPUT']
             if not self.landuseLayer.isValid():
                 raise Exception("Failed to load polygonized layer")
 

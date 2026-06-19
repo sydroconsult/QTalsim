@@ -1336,7 +1336,7 @@ class QTalsim:
                     self.dlg.tableSoilMapping.setCellWidget(row, i, combo_box)
 
                     # automatically fill if ISRIC soil downloader was used
-                    if self.soilLayerInput.name() == "Soil Types BDOD Combined" and data in (self.nameSoil, "BulkDensityClass", self.soilTypeThickness):
+                    if self.soilLayerInput.name() in("Soil Types BDOD Combined", "soil_types - Soil Types BDOD Combined")  and data in (self.nameSoil, "BulkDensityClass", self.soilTypeThickness):
                         layer_isric_mapping = {0 : "0-5cm", 1 : "5-15cm", 2 : "15-30cm", 3 : "30-60cm", 4 : "60-100cm", 5 : "100-200cm"}
                         if f"{layer_isric_mapping[i-1]}_{soilTexturesIsricNames[row]}" in fieldsSoil:
                             combo_box.setCurrentText(f"{layer_isric_mapping[i-1]}_{soilTexturesIsricNames[row]}") #Set the corresponding field name as current text of the combo box
@@ -2108,8 +2108,6 @@ class QTalsim:
             except Exception as e:
                 self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
             self.landuseTalsim.dataProvider().reloadData()
-            self.landuseTalsim.setName("LanduseLayerEdited")
-            QgsProject.instance().addMapLayer(self.landuseTalsim)
 
             #Add checkmark when process is finished
             current_text = self.dlg.onConfirmLanduseMapping.text()
@@ -2119,7 +2117,10 @@ class QTalsim:
 
             self.log_to_qtalsim_tab(f"Finished land use parameter mapping. Inspect results in this temporary layer: {self.landuseTalsim.name()}.", Qgis.Info) 
             #self.dlg.progressbar.setValue(0) 
-            self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
+            QTimer.singleShot(0, lambda: self.log_to_qtalsim_tab("Progress: 100.00% done", Qgis.Info))
+
+            self.landuseTalsim.setName("LanduseLayerEdited")
+            QgsProject.instance().addMapLayer(self.landuseTalsim)
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
             #self.dlg.progressbar.setValue(0) 
@@ -3015,6 +3016,7 @@ class QTalsim:
                 bod_fields.append(QgsField(f"soillayer{i}_id_boa", QVariant.Int))  #Reference to the soil_id in the first layer
                 bod_fields.append(QgsField(f"soillayer{i}_{self.soilTypeThickness}", QVariant.Double)) #layer thickness for every soil layer
             bod_fields.append(QgsField("Description", QVariant.String)) #Add description field only once
+            bod_fields.append(QgsField(self.nameSoil, QVariant.String)) #Add name field only once
             self.soilTypeFinal = QgsVectorLayer(f"Polygon?crs={crs}", "BOD", "memory", crs=crs)
             bod_data_provider = self.soilTypeFinal.dataProvider()
             bod_data_provider.addAttributes(bod_fields)
@@ -3027,6 +3029,9 @@ class QTalsim:
                 
                 descriptionSoilLayers = str()
                 descriptionSoilLayersList = []
+                nameSoilLayers = str()
+                nameSoilLayersList = []
+                
                 for i in range(1, self.number_soilLayers + 1):
                     if str(feature[f'ID_Soil_soillayer{i}']).strip().upper() != 'NULL':
                         combination = tuple(feature[f"{field.name()}_soillayer{i}"] for field in new_fields if field.name() != self.IDSoil)
@@ -3039,13 +3044,23 @@ class QTalsim:
                             value = feature[f'{self.soilDescription}_soillayer{i}']
                             if value:
                                 descriptionSoilLayersList.append(str(value))
-                                
+                        # Combine Names of all layers
+                        nameSoilLayersList.append(str(feature[f'{self.nameSoil}_soillayer{i}'])) 
+
+                # add combination of all descriptions       
                 if isinstance(descriptionSoilLayersList, (list, tuple)):
                     descriptionSoilLayers = ', '.join(map(str, descriptionSoilLayersList))
                 else:
                     descriptionSoilLayers = str(descriptionSoilLayersList)
 
+                # add combination of all names 
+                if isinstance(nameSoilLayersList, (list, tuple)):
+                    nameSoilLayers = ', '.join(map(str, nameSoilLayersList))
+                else:
+                    nameSoilLayers = str(nameSoilLayersList)
+
                 new_feature.setAttribute(self.soilDescription, descriptionSoilLayers) #take the combination of all soil layer's description
+                new_feature.setAttribute(self.nameSoil, nameSoilLayers)
                 bod_data_provider.addFeature(new_feature)
 
             bod_field_names = [field.name() for field in bod_fields]
@@ -3828,7 +3843,7 @@ class QTalsim:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     get_feature_value(feature, "Id", int),
-                    get_feature_value(feature, "Description", str), 
+                    get_feature_value(feature, f"{self.nameSoil}", str), #TODO: testen ob es passt
                     get_feature_value(feature, f"soillayer1_{self.soilTypeThickness}", float),
                     get_feature_value(feature, "soillayer1_id_boa", int),
                     get_feature_value(feature, f"soillayer2_{self.soilTypeThickness}", float),
@@ -4162,9 +4177,11 @@ class QTalsim:
             add_layers_to_gpkg(self.soilTextureFinal, gpkg_path, 'soiltexture') 
             add_layers_to_gpkg(self.soilTypeFinal, gpkg_path, 'soiltype') 
             self.log_to_qtalsim_tab(f"File was saved to this folder: {self.outputFolder}", Qgis.Info)
+            self.iface.messageBar().pushSuccess(
+                "HRU Calculation was successful", f"Files were saved to this folder: {self.outputFolder}"
+            )
 
         except Exception as e:
-            
             self.log_to_qtalsim_tab(f"Error: {e}", Qgis.Critical)
 
         finally:
@@ -4344,26 +4361,45 @@ class QTalsim:
     
         # Layer comboboxes
         # Sub-basin layer
+        tree_layer_ids = {
+            node.layer().id()
+            for node in QgsProject.instance().layerTreeRoot().findLayers()
+            if node.layer()
+        }
+
+        except_list = [
+            lyr
+            for lyr in QgsProject.instance().mapLayers().values()
+            if lyr.id() not in tree_layer_ids
+        ]
+
         self.dlg.comboboxSubBasinLayer.setProject(QgsProject.instance())
         self.dlg.comboboxSubBasinLayer.setFilters(
             QgsMapLayerProxyModel.PolygonLayer
         )
+        self.dlg.comboboxSubBasinLayer.setExceptedLayerList(except_list)
         self.ezgLayerCombobox = self.dlg.comboboxSubBasinLayer.currentLayer()
         self.dlg.comboboxUICatchment.clear()
+
         # Add new fields
         if self.ezgLayerCombobox:
             self.dlg.comboboxUICatchment.addItems(
                 [field.name() for field in self.ezgLayerCombobox.fields()]
             )
         self.dlg.comboboxSubBasinLayer.layerChanged.connect(self.on_ezg_changed)
+
         #Soil Layer
         self.dlg.comboboxSoilLayer.setFilters(
             QgsMapLayerProxyModel.PolygonLayer
         )
+        self.dlg.comboboxSoilLayer.setExceptedLayerList(except_list)
+        
         #Land use layer
         self.dlg.comboboxLanduseLayer.setFilters(
             QgsMapLayerProxyModel.PolygonLayer
         )
+        self.dlg.comboboxLanduseLayer.setExceptedLayerList(except_list)
+
         #DEM Layer
         #self.dlg.comboboxDEMLayer.setAllowEmptyLayer(True)
         self.dlg.comboboxDEMLayer.setAllowEmptyLayer(True, "Optional: Upload DEM Layer")
@@ -4474,7 +4510,10 @@ class QTalsim:
             self.soilWindow = QMainWindow()
             self.soilWindow.setWindowTitle("ISRIC Soil Type Converter")
             self.soilWindow.setAttribute(Qt.WA_DeleteOnClose)
-            self.soilDialog = SoilPreprocessingDialog(self.iface.mainWindow(), self)
+            self.soilDialog = SoilPreprocessingDialog(
+                self.iface,
+                self
+            )
             self.soilWindow.setCentralWidget(self.soilDialog)
         else:
             self.soilDialog.initialize_parameters()

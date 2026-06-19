@@ -48,6 +48,8 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.bdod_data = {} #Stores the data of bulk density
         self.soilTypeLayers = []
         self.bdod_layers_to_combine = []
+        self.dstSRS = None
+        self.onDownloadData.setEnabled(False)
 
         #Main Functions
         self.connectButtontoFunction = self.mainPlugin.connectButtontoFunction
@@ -317,7 +319,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             subfolders_present = all(os.path.isdir(os.path.join(self.outputFolder, subfolder)) for subfolder in expected_subfolders)
             files_present = all(os.path.isfile(os.path.join(self.outputFolder, file)) for file in expected_files)
             self.onDownloadData.setVisible(True)
-
+            self.onDownloadData.setEnabled(True) #enable download button if folder is selected
             if subfolders_present or files_present: #Check if subfolders/files are present
                 existing_subfolders = [subfolder for subfolder in expected_subfolders if os.path.isdir(os.path.join(self.outputFolder, subfolder))]
                 existing_files = [file for file in expected_files if os.path.isfile(os.path.join(self.outputFolder, file))]
@@ -405,6 +407,13 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             else:
                 self.log_to_qtalsim_tab("Please select a layer.", Qgis.Critical)
 
+            if not self.outputFolder:
+                QMessageBox.critical(self, "No Output Folder", "Please select an output folder before downloading data.")
+                return
+
+            if not self.dstSRS:
+                QMessageBox.critical(self, "No CRS Selected", "Please select a CRS before downloading data.")
+                return
             #Transform to Homolosine projection
             #Check if the layer's CRS is already Homolosine
             homolosine_crs = QgsCoordinateReferenceSystem()
@@ -564,6 +573,15 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     continue
             
             self.onCalculateSoilTypes.setEnabled(True) #enable calculation of soil types
+
+            self.iface.messageBar().pushMessage(
+                "Operation finished: Downloading ISRIC soil data",
+                f"Soil raster data was saved here: {path_out}",
+                level=Qgis.Success,
+                duration=10
+            )
+
+            self.log_to_qtalsim_tab(f"Finished downloading and processing ISRIC soil data and saved the data here: {path_out}", Qgis.Info)
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
 
@@ -1038,400 +1056,419 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
             Finds the correct soil type for every clay/silt/sand combination. 
         '''
-        self.polyX = []   #Polygon X-values
-        self.polyY = []   #Polygon Y-values
-        self.count = None #Count polygon coordinates
+        try:
+            self.polyX = []   #Polygon X-values
+            self.polyY = []   #Polygon Y-values
+            self.count = None #Count polygon coordinates
 
-        gpkgOutputPath = os.path.join(self.outputFolder, "soil_types.gpkg")
+            gpkgOutputPath = os.path.join(self.outputFolder, "soil_types.gpkg")
 
-        #Geotransform and projection are taken from the project input dataset
-        input_file_path = os.path.join(self.path_proj, 'clay_0-5cm_mean.tif')  
-        original_dataset = gdal.Open(input_file_path)
-        geotransform = original_dataset.GetGeoTransform()
-        projection = original_dataset.GetProjection()
-        array_dict = {}
+            #Geotransform and projection are taken from the project input dataset
+            input_file_path = os.path.join(self.path_proj, 'clay_0-5cm_mean.tif')  
+            original_dataset = gdal.Open(input_file_path)
+            geotransform = original_dataset.GetGeoTransform()
+            projection = original_dataset.GetProjection()
+            array_dict = {}
 
-        #Loop over soil-layers
-        for layer_name, data_array in self.layer_data.items():
-            if data_array is None:
-                continue
-            clay_array = data_array[0]
-            silt_array = data_array[1]
-            sand_array = data_array[2]
-            
-            if clay_array.shape != silt_array.shape or clay_array.shape != sand_array.shape or silt_array.shape != sand_array.shape:
-                self.log_to_qtalsim_tab("The input layers have different shapes.", Qgis.Warning)
-            
-            cols, rows = clay_array.shape
-            
-            #Initialize result array with nodata values
-            nodata = -9999 #no data value
-            boa_array = np.full([cols, rows], nodata, dtype=int) #array to store the soil types of the pixels
-            for x in range(cols):
-                for y in range(rows):
-                    sand = sand_array[x,y]
-                    clay = clay_array[x,y]
-                    silt = silt_array[x,y]
+            #Loop over soil-layers
+            for layer_name, data_array in self.layer_data.items():
+                if data_array is None:
+                    continue
+                clay_array = data_array[0]
+                silt_array = data_array[1]
+                sand_array = data_array[2]
                 
-                    #Skip cells where any component is NoData
-                    if np.isnan(sand) or np.isnan(clay) or np.isnan(silt) or sand == nodata or clay == nodata or silt == nodata:
-                        continue
-                    
-                    #Check that sum is 100%
-                    sum = sand + clay + silt
-                    if sum < 95.0 or sum > 102.0:
-                        self.log_to_qtalsim_tab(f"Sum of shares is not 100%%: %.2f%%! { (x, y, sum)}", Qgis.Warning)
-                    
-                    #adjust to 100%
-                    clay = clay + clay / sum * (100.0 - sum)
-                    silt = silt + silt / sum * (100.0 - sum)
-                    sand = sand + sand / sum * (100.0 - sum)
-
-                    #Schleife über Bodenarten-Polygone
-                    bda = self.boa[0][0]
-                    self.polyX = [None]*30
-                    self.polyY = [None]*30
-                    self.count = -1
-                    for i in range(len(self.boa)):
-                        if bda != self.boa[i][0]: #Check if this soil type/polygon is finished
-                            if self.pointInPoly(clay, silt):
-                                # found
-                                break
-                            self.polyX = [None]*30 #Reset polyX, when soil type changes
-                            self.polyY = [None]*30 #Reset polyY, when soil type changes
-                            self.count = 0
-                            self.polyX[self.count] = self.boa[i][1] #Clay as x-coordinate
-                            self.polyY[self.count] = self.boa[i][2] #Silt as y-coordinate
-                            bda = self.boa[i][0]
-                        else: #if still the same polygon/soil type
-                            self.count += 1 #Number of points in the polygon
-                            self.polyX[self.count] = self.boa[i][1] #Clay as x-coordinate
-                            self.polyY[self.count] = self.boa[i][2] #Silt as y-coordinate
-                            
-                    boa_array[x, y] = self.talsim_soilids[bda] #store the soil type of the current pixel
-            self.log_to_qtalsim_tab(f"Finished calculation of soil types of layer {layer_name}.", Qgis.Info)
-
-            #Convert the boa array to a vector layer
-            layer_name = layer_name.replace(".tif", "")
-            if not self.checkboxSaveHorizons.isChecked(): #if user does not want to save the soil type layer for every soil type
-                array_dict[layer_name] = boa_array
-            else:
-                result_layer, layer_name = self.convertArrayToVectorLayer(boa_array, geotransform, projection, original_dataset, 'talsim_soilid', gpkgOutputPath, layer_name)
-
-                #Add the "soil_type" column
-                result_layer.dataProvider().addAttributes([QgsField("soil_type", QVariant.String)])
-                result_layer.dataProvider().addAttributes([QgsField("layer_thickness", QVariant.Double)])
-                result_layer.updateFields()
-
-                def get_soil_type_by_id(talsim_soilid):
-                    for key, value in self.talsim_soilids.items():
-                        if value == talsim_soilid:
-                            return key
-                    return 'Unknown' 
+                if clay_array.shape != silt_array.shape or clay_array.shape != sand_array.shape or silt_array.shape != sand_array.shape:
+                    self.log_to_qtalsim_tab("The input layers have different shapes.", Qgis.Warning)
                 
-                self.log_to_qtalsim_tab(f"Further processing layer {layer_name}...", Qgis.Info)
-
-                #Populate the "soil_type" field based on talsim_soilid
-                with edit(result_layer):
-                    for feature in result_layer.getFeatures(QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)):
-                        fid = feature.id()
-                        talsim_soilid = feature['talsim_soilid'] 
-                        soil_type = get_soil_type_by_id(int(talsim_soilid))
-                        result_layer.changeAttributeValue(fid, result_layer.fields().indexFromName(self.fieldNameSoilType), soil_type)
-
-                        match = re.search(r'(\d+)[-_](\d+)cm', layer_name)
-                        if match:
-                            lower_depth_cm = int(match.group(1))
-                            upper_depth_cm = int(match.group(2))
-                            thickness_m = round(upper_depth_cm / 100 - lower_depth_cm / 100, 4)
-                            result_layer.changeAttributeValue(fid, result_layer.fields().indexFromName('layer_thickness'), float(thickness_m))
+                cols, rows = clay_array.shape
+                
+                #Initialize result array with nodata values
+                nodata = -9999 #no data value
+                boa_array = np.full([cols, rows], nodata, dtype=int) #array to store the soil types of the pixels
+                for x in range(cols):
+                    for y in range(rows):
+                        sand = sand_array[x,y]
+                        clay = clay_array[x,y]
+                        silt = silt_array[x,y]
                     
-                result_layer.setName(layer_name)
-                self.soilTypeLayers.append(result_layer)
+                        #Skip cells where any component is NoData
+                        if np.isnan(sand) or np.isnan(clay) or np.isnan(silt) or sand == nodata or clay == nodata or silt == nodata:
+                            continue
+                        
+                        #Check that sum is 100%
+                        sum = sand + clay + silt
+                        if sum < 95.0 or sum > 102.0:
+                            self.log_to_qtalsim_tab(f"Sum of shares is not 100%%: %.2f%%! { (x, y, sum)}", Qgis.Warning)
+                        
+                        #adjust to 100%
+                        clay = clay + clay / sum * (100.0 - sum)
+                        silt = silt + silt / sum * (100.0 - sum)
+                        sand = sand + sand / sum * (100.0 - sum)
 
-        if self.checkboxSaveHorizons.isChecked():
-            #Export soil type layers as geopackage
-            self.layers_to_combine = []
-            field_names = []
+                        #Schleife über Bodenarten-Polygone
+                        bda = self.boa[0][0]
+                        self.polyX = [None]*30
+                        self.polyY = [None]*30
+                        self.count = -1
+                        for i in range(len(self.boa)):
+                            if bda != self.boa[i][0]: #Check if this soil type/polygon is finished
+                                if self.pointInPoly(clay, silt):
+                                    # found
+                                    break
+                                self.polyX = [None]*30 #Reset polyX, when soil type changes
+                                self.polyY = [None]*30 #Reset polyY, when soil type changes
+                                self.count = 0
+                                self.polyX[self.count] = self.boa[i][1] #Clay as x-coordinate
+                                self.polyY[self.count] = self.boa[i][2] #Silt as y-coordinate
+                                bda = self.boa[i][0]
+                            else: #if still the same polygon/soil type
+                                self.count += 1 #Number of points in the polygon
+                                self.polyX[self.count] = self.boa[i][1] #Clay as x-coordinate
+                                self.polyY[self.count] = self.boa[i][2] #Silt as y-coordinate
+                                
+                        boa_array[x, y] = self.talsim_soilids[bda] #store the soil type of the current pixel
+                self.log_to_qtalsim_tab(f"Finished calculation of soil types of layer {layer_name}.", Qgis.Info)
+
+                #Convert the boa array to a vector layer
+                layer_name = layer_name.replace(".tif", "")
+                if not self.checkboxSaveHorizons.isChecked(): #if user does not want to save the soil type layer for every soil type
+                    array_dict[layer_name] = boa_array
+                else:
+                    result_layer, layer_name = self.convertArrayToVectorLayer(boa_array, geotransform, projection, original_dataset, 'talsim_soilid', gpkgOutputPath, layer_name)
+
+                    #Add the "soil_type" column
+                    result_layer.dataProvider().addAttributes([QgsField("soil_type", QVariant.String)])
+                    result_layer.dataProvider().addAttributes([QgsField("layer_thickness", QVariant.Double)])
+                    result_layer.updateFields()
+
+                    def get_soil_type_by_id(talsim_soilid):
+                        for key, value in self.talsim_soilids.items():
+                            if value == talsim_soilid:
+                                return key
+                        return 'Unknown' 
+                    
+                    self.log_to_qtalsim_tab(f"Further processing layer {layer_name}...", Qgis.Info)
+
+                    #Populate the "soil_type" field based on talsim_soilid
+                    with edit(result_layer):
+                        for feature in result_layer.getFeatures(QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)):
+                            fid = feature.id()
+                            talsim_soilid = feature['talsim_soilid'] 
+                            soil_type = get_soil_type_by_id(int(talsim_soilid))
+                            result_layer.changeAttributeValue(fid, result_layer.fields().indexFromName(self.fieldNameSoilType), soil_type)
+
+                            match = re.search(r'(\d+)[-_](\d+)cm', layer_name)
+                            if match:
+                                lower_depth_cm = int(match.group(1))
+                                upper_depth_cm = int(match.group(2))
+                                thickness_m = round(upper_depth_cm / 100 - lower_depth_cm / 100, 4)
+                                result_layer.changeAttributeValue(fid, result_layer.fields().indexFromName('layer_thickness'), float(thickness_m))
+                        
+                    result_layer.setName(layer_name)
+                    self.soilTypeLayers.append(result_layer)
+
+            if self.checkboxSaveHorizons.isChecked():
+                #Export soil type layers as geopackage
+                self.layers_to_combine = []
+                field_names = []
+                
+                for i, layer in enumerate(self.soilTypeLayers):
+                    layer_name = layer.name() #Get the layer name
+                    soil_layer = '_'.join(layer_name.split('_')[1:])
+                    uri = f"{gpkgOutputPath}|layername={layer_name}"
+                    gpkg_layer = QgsVectorLayer(uri, layer_name, "ogr")
+                    dissolve_params = {
+                        'INPUT': gpkg_layer,
+                        'FIELD': ['talsim_soilid', "soil_type", "layer_thickness"],  #Dissolve all features; add fields to dissolve by specific attributes
+                        'OUTPUT': 'TEMPORARY_OUTPUT',
+                        'SEPARATE_DISJOINT': False
+                    }
+                    gpkg_layer_dissolved = processing.run("qgis:dissolve", dissolve_params)['OUTPUT']
+                    #Add the layers to the Qgis project
+                    if gpkg_layer_dissolved.isValid():
+                        field_mapping = {}
+                        layer_fields = gpkg_layer_dissolved.fields()
+                        for field in layer_fields:
+                            new_field_name = f"{soil_layer}_{field.name()}"
+                            field_index = gpkg_layer_dissolved.fields().indexOf(field.name())
+                            if field_index != -1:
+                                field_mapping[field_index] = new_field_name
+
+                            field_names.append(new_field_name)
+                        # Apply the renaming
+                        if field_mapping:
+                            gpkg_layer_dissolved.dataProvider().renameAttributes(field_mapping)
+                            gpkg_layer_dissolved.updateFields()
+                        if not self.combinedSoilTypeLayer:
+                            self.layers_to_combine.append(gpkg_layer_dissolved)  
+
+
+                self.log_to_qtalsim_tab("Combining the soil layers to one soil type layer...", Qgis.Info)
+                #2.: Combine the layers to one soil type layer, holding the different soil layers in different columns
+                try:
+                    if self.layers_to_combine and len(self.layers_to_combine) >= 2:
+                        params = {
+                            'INPUT': self.layers_to_combine[0],
+                            'OVERLAYS' : self.layers_to_combine[1:],  #Input layers as a list
+                            'OVERLAY_FIELDS_PREFIX':'',
+                            'OUTPUT':'TEMPORARY_OUTPUT'
+                        }
+                        #Run the multiple intersection tool
+                        combined_layer = processing.run("qgis:multiintersection", params)['OUTPUT']
+
+                except:
+                    if self.layers_to_combine and len(self.layers_to_combine) >= 2:
+                        for i, layer in enumerate(self.layers_to_combine):
+                            self.layers_to_combine[i], _ = self.make_geometries_valid(layer)
+                        params = {
+                            'INPUT': self.layers_to_combine[0],
+                            'OVERLAYS' : self.layers_to_combine[1:],  #Input layers as a list
+                            'OVERLAY_FIELDS_PREFIX':'',
+                            'OUTPUT':'TEMPORARY_OUTPUT'
+                        }
+                        #Run the multiple intersection tool
+                        combined_layer = processing.run("qgis:multiintersection", params)['OUTPUT']
+
+                if not self.combinedSoilTypeLayer:
+                    #Necessary to delete the 'fid' column to be able to save the combined layer with all soil types to a geopackage
+                    #Get the fields (attributes) from the combined layer
+                    fields = combined_layer.fields()
+
+                    #Identify columns that are named 'fid' or start with 'fid'
+                    fields_to_remove = [field.name() for field in fields if field.name().lower().startswith('fid')]
+
+                    if fields_to_remove:
+                        #Get the indices of the fields to remove
+                        field_indices = [combined_layer.fields().indexOf(field) for field in fields_to_remove]
+                        #Start an editing session to remove fields
+                        combined_layer.startEditing()
+                        #Remove the fields
+                        combined_layer.dataProvider().deleteAttributes(field_indices)
+                        #Update the fields in the layer
+                        combined_layer.updateFields()
+                        combined_layer.commitChanges()
+
+                    self.log_to_qtalsim_tab("Dissolving the soil type layer...", Qgis.Info)
+                    #Dissolve the combined soil layer by all soil columns
+                    try:
+                        combined_layer = processing.run("native:dissolve", {'INPUT':combined_layer,'FIELD':field_names,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+                    except:
+                        combined_layer, _ = self.make_geometries_valid(combined_layer)
+                        combined_layer = processing.run("native:dissolve", {'INPUT':combined_layer,'FIELD':field_names,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+
+                    options = QgsVectorFileWriter.SaveVectorOptions()
+                    options.driverName = "GPKG"
+                    options.fileEncoding = "UTF-8"
+                    options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer  #This ensures it adds a new layer
+                    output_layer_name = "Soil Types Combined"
+                    options.layerName = output_layer_name
+                    error = QgsVectorFileWriter.writeAsVectorFormatV2(
+                                combined_layer,
+                                gpkgOutputPath,
+                                QgsProject.instance().transformContext(),
+                                options
+                            )
+                    
+                    combined_soil_type_layer = QgsVectorLayer(f"{gpkgOutputPath}|layername={output_layer_name}", output_layer_name, "ogr")
+                else:
+                    combined_soil_type_layer = self.combinedSoilTypeLayer
+                self.log_to_qtalsim_tab(f"Soil type vector layers were saved here: {gpkgOutputPath}", Qgis.Info)
             
-            for i, layer in enumerate(self.soilTypeLayers):
-                layer_name = layer.name() #Get the layer name
-                soil_layer = '_'.join(layer_name.split('_')[1:])
-                uri = f"{gpkgOutputPath}|layername={layer_name}"
+            else: #if the user does not need every soil type layer
+                combined_soil_type_layer, field_names = self.polygonize_and_combine(list(array_dict.values()), list(array_dict.keys()), geotransform, projection, gpkgOutputPath, 'Soil Types Combined')
+
+            self.log_to_qtalsim_tab(f"Processing bulk density layers...", Qgis.Info)
+
+            #Add bulk density raster layers
+            gpkgOutputPathBdod = os.path.join(self.outputFolder, "bdod.gpkg")
+            bdodLayers = []
+            for layer_name, data_array in self.bdod_data.items():
+                if data_array is None:
+                    continue
+                layer_name = 'bdod_' + layer_name
+                
+                #Convert numpy array to raster and add to project
+                layer_name = layer_name.replace(".tif", "") #remove .tif from layer_name
+
+                vector_layer, layer_name = self.convertArrayToVectorLayer(data_array, geotransform, projection, original_dataset, self.fieldNameBdodClass, gpkgOutputPathBdod, layer_name)
+                #Convert BDOD-layer to vector layer            
+                try:
+                    vector_layer = processing.run("native:dissolve", {'INPUT':vector_layer,'FIELD':[self.fieldNameBdodClass],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+                except:
+                    vector_layer, _ = self.make_geometries_valid(vector_layer)
+                    vector_layer = processing.run("native:dissolve", {'INPUT':vector_layer,'FIELD':[self.fieldNameBdodClass],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+
+                vector_layer.setName(layer_name)
+
+                bdodLayers.append(vector_layer) #store bdod vector layers
+
+
+            #Export bulk density layers as geopackage
+            bdod_dissolve_fields = [] #stores the field names of bdod classes in final layer 
+            for layer in bdodLayers:
+                layer_name = layer.name()  # Get the layer name
+                uri = f"{gpkgOutputPathBdod}|layername={layer_name}"
+                
                 gpkg_layer = QgsVectorLayer(uri, layer_name, "ogr")
-                dissolve_params = {
-                    'INPUT': gpkg_layer,
-                    'FIELD': ['talsim_soilid', "soil_type", "layer_thickness"],  #Dissolve all features; add fields to dissolve by specific attributes
-                    'OUTPUT': 'TEMPORARY_OUTPUT',
-                    'SEPARATE_DISJOINT': False
-                }
-                gpkg_layer_dissolved = processing.run("qgis:dissolve", dissolve_params)['OUTPUT']
+                
+                field_mapping = {}
+                layer_fields = gpkg_layer.fields()
+                bdod_layer_name = '_'.join(layer_name.split('_')[1:])
+                
+                for field in layer_fields:
+                    new_field_name = f"{bdod_layer_name}_{field.name()}"
+                    field_index = gpkg_layer.fields().indexOf(field.name())
+                    if field_index != -1:
+                        field_mapping[field_index] = new_field_name
+
+                    field_names.append(new_field_name)
+
+                #Apply the renaming
+                if field_mapping:
+                    gpkg_layer.dataProvider().renameAttributes(field_mapping)
+                    gpkg_layer.updateFields()
+                #Only keep the BDOD-class field and delete all other fields
+                fields = gpkg_layer.fields()
+                gpkg_layer.startEditing()
+
+                #Collect the indices of fields that do NOT end with '_class'
+                fields_to_delete = []
+                for field in fields:
+                    if not field.name().endswith('_class'):
+                        index = gpkg_layer.fields().indexFromName(field.name())
+                        fields_to_delete.append(index)
+                    else:
+                        bdod_dissolve_fields.append(field.name())
+
+                #Remove the fields
+                if fields_to_delete:
+                    gpkg_layer.dataProvider().deleteAttributes(fields_to_delete)
+                gpkg_layer.updateFields()
+                gpkg_layer.commitChanges()
+
+                self.bdod_layers_to_combine.append(gpkg_layer) 
+
                 #Add the layers to the Qgis project
-                if gpkg_layer_dissolved.isValid():
-                    field_mapping = {}
-                    layer_fields = gpkg_layer_dissolved.fields()
-                    for field in layer_fields:
-                        new_field_name = f"{soil_layer}_{field.name()}"
-                        field_index = gpkg_layer_dissolved.fields().indexOf(field.name())
-                        if field_index != -1:
-                            field_mapping[field_index] = new_field_name
+                #if gpkg_layer.isValid():
+                    #QgsProject.instance().addMapLayer(gpkg_layer, False)
+                    #self.layer_group.addLayer(gpkg_layer)
 
-                        field_names.append(new_field_name)
-                    # Apply the renaming
-                    if field_mapping:
-                        gpkg_layer_dissolved.dataProvider().renameAttributes(field_mapping)
-                        gpkg_layer_dissolved.updateFields()
-                    if not self.combinedSoilTypeLayer:
-                        self.layers_to_combine.append(gpkg_layer_dissolved)  
-
-
-            self.log_to_qtalsim_tab("Combining the soil layers to one soil type layer...", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Bulk density vector layers were saved here: {gpkgOutputPathBdod}", Qgis.Info)
+    
+            #Combine Soil types and BDOD
             #2.: Combine the layers to one soil type layer, holding the different soil layers in different columns
             try:
-                if self.layers_to_combine and len(self.layers_to_combine) >= 2:
-                    params = {
-                        'INPUT': self.layers_to_combine[0],
-                        'OVERLAYS' : self.layers_to_combine[1:],  #Input layers as a list
-                        'OVERLAY_FIELDS_PREFIX':'',
-                        'OUTPUT':'TEMPORARY_OUTPUT'
-                    }
-                    #Run the multiple intersection tool
-                    combined_layer = processing.run("qgis:multiintersection", params)['OUTPUT']
+                self.log_to_qtalsim_tab(f"Combining bulk density and soil type layers...", Qgis.Info)
+                for i, layer in enumerate(self.bdod_layers_to_combine + [combined_soil_type_layer]):
+                    singleparts_layer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                    processing.run("native:createspatialindex", {'INPUT': singleparts_layer})
+                        
+                    if i < len(self.bdod_layers_to_combine):  
+                        self.bdod_layers_to_combine[i] = singleparts_layer
+                    else:
+                        combined_soil_type_layer = singleparts_layer
 
+                params = {
+                    'INPUT': combined_soil_type_layer,
+                    'OVERLAYS' : self.bdod_layers_to_combine[0:],  #Input layers as a list
+                    'OVERLAY_FIELDS_PREFIX':'',
+                    'OUTPUT':'TEMPORARY_OUTPUT'
+                }
+
+                finalLayer = processing.run("qgis:multiintersection", params)['OUTPUT']
+                self.log_to_qtalsim_tab(f"Successfully combined bulk density and soil type layers.", Qgis.Info)
             except:
-                if self.layers_to_combine and len(self.layers_to_combine) >= 2:
-                    for i, layer in enumerate(self.layers_to_combine):
-                        self.layers_to_combine[i], _ = self.make_geometries_valid(layer)
-                    params = {
-                        'INPUT': self.layers_to_combine[0],
-                        'OVERLAYS' : self.layers_to_combine[1:],  #Input layers as a list
-                        'OVERLAY_FIELDS_PREFIX':'',
-                        'OUTPUT':'TEMPORARY_OUTPUT'
-                    }
-                    #Run the multiple intersection tool
-                    combined_layer = processing.run("qgis:multiintersection", params)['OUTPUT']
+                for i, layer in enumerate(self.bdod_layers_to_combine):
+                    self.bdod_layers_to_combine[i], _ = self.make_geometries_valid(layer)
+                combined_soil_type_layer, _ = self.make_geometries_valid(combined_soil_type_layer)
+                params = {
+                    'INPUT': combined_soil_type_layer,
+                    'OVERLAYS' : self.bdod_layers_to_combine[0:],  #Input layers as a list
+                    'OVERLAY_FIELDS_PREFIX':'',
+                    'OUTPUT':'TEMPORARY_OUTPUT'
+                }
 
-            if not self.combinedSoilTypeLayer:
-                #Necessary to delete the 'fid' column to be able to save the combined layer with all soil types to a geopackage
-                #Get the fields (attributes) from the combined layer
-                fields = combined_layer.fields()
-
-                #Identify columns that are named 'fid' or start with 'fid'
-                fields_to_remove = [field.name() for field in fields if field.name().lower().startswith('fid')]
-
-                if fields_to_remove:
-                    #Get the indices of the fields to remove
-                    field_indices = [combined_layer.fields().indexOf(field) for field in fields_to_remove]
-                    #Start an editing session to remove fields
-                    combined_layer.startEditing()
-                    #Remove the fields
-                    combined_layer.dataProvider().deleteAttributes(field_indices)
-                    #Update the fields in the layer
-                    combined_layer.updateFields()
-                    combined_layer.commitChanges()
-
-                self.log_to_qtalsim_tab("Dissolving the soil type layer...", Qgis.Info)
-                #Dissolve the combined soil layer by all soil columns
-                try:
-                    combined_layer = processing.run("native:dissolve", {'INPUT':combined_layer,'FIELD':field_names,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
-                except:
-                    combined_layer, _ = self.make_geometries_valid(combined_layer)
-                    combined_layer = processing.run("native:dissolve", {'INPUT':combined_layer,'FIELD':field_names,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
-
-                options = QgsVectorFileWriter.SaveVectorOptions()
-                options.driverName = "GPKG"
-                options.fileEncoding = "UTF-8"
-                options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer  #This ensures it adds a new layer
-                output_layer_name = "Soil Types Combined"
-                options.layerName = output_layer_name
-                error = QgsVectorFileWriter.writeAsVectorFormatV2(
-                            combined_layer,
-                            gpkgOutputPath,
-                            QgsProject.instance().transformContext(),
-                            options
-                        )
-                
-                combined_soil_type_layer = QgsVectorLayer(f"{gpkgOutputPath}|layername={output_layer_name}", output_layer_name, "ogr")
-            else:
-                combined_soil_type_layer = self.combinedSoilTypeLayer
-            self.log_to_qtalsim_tab(f"Soil type vector layers were saved here: {gpkgOutputPath}", Qgis.Info)
-        
-        else: #if the user does not need every soil type layer
-            combined_soil_type_layer, field_names = self.polygonize_and_combine(list(array_dict.values()), list(array_dict.keys()), geotransform, projection, gpkgOutputPath, 'Soil Types Combined')
-
-        self.log_to_qtalsim_tab(f"Processing bulk density layers...", Qgis.Info)
-
-        #Add bulk density raster layers
-        gpkgOutputPathBdod = os.path.join(self.outputFolder, "bdod.gpkg")
-        bdodLayers = []
-        for layer_name, data_array in self.bdod_data.items():
-            if data_array is None:
-                continue
-            layer_name = 'bdod_' + layer_name
-            
-            #Convert numpy array to raster and add to project
-            layer_name = layer_name.replace(".tif", "") #remove .tif from layer_name
-
-            vector_layer, layer_name = self.convertArrayToVectorLayer(data_array, geotransform, projection, original_dataset, self.fieldNameBdodClass, gpkgOutputPathBdod, layer_name)
-            #Convert BDOD-layer to vector layer            
+                finalLayer = processing.run("qgis:multiintersection", params)['OUTPUT']
+                self.log_to_qtalsim_tab(f"Successfully combined bulk density and soil type layers.", Qgis.Info)
+            dissolve_list = bdod_dissolve_fields + field_names
             try:
-                vector_layer = processing.run("native:dissolve", {'INPUT':vector_layer,'FIELD':[self.fieldNameBdodClass],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+                finalLayer = processing.run("native:dissolve", {'INPUT':finalLayer,'FIELD':dissolve_list,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
             except:
-                vector_layer, _ = self.make_geometries_valid(vector_layer)
-                vector_layer = processing.run("native:dissolve", {'INPUT':vector_layer,'FIELD':[self.fieldNameBdodClass],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+                finalLayer, _ = self.make_geometries_valid(finalLayer)
+                finalLayer = processing.run("native:dissolve", {'INPUT':finalLayer,'FIELD':dissolve_list,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+            self.log_to_qtalsim_tab(f"Successfully dissolved soil layer.", Qgis.Info)
+            #Delete the 'fid' columns to be able to save the combined layer with all soil types to a geopackage
+            #Get the fields (attributes) from the combined layer
+            fields = finalLayer.fields()
+            QgsProject.instance().addMapLayer(finalLayer, False)
+            #Identify columns that are named 'fid' or start with 'fid' and the id columns
+            fields_to_remove = [field.name() for field in fields if field.name().lower().startswith('fid') or field.name().lower().endswith('id')]
 
-            vector_layer.setName(layer_name)
+            if fields_to_remove:
+                #Get the indices of the fields to remove
+                field_indices = [finalLayer.fields().indexOf(field) for field in fields_to_remove]
+                #Start an editing session to remove fields
+                finalLayer.startEditing()
+                #Remove the fields
+                finalLayer.dataProvider().deleteAttributes(field_indices)
+                #Update the fields in the layer
+                finalLayer.updateFields()
+                finalLayer.commitChanges()
 
-            bdodLayers.append(vector_layer) #store bdod vector layers
-
-
-        #Export bulk density layers as geopackage
-        bdod_dissolve_fields = [] #stores the field names of bdod classes in final layer 
-        for layer in bdodLayers:
-            layer_name = layer.name()  # Get the layer name
-            uri = f"{gpkgOutputPathBdod}|layername={layer_name}"
+            self.log_to_qtalsim_tab(f"Final processing of soil layer...", Qgis.Info)
             
-            gpkg_layer = QgsVectorLayer(uri, layer_name, "ogr")
+            #Sort the fields by the soil layer/horizon
+            fields = finalLayer.fields()
+            sorted_fields = sorted(fields, key=lambda field: int(field.name().split('_')[0].split('-')[0]))
+            layer_crs = finalLayer.crs().authid()
+            finalLayerOrdered = QgsVectorLayer(f"Polygon?crs={layer_crs}", "Soil Types BDOD Combined", "memory")
+            final_layer_ordered_data_provider = finalLayerOrdered.dataProvider()
+
+            final_layer_ordered_data_provider.addAttributes([QgsField(field.name(), field.type()) for field in sorted_fields])
+            finalLayerOrdered.updateFields() 
+            for feature in finalLayer.getFeatures():
+                new_feature = QgsFeature(finalLayerOrdered.fields())
+                new_feature.setGeometry(feature.geometry())
+                #Map attributes according to sorted fields
+                new_feature.setAttributes([feature[field.name()] for field in sorted_fields])
+                final_layer_ordered_data_provider.addFeature(new_feature)
+
+            #Save the final Layer
+            options = QgsVectorFileWriter.SaveVectorOptions()
+            options.driverName = "GPKG"
+            options.fileEncoding = "UTF-8"
+            options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer  #This ensures it adds a new layer
+            output_layer_name = 'Soil Types BDOD Combined'
+            options.layerName = output_layer_name
+            error = QgsVectorFileWriter.writeAsVectorFormatV2(
+                        finalLayerOrdered,
+                        gpkgOutputPath,
+                        QgsProject.instance().transformContext(),
+                        options
+                    )
             
-            field_mapping = {}
-            layer_fields = gpkg_layer.fields()
-            bdod_layer_name = '_'.join(layer_name.split('_')[1:])
+            finalLayerSoil = QgsVectorLayer(f"{gpkgOutputPath}|layername={output_layer_name}", output_layer_name, "ogr")
+            if finalLayerSoil.isValid():
+                QgsProject.instance().addMapLayer(finalLayerSoil, False)
+                tree_layer = QgsLayerTreeLayer(finalLayerSoil)
+                self.layer_group.addChildNode(tree_layer)
             
-            for field in layer_fields:
-                new_field_name = f"{bdod_layer_name}_{field.name()}"
-                field_index = gpkg_layer.fields().indexOf(field.name())
-                if field_index != -1:
-                    field_mapping[field_index] = new_field_name
-
-                field_names.append(new_field_name)
-
-            #Apply the renaming
-            if field_mapping:
-                gpkg_layer.dataProvider().renameAttributes(field_mapping)
-                gpkg_layer.updateFields()
-            #Only keep the BDOD-class field and delete all other fields
-            fields = gpkg_layer.fields()
-            gpkg_layer.startEditing()
-
-            #Collect the indices of fields that do NOT end with '_class'
-            fields_to_delete = []
-            for field in fields:
-                if not field.name().endswith('_class'):
-                    index = gpkg_layer.fields().indexFromName(field.name())
-                    fields_to_delete.append(index)
-                else:
-                    bdod_dissolve_fields.append(field.name())
-
-            #Remove the fields
-            if fields_to_delete:
-                gpkg_layer.dataProvider().deleteAttributes(fields_to_delete)
-            gpkg_layer.updateFields()
-            gpkg_layer.commitChanges()
-
-            self.bdod_layers_to_combine.append(gpkg_layer) 
-
-            #Add the layers to the Qgis project
-            #if gpkg_layer.isValid():
-                #QgsProject.instance().addMapLayer(gpkg_layer, False)
-                #self.layer_group.addLayer(gpkg_layer)
-
-        self.log_to_qtalsim_tab(f"Bulk density vector layers were saved here: {gpkgOutputPathBdod}", Qgis.Info)
-  
-        #Combine Soil types and BDOD
-        #2.: Combine the layers to one soil type layer, holding the different soil layers in different columns
-        try:
-            for i, layer in enumerate(self.bdod_layers_to_combine + [combined_soil_type_layer]):
-                singleparts_layer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                processing.run("native:createspatialindex", {'INPUT': singleparts_layer})
-                    
-                if i < len(self.bdod_layers_to_combine):  
-                    self.bdod_layers_to_combine[i] = singleparts_layer
-                else:
-                    combined_soil_type_layer = singleparts_layer
-
-            params = {
-                'INPUT': combined_soil_type_layer,
-                'OVERLAYS' : self.bdod_layers_to_combine[0:],  #Input layers as a list
-                'OVERLAY_FIELDS_PREFIX':'',
-                'OUTPUT':'TEMPORARY_OUTPUT'
-            }
-
-            finalLayer = processing.run("qgis:multiintersection", params)['OUTPUT']
-        except:
-            for i, layer in enumerate(self.bdod_layers_to_combine):
-                self.bdod_layers_to_combine[i], _ = self.make_geometries_valid(layer)
-            combined_soil_type_layer, _ = self.make_geometries_valid(combined_soil_type_layer)
-            params = {
-                'INPUT': combined_soil_type_layer,
-                'OVERLAYS' : self.bdod_layers_to_combine[0:],  #Input layers as a list
-                'OVERLAY_FIELDS_PREFIX':'',
-                'OUTPUT':'TEMPORARY_OUTPUT'
-            }
-
-            finalLayer = processing.run("qgis:multiintersection", params)['OUTPUT']
-
-        dissolve_list = bdod_dissolve_fields + field_names
-        try:
-            finalLayer = processing.run("native:dissolve", {'INPUT':finalLayer,'FIELD':dissolve_list,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
-        except:
-            finalLayer, _ = self.make_geometries_valid(finalLayer)
-            finalLayer = processing.run("native:dissolve", {'INPUT':finalLayer,'FIELD':dissolve_list,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
-
-        #Delete the 'fid' columns to be able to save the combined layer with all soil types to a geopackage
-        #Get the fields (attributes) from the combined layer
-        fields = finalLayer.fields()
-        QgsProject.instance().addMapLayer(finalLayer, False)
-        #Identify columns that are named 'fid' or start with 'fid' and the id columns
-        fields_to_remove = [field.name() for field in fields if field.name().lower().startswith('fid') or field.name().lower().endswith('id')]
-
-        if fields_to_remove:
-            #Get the indices of the fields to remove
-            field_indices = [finalLayer.fields().indexOf(field) for field in fields_to_remove]
-            #Start an editing session to remove fields
-            finalLayer.startEditing()
-            #Remove the fields
-            finalLayer.dataProvider().deleteAttributes(field_indices)
-            #Update the fields in the layer
-            finalLayer.updateFields()
-            finalLayer.commitChanges()
-
-        #Sort the fields by the soil layer/horizon
-        fields = finalLayer.fields()
-        sorted_fields = sorted(fields, key=lambda field: int(field.name().split('_')[0].split('-')[0]))
-        layer_crs = finalLayer.crs().authid()
-        finalLayerOrdered = QgsVectorLayer(f"Polygon?crs={layer_crs}", "Soil Types BDOD Combined", "memory")
-        final_layer_ordered_data_provider = finalLayerOrdered.dataProvider()
-
-        final_layer_ordered_data_provider.addAttributes([QgsField(field.name(), field.type()) for field in sorted_fields])
-        finalLayerOrdered.updateFields() 
-        for feature in finalLayer.getFeatures():
-            new_feature = QgsFeature(finalLayerOrdered.fields())
-            new_feature.setGeometry(feature.geometry())
-            #Map attributes according to sorted fields
-            new_feature.setAttributes([feature[field.name()] for field in sorted_fields])
-            final_layer_ordered_data_provider.addFeature(new_feature)
-
-        #Save the final Layer
-        options = QgsVectorFileWriter.SaveVectorOptions()
-        options.driverName = "GPKG"
-        options.fileEncoding = "UTF-8"
-        options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer  #This ensures it adds a new layer
-        output_layer_name = 'Soil Types BDOD Combined'
-        options.layerName = output_layer_name
-        error = QgsVectorFileWriter.writeAsVectorFormatV2(
-                    finalLayerOrdered,
-                    gpkgOutputPath,
-                    QgsProject.instance().transformContext(),
-                    options
-                )
-        
-        finalLayerSoil = QgsVectorLayer(f"{gpkgOutputPath}|layername={output_layer_name}", output_layer_name, "ogr")
-        if finalLayerSoil.isValid():
-            QgsProject.instance().addMapLayer(finalLayerSoil, False)
-            tree_layer = QgsLayerTreeLayer(finalLayerSoil)
-            self.layer_group.addChildNode(tree_layer)
-
-        self.log_to_qtalsim_tab(f"Final soil layer was saved here: {gpkgOutputPath}", Qgis.Info)
+            self.iface.messageBar().pushMessage(
+                "Operation finished: Soil Mapping",
+                f"Final soil layer was saved here: {gpkgOutputPath}",
+                level=Qgis.Success,
+                duration=10
+            )
+            self.log_to_qtalsim_tab(f"Final soil layer was saved here: {gpkgOutputPath}", Qgis.Info)
+        except Exception as e:
+            self.iface.messageBar().pushMessage(
+                "Operation failed: Soil Mapping",
+                f"An error occurred during soil mapping: {str(e)}",
+                level=Qgis.Critical,
+                duration=10
+            )
+            self.log_to_qtalsim_tab(f"An error occurred during soil mapping: {str(e)}", Qgis.Critical)
 
     def apply_filtered_symbology(self, gpkg_layer, pathSymbology, symbology_field):
         """
