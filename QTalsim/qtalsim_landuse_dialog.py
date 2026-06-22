@@ -44,6 +44,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         self.comboboxLanduseSource.addItem(self.esaWorldCover)
         self.comboboxLanduseSource.addItem(self.atkisLanduse)
         self.comboboxLanduseSource.currentIndexChanged.connect(self.updateInputWidget)
+        self.comboboxESAChoice.clear()
         self.comboboxESAChoice.addItem("Download ESA World Cover")
         self.comboboxESAChoice.addItem("Use existing ESA World Cover layer")
         self.textHelp.setOpenExternalLinks(True)
@@ -79,6 +80,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         self.connectButtontoFunction(self.onCreateLanduseLayer, self.landuseMapping)
         self.connectButtontoFunction(self.onHelp.button(QDialogButtonBox.Help), self.openDocumentation)
         self.connectButtontoFunction(self.onHelp.button(QDialogButtonBox.Help), self.openDocumentation)
+        self.checkboxResample.toggled.connect(self.on_resample_toggled)  
 
         self.comboboxESAChoice.currentTextChanged.connect(
             self.updateESALayerSelection
@@ -137,7 +139,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 == "Use existing ESA World Cover layer"
             )
 
-            self.comboboxLayerESA.setEnabled(use_existing)
+            self.comboboxLayerESA.setVisible(use_existing)
 
     def selectInputFolder(self):
         '''
@@ -168,6 +170,9 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 full_path = os.path.join(self.outputFolder, self.gpkg_name)
                 self.gpkgOutputPath = full_path
                 self.outputPath.setText(full_path)
+
+    def on_resample_toggled(self, checked):
+        self.spinboxResample.setEnabled(checked)
 
     def mergeAndClipATKIS(self):
         '''
@@ -405,8 +410,9 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                             'TRANSFORM_CONTEXT': QgsProject.instance().transformContext()
                         }
                         result = processing.run("native:reprojectlayer", params)
-                        clipping_layer = result['OUTPUT']
-                        QgsProject.instance().addMapLayer(clipping_layer)                    
+                        clipping_layer_4326 = result['OUTPUT']
+                    else:
+                        clipping_layer_4326 = clipping_layer
                 
                 # clippen des layers
                 clipped_raster = os.path.join(
@@ -431,21 +437,28 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                     
                 if not os.path.exists(clipped_raster):
                     has_multipart = False
-                    for feature in clipping_layer.getFeatures():
+                    for feature in clipping_layer_4326.getFeatures():
                         geom = feature.geometry()
                         if geom.isMultipart():
                             has_multipart = True
                             break
                         
                     if has_multipart:
-                        clipping_layer = processing.run("native:multiparttosingleparts", {'INPUT': clipping_layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                        clipping_layer, _ = self.make_geometries_valid(clipping_layer)
-                    clipping_layer = processing.run("native:fixgeometries", {'INPUT': clipping_layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
+                        clipping_layer_4326 = processing.run("native:multiparttosingleparts", {'INPUT': clipping_layer_4326,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                        clipping_layer_4326, _ = self.make_geometries_valid(clipping_layer_4326)
+                    clipping_layer_4326 = processing.run("native:fixgeometries", {'INPUT': clipping_layer_4326, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
+                    clipping_layer_4326 = processing.run(
+                        "native:makevalid",
+                        {
+                            "INPUT": clipping_layer_4326,
+                            "OUTPUT": "memory:"
+                        }
+                    )["OUTPUT"]
                     result = processing.run(
                         "gdal:cliprasterbymasklayer",
                         {
-                            "INPUT": self.esaWorldCoverLayer,
-                            "MASK": clipping_layer,
+                            "INPUT": self.esaWorldCoverLayer.source(),
+                            "MASK": clipping_layer_4326,
                             "CROP_TO_CUTLINE": True,
                             "KEEP_RESOLUTION": True,
                             "OPTIONS": "",
@@ -462,9 +475,52 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                     result["OUTPUT"],
                     "ESA WorldCover Clipped"
                 )
-                self.esaWorldCoverLayer = clipped_layer
+                if self.checkboxResample.isChecked():
+                    res = int(self.spinboxResample.value())
+                    self.log_to_qtalsim_tab(f"Resampling raster to {res}m resolution...", Qgis.Info)
+
+                    # check if crs is metric
+                    target_crs = clipping_layer.crs()
+                    is_geographic = target_crs.isGeographic()
+                    is_projected = not is_geographic
+                    if not is_projected:
+                        raise Exception(
+                            "CRS of clipping layer is not projected. Please select a clipping layer with a projected CRS to enable resampling."
+                        )
+                    # Resample if user input
+                    resampled_raster = os.path.join(
+                        self.outputFolder,
+                        "ESA",
+                        "WorldCover_resampled.tif"
+                    )
+
+                    result_resample = processing.run(
+                        "gdal:warpreproject",
+                        {
+                            "INPUT": clipped_layer,
+                            "SOURCE_CRS": None,
+                            "TARGET_CRS": clipping_layer.crs(),
+                            "RESAMPLING": 0,  # Nearest Neighbour
+                            "NODATA": None,
+                            "TARGET_RESOLUTION": res,
+                            "OPTIONS": "",
+                            "DATA_TYPE": 0,
+                            "TARGET_EXTENT": clipping_layer.extent(),
+                            "TARGET_EXTENT_CRS": clipping_layer.crs(),
+                            "MULTITHREADING": True,
+                            "EXTRA": "",
+                            "OUTPUT": resampled_raster,
+                        }
+                    )
+
+                    self.esaWorldCoverLayerRaster = QgsRasterLayer(
+                        result_resample["OUTPUT"],
+                        "ESA WorldCover Clipped"
+                    )
+                else:
+                    self.esaWorldCoverLayerRaster = clipped_layer
                 # Add to QGIS
-                QgsProject.instance().addMapLayer(self.esaWorldCoverLayer)
+                QgsProject.instance().addMapLayer(self.esaWorldCoverLayerRaster)
 
             else:
 
@@ -509,7 +565,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 if self.comboboxESAChoice.currentText() == "Download ESA World Cover":
                     self.downloadESAWorldCover()
                 else:
-                    self.esaWorldCoverLayer = QgsProject.instance().mapLayersByName(self.comboboxLayerESA.currentText())[0]
+                    self.esaWorldCoverLayerRaster = QgsProject.instance().mapLayersByName(self.comboboxLayerESA.currentText())[0]
                 self.esaWorldCoverToTalsimMapping()
                 
 
@@ -601,7 +657,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
         try:
             self.start_operation()
-            if not self.esaWorldCoverLayer:
+            if not self.esaWorldCoverLayerRaster:
                 self.log_to_qtalsim_tab("ESA World Cover layer not found. Please download and select the ESA World Cover layer first.", Qgis.Critical)
                 return
 
@@ -609,11 +665,12 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             os.makedirs(esa_folder, exist_ok=True)
 
             self.log_to_qtalsim_tab("Polygonizing ESA World Cover raster layer...", Qgis.Info)
+            
             #polygonize raster layer 
             poly_result = processing.run(
                 "gdal:polygonize",
                 {
-                    "INPUT": self.esaWorldCoverLayer.source(),
+                    "INPUT": self.esaWorldCoverLayerRaster.source(),
                     "BAND": 1,
                     "FIELD": "class",
                     "EIGHT_CONNECTEDNESS": False,
@@ -622,7 +679,9 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             )
 
             poly_layer = poly_result["OUTPUT"]
-
+            #if isinstance(poly_layer, str):
+            poly_layer = QgsVectorLayer(poly_layer, "ESA polygons", "ogr")
+            self.log_to_qtalsim_tab("Polygonized vector layer created",Qgis.Info)
             self.log_to_qtalsim_tab(f"Dissolving layer...", Qgis.Info)
             
             poly_layer, _ = self.make_geometries_valid(poly_layer)
