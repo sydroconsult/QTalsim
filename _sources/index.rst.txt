@@ -16,7 +16,7 @@ Main Features
 
       -  **Land Use Mapping** (:doc:`doc_landuse`)
 
-         If your area is in Germany, this feature allows you to convert ATKIS land use data or LBM land cover data into Talsim land use categories.
+         If your area is in Germany, this feature allows you to convert ATKIS land use data, LBM land cover data or download and convert ESA world cover data into Talsim land use categories.
 		 
       -  **HRU Calculation** (:doc:`doc_qtalsim`)
          

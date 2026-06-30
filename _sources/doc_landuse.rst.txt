@@ -46,15 +46,23 @@ ESA World Cover Data
 ----------------------
 
    **Input Requirements:**
-   You can either
-   - Download the ESA World Cover data with the QGIS plugin by providing a layer with the extent of interest or
-   Download the ESA World Cover data from the link above and add the layer to your current QGIS project
+   You can use the ESA WorldCover dataset in one of the following ways:
+   - Download the data using the QGIS plugin by specifying a layer that defines the area of interest (AOI), or
+   - Download the ESA WorldCover dataset manually from the link above and add the raster layer to your current QGIS project.
 
    **Processing:**
 
-   - Provide the extent for downloading the data with the plugin or specify the layer containing ESA World Cover data
-   - Apply a clipping layer to limit the input extent
-   - Mapping uses the "class" field, which contains the ESA land cover class code.
+   #. Choose whether to: 
+
+      - download the ESA WorldCover data using the QGIS plugin, or 
+      - use an existing ESA WorldCover layer from the current QGIS project. 
+      
+   #. If downloading the data, specify the layer defining the area of interest. If using an existing dataset, select the corresponding ESA WorldCover layer. 
+   #. *(Optional)* Enable **Resampling** and specify the target spatial resolution (in meters) to reduce the raster resolution. 
+   #. Apply a clipping layer to restrict the dataset to the desired extent. 
+   #. The land cover mapping is based on the ``class`` attribute, which stores the ESA WorldCover land cover class codes.
+   
+   |Screenshot Land use mapping ESA|
 
 Output Results
 ==============
@@ -66,3 +74,4 @@ Output Results
 
 .. |Screenshot Land use mapping ATKIS| image:: qtalsim_screenshots/landuseMappingFeature.png
 .. |Screenshot Land use mapping LBM| image:: qtalsim_screenshots/landuseMappingFeatureLBM.png
+.. |Screenshot Land use mapping ESA| image:: qtalsim_screenshots/landuseMappingFeatureESA.png
