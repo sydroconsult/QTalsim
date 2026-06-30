@@ -49,9 +49,7 @@
              <property name="maxVisibleItems">
               <number>10</number>
              </property>
-             <property name="filters">
-              <set>Qgis::AnnotationLayer|Qgis::RasterLayer|Qgis::TiledSceneLayer</set>
-             </property>
+
             </widget>
            </item>
           </layout>

@@ -373,7 +373,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                     downloaded_files.append(out_path)
 
                 except Exception as e:
-                    print(f"Failed: {tile} -> {e}")
+                    self.log_to_qtalsim_tab(f"")
 
             if downloaded_files:
 
@@ -607,38 +607,30 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             #Try to find a match with code
             matched = False
             for key, landuse in mapping.items():
-                print(key)
-                print(code_landbedeckung)
                 objart, lower_limit_imp, upper_limit_imp = key
 
                 #check if the land cover of the feature matches the land cover code of the csv
                 if code_landbedeckung != objart:
                     continue
-                print(lower_limit_imp, upper_limit_imp)
                 if lower_limit_imp is not None and not pd.isna(lower_limit_imp):
-                    print("lower ?")
                     if feature["SIE_AKT"] < lower_limit_imp:
                         continue
                     elif feature["SIE_AKT"] >= lower_limit_imp:
                         feature["OBJART_NEU"] = landuse
                         matched = True
-                        print("lower limit")
                         break
 
                 elif upper_limit_imp is not None and not pd.isna(upper_limit_imp):
-                    print("upper ?")
                     if feature["SIE_AKT"] > upper_limit_imp:
                         continue
                     elif feature["SIE_AKT"] < upper_limit_imp:
                         feature["OBJART_NEU"] = landuse
                         matched = True
-                        print("upper limit")
                         break
                 
                 elif pd.isna(lower_limit_imp) and pd.isna(upper_limit_imp):
                     feature["OBJART_NEU"] = landuse
                     matched = True
-                    print("no limits")
                     break
             
             #Features without corresponding code in the csv are assigned to the land use of the feature
@@ -741,7 +733,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 code = int(row["ESA Code"])
 
                 esa_name_map[code] = row["ESA Name"]
-                talsim_map[code] = row["Talsim Landuse"]
+                talsim_map[code] = row["Talsim Landuse (english)"] # hier weitermachen
 
             self.landuseLayer.startEditing()
             for feat in self.landuseLayer.getFeatures():
