@@ -1963,6 +1963,14 @@ class QTalsim:
                     combo_box.addItem('Feature IDs of Land use Layer')
 
                 combo_box.addItems([str(field) for field in fieldsLanduse])
+
+                # if OBJART_NEU is in the land use layer fields, set it as the default selection for the 'Name' parameter
+                if data == 'Name':
+                    try:
+                        index = fieldsLanduse.index('OBJART_NEU')
+                        combo_box.setCurrentIndex(index + 1)  # +1 because 'Parameter not available' is the first item
+                    except:
+                        combo_box.setCurrentIndex(0)  # Default to 'Parameter not available' if 'OBJART_NEU' is not found
                 self.dlg.tableLanduseMapping.setCellWidget(row, 1, combo_box)
 
             self.dlg.onCreateLanduseLayer.setVisible(True)
@@ -2059,7 +2067,13 @@ class QTalsim:
                         if old_field == 'Parameter not available' and not str(new_field).startswith('pTAW'):
                             if new_field in self.dfLanduseParameterValuesTalsim.columns:
                                 #Assign the saved talsim land use parameters to the land use features
-                                mask = self.dfLanduseParameterValuesTalsim['Name'].str.strip().str.lower() == input_landuse.strip().lower()
+                                input_norm = input_landuse.strip().lower()
+
+                                mask_de = self.dfLanduseParameterValuesTalsim['Name'].str.strip().str.lower() == input_norm
+                                mask_en = self.dfLanduseParameterValuesTalsim['Name_en'].str.strip().str.lower() == input_norm
+
+                                mask = mask_de | mask_en
+
                                 if mask.any():
                                     val = self.dfLanduseParameterValuesTalsim.loc[mask, new_field].iloc[0]
                                     feature[new_field] = None if pd.isna(val) else val

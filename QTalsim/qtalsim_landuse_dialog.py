@@ -420,12 +420,12 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                     "ESA",
                     "WorldCover_clipped.tif"
                 )
-
+                
                 result = processing.run(
                     "gdal:cliprasterbymasklayer",
                     {
                         "INPUT": self.esaWorldCoverLayer,
-                        "MASK": clipping_layer,
+                        "MASK": clipping_layer_4326,
                         "CROP_TO_CUTLINE": True,
                         "KEEP_RESOLUTION": True,
                         "OPTIONS": "",
@@ -434,8 +434,10 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                         "OUTPUT": clipped_raster
                     }
                 )
-                    
-                if not os.path.exists(clipped_raster):
+                layer = QgsRasterLayer(clipped_raster, "")
+
+                if not layer.isValid():
+                    self.log_to_qtalsim_tab("Clipping failed due to invalid geometries. Attempting to fix geometries...", Qgis.Warning)
                     has_multipart = False
                     for feature in clipping_layer_4326.getFeatures():
                         geom = feature.geometry()
@@ -447,18 +449,29 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                         clipping_layer_4326 = processing.run("native:multiparttosingleparts", {'INPUT': clipping_layer_4326,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
                         clipping_layer_4326, _ = self.make_geometries_valid(clipping_layer_4326)
                     clipping_layer_4326 = processing.run("native:fixgeometries", {'INPUT': clipping_layer_4326, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
-                    clipping_layer_4326 = processing.run(
-                        "native:makevalid",
+
+                    '''
+                    dissolved = processing.run(
+                        "native:dissolve",
                         {
                             "INPUT": clipping_layer_4326,
                             "OUTPUT": "memory:"
                         }
                     )["OUTPUT"]
+                    '''
+                    hull = processing.run(
+                        "native:convexhull",
+                        {
+                            "INPUT": clipping_layer_4326,
+                            "OUTPUT": "memory:"
+                        }
+                    )["OUTPUT"]
+                    ''''''
                     result = processing.run(
                         "gdal:cliprasterbymasklayer",
                         {
                             "INPUT": self.esaWorldCoverLayer.source(),
-                            "MASK": clipping_layer_4326,
+                            "MASK": hull,
                             "CROP_TO_CUTLINE": True,
                             "KEEP_RESOLUTION": True,
                             "OPTIONS": "",
@@ -467,7 +480,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                             "OUTPUT": clipped_raster
                         }
                     )
-                    self.log_to_qtalsim_tab("Clipping after fixing geometries of clipping layersuccessful.", Qgis.Info)
+                    self.log_to_qtalsim_tab("Clipping after fixing geometries of clipping layer successful.", Qgis.Info)
                 else:
                     self.log_to_qtalsim_tab("Clipping successful.", Qgis.Info)
                 # load result

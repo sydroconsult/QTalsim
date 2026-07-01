@@ -2,8 +2,8 @@
 10;Tree cover;Mischwald;MixedForest
 20;Shrubland;Heide;Heathland
 30;Grassland;WieseUndWeide;GrasslandAndPasture
-40;Cropland;Ackerland; Cropland
-50;Built-up;Wohnbauflaeche;Built-up ResidentialArea
+40;Cropland;Ackerland;Cropland
+50;Built-up;Wohnbauflaeche;ResidentialArea
 60;Bare / sparse vegetation;Vegetationslos;BareLand
 70;Snow and ice;Vegetationslos;BareLand
 80;Permanent water bodies;Wasserflaeche;WaterBody
