@@ -32,8 +32,8 @@ Contents
    :maxdepth: 2
 
    install_plugin
-   doc_qtalsim
    doc_subbasin_preprocessing
    doc_soil
    doc_landuse
+   doc_qtalsim
    doc_connect_to_db

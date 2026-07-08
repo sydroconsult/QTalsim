@@ -876,6 +876,12 @@ class QTalsim:
         #Merge the layer with the gaps to the initial layer
         result_merge = processing.run("native:mergevectorlayers", {'LAYERS': [layer, gapsLayer],  'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)
         merged_layer = result_merge['OUTPUT']
+        # Todo: weg
+        self.log_to_qtalsim_tab("Fixing geometries of the merged layer...", Qgis.Info)
+        merged_layer = processing.run("native:fixgeometries", {
+            'INPUT': merged_layer,
+            'OUTPUT': 'TEMPORARY_OUTPUT'
+        })['OUTPUT']
 
         #Select the gaps in the merged_layer 
         request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(
@@ -894,9 +900,14 @@ class QTalsim:
             'OUTPUT': 'TEMPORARY_OUTPUT'
         }, feedback=self.feedback)
         layer_without_gaps = result_eliminate['OUTPUT']
-
+        self.log_to_qtalsim_tab("Fixing geometries of the eliminated...", Qgis.Info) #todo: weg
+        layer_without_gaps = processing.run("native:fixgeometries", {
+            'INPUT': layer_without_gaps,
+            'OUTPUT': 'TEMPORARY_OUTPUT'
+        })['OUTPUT']
+        
         layer_without_gaps, _ = self.make_geometries_valid(layer_without_gaps)
-
+        
         layer_without_gaps = processing.run("native:multiparttosingleparts", {
                 'INPUT': layer_without_gaps,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
@@ -1136,6 +1147,7 @@ class QTalsim:
                     self.start_operation()
             #self.dlg.progressbar.setValue(10)
             self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
+
             #Delete overlapping features in the catchment area layer
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': self.ezgLayer ,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)['OUTPUT']
             self.last_logged_progress = 0
@@ -1336,7 +1348,7 @@ class QTalsim:
                     self.dlg.tableSoilMapping.setCellWidget(row, i, combo_box)
 
                     # automatically fill if ISRIC soil downloader was used
-                    if self.soilLayerInput.name() in("Soil Types BDOD Combined", "soil_types - Soil Types BDOD Combined")  and data in (self.nameSoil, "BulkDensityClass", self.soilTypeThickness):
+                    if self.soilLayerInput.name().endswith("Soil Types BDOD Combined") and data in (self.nameSoil, "BulkDensityClass", self.soilTypeThickness):
                         layer_isric_mapping = {0 : "0-5cm", 1 : "5-15cm", 2 : "15-30cm", 3 : "30-60cm", 4 : "60-100cm", 5 : "100-200cm"}
                         if f"{layer_isric_mapping[i-1]}_{soilTexturesIsricNames[row]}" in fieldsSoil:
                             combo_box.setCurrentText(f"{layer_isric_mapping[i-1]}_{soilTexturesIsricNames[row]}") #Set the corresponding field name as current text of the combo box
@@ -3069,7 +3081,7 @@ class QTalsim:
 
                 # add combination of all names 
                 if isinstance(nameSoilLayersList, (list, tuple)):
-                    nameSoilLayers = ', '.join(map(str, nameSoilLayersList))
+                    nameSoilLayers = ' - '.join(map(str, nameSoilLayersList))
                 else:
                     nameSoilLayers = str(nameSoilLayersList)
 
@@ -3268,7 +3280,10 @@ class QTalsim:
                 self.dlg.groupboxIntersect.setTitle(f"{current_text_groupbox} ✓")
 
             self.log_to_qtalsim_tab(f"Finished intersection of layers.", Qgis.Info)
-        
+            self.iface.messageBar().pushSuccess(
+                "Intersection was successful", f"You can now save the output layers."
+            )
+
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
             #self.dlg.progressbar.setValue(0)

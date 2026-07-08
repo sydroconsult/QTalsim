@@ -505,12 +505,11 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.log_to_qtalsim_tab("Please select an output folder.", Qgis.Critical)
                 return
                 
-            if self.DEMLayer is None:
-                selected_layer_name = self.comboboxDEMLayer.currentText()
-                if selected_layer_name != self.noLayerSelected:
-                    self.DEMLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
-                else:
-                    self.log_to_qtalsim_tab("Please select a DEM layer to process the sub-basins.", Qgis.Critical)
+            selected_layer_name = self.comboboxDEMLayer.currentText()
+            if selected_layer_name != self.noLayerSelected:
+                self.DEMLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+            else:
+                self.log_to_qtalsim_tab("Please select a DEM layer to process the sub-basins.", Qgis.Critical)
 
             #Water Network Layer
             selected_layer_name = self.comboboxWaterNetwork.currentText()
@@ -519,18 +518,41 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             else:
                 self.log_to_qtalsim_tab("Please select a water-network layer to calculate LFP.", Qgis.Critical)
             
+            if self.subBasinLayer == None:
+                self.log_to_qtalsim_tab("Please select a sub-basin layer to process the sub-basins..", Qgis.Critical)
+             
             #Check if the layers are in same CRS
-            dem_crs = self.DEMLayer.crs()
-            water_network_crs = self.waterNetworkLayer.crs()
-            sub_basin_crs = self.subBasinLayer.crs()
+            target_crs = self.subBasinLayer.crs()
+           # Reproject water network layer if necessary
+            if self.waterNetworkLayer.crs() != target_crs:
+                self.waterNetworkLayer = processing.run(
+                    "native:reprojectlayer",
+                    {
+                        'INPUT': self.waterNetworkLayer,
+                        'TARGET_CRS': target_crs,
+                        'OUTPUT': 'TEMPORARY_OUTPUT'
+                    }
+                )['OUTPUT']
+                self.log_to_qtalsim_tab(f"Reprojected water network layer to match sub-basin layer CRS.", Qgis.Warning)
 
-            # Check if all CRS are the same
-            if dem_crs == water_network_crs == sub_basin_crs:
-                pass
-            else:
-                self.log_to_qtalsim_tab("Layers have different CRS.", Qgis.Critical)
+            # Reproject DEM layer if necessary
+            if self.DEMLayer.crs() != self.subBasinLayer.crs():
+                QMessageBox.critical(
+                    None,
+                    "CRS Mismatch",
+                    (
+                        "The DEM layer uses a different coordinate reference system (CRS) "
+                        "than the sub-basin layer.\n\n"
+                        "Please reproject the DEM to the CRS of the sub-basin layer "
+                        "before running the model."
+                    ),
+                )
+
+                self.log_to_qtalsim_tab(
+                    "The DEM CRS differs from the sub-basin CRS. Please reproject the DEM before running the model.",
+                    Qgis.Critical,
+                )
                 return
-                
             #UI Sub-basin
             self.subbasinUIField = self.comboboxUISubBasin.currentText()
 
@@ -662,16 +684,17 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 Burns and fills the DEM
         '''
 
+        self.log_to_qtalsim_tab(f"Burning and filling the DEM...", Qgis.Info)
         #Necessary for small gaps?
         result = processing.run("qgis:deleteholes", {
                 'INPUT': sub_basins_layer,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
         }, feedback=self.no_feedback)
-
         sub_basins_layer = result['OUTPUT']
+
         result = processing.run("gdal:cliprasterbymasklayer", {'INPUT':dem_layer,'MASK':sub_basins_layer,'SOURCE_CRS':None,'TARGET_CRS':None,'TARGET_EXTENT':None,'NODATA':None,'ALPHA_BAND':False,'CROP_TO_CUTLINE':True,'KEEP_RESOLUTION':False,'SET_RESOLUTION':False,'X_RESOLUTION':None,'Y_RESOLUTION':None,'MULTITHREADING':False,'OPTIONS':'','DATA_TYPE':0,'EXTRA':'','OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.no_feedback)
         dem_layer = QgsRasterLayer(result['OUTPUT'], 'Clipped DEM')
-        
+
         #Get extent and resolution of DEM
         self.dem_extent = dem_layer.extent()
         self.dem_pixel_size_x = dem_layer.rasterUnitsPerPixelX()
@@ -681,9 +704,9 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.extent = f"{self.dem_extent.xMinimum()},{self.dem_extent.xMaximum()},{self.dem_extent.yMinimum()},{self.dem_extent.yMaximum()}"
 
         #Rasterize Water Network
+        water_network_layer = processing.run("native:clip", {'INPUT':water_network_layer,'OVERLAY':sub_basins_layer,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
         result = processing.run("gdal:rasterize", {'INPUT':water_network_layer,'FIELD':'','BURN':1,'USE_Z':False,'UNITS':1,'WIDTH':self.dem_pixel_size_x,'HEIGHT':self.dem_pixel_size_y,'EXTENT': f"{self.extent}[{crs_water_network}]",'NODATA':0,'OPTIONS':'','DATA_TYPE':5,'INIT':2,'INVERT':False,'EXTRA':'','OUTPUT': 'TEMPORARY_OUTPUT'})
         water_network_rasterized_temp = QgsRasterLayer(result['OUTPUT'],'WaterNetworkRasterized')
-
         cleaned = processing.run("native:rastercalc", {'LAYERS':[water_network_rasterized_temp],'EXPRESSION':f'if("{water_network_rasterized_temp.name()}@1"= 1, 1, 0)','EXTENT':None,'CELL_SIZE':None,'CRS':None,'OUTPUT':'TEMPORARY_OUTPUT'})
         water_network_rasterized = QgsRasterLayer(cleaned['OUTPUT'],'WaterNetworkRasterized_cleaned')
         QgsProject.instance().addMapLayer(water_network_rasterized)
@@ -693,15 +716,15 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         stats = dem_layer.dataProvider().bandStatistics(band, QgsRasterBandStats.All)
         min_value_dem = stats.minimumValue
         max_value_dem = stats.maximumValue
-
         dem_std_output = os.path.join(output_path, f'DEMStd1.tif')
         os.makedirs(os.path.dirname(dem_std_output), exist_ok=True)
-        processing.run("native:rastercalc", {'LAYERS':[dem_layer],'EXPRESSION':f'("{dem_layer.name()}@1" - {min_value_dem}) / ({max_value_dem} - {min_value_dem})','EXTENT':None,'CELL_SIZE':None,'CRS':None,'OUTPUT':dem_std_output}, feedback=self.no_feedback)
+        processing.run("native:rastercalc", {'LAYERS':[dem_layer],'EXPRESSION':f'("{dem_layer.name()}@1" - {min_value_dem}) / ({max_value_dem} - {min_value_dem})','EXTENT':None,'CELL_SIZE':None,'CRS':None,'OUTPUT':dem_std_output})
 
         dem_std_layer = QgsRasterLayer(dem_std_output,'DEMStd')
         QgsProject.instance().addMapLayer(dem_std_layer)
 
         #Burn Gewässernetz into standardized DEM
+        self.log_to_qtalsim_tab(f"Burning water network into standardized DEM...", Qgis.Info)
         dem_std_burn_output = os.path.join(output_path, f'DEMStdBurn1.tif')
         os.makedirs(os.path.dirname(dem_std_burn_output), exist_ok=True)
         processing.run("native:rastercalc", {'LAYERS':[dem_std_layer, water_network_rasterized],'EXPRESSION':f'"{dem_std_layer.name()}@1" - "{water_network_rasterized.name()}@1"','EXTENT':self.extent,'CELL_SIZE':None,'CRS':None,'OUTPUT':dem_std_burn_output}, feedback=self.no_feedback)
@@ -745,10 +768,13 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         try:
             #processing.run("sagang:fillsinkswangliu", {'ELEV':dem_burn_layer,'FILLED': dem_burn_fill_output,'FDIR':'TEMPORARY_OUTPUT','WSHED':'TEMPORARY_OUTPUT','MINSLOPE':0.1}, feedback=self.no_feedback)
             processing.run("wbt:FillDepressionsWangAndLiu", {'dem':self.dem_burn_output,'fix_flats':True,'flat_increment':None,'output':dem_burn_fill_output})
-        except Exception as e:
-            # Catch the specific exception for processing errors
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
-            return
+        
+        except:
+            try:
+                processing.run("whitebox_workflows:fill_depressions_wang_and_liu", {'dem':self.dem_burn_output,'fix_flats':True,'flat_increment':None,'output':dem_burn_fill_output})
+            except Exception as e:
+                self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+                return
         
         dem_burn_fill_layer = QgsRasterLayer(dem_burn_fill_output,'DEMBurnFill')
         QgsProject.instance().addMapLayer(dem_burn_fill_layer)
@@ -824,14 +850,13 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             os.makedirs(os.path.dirname(lfp_output), exist_ok=True)
             try:
                 processing.run("wbt:LongestFlowpath", {'dem':dem_burnfill_clip_layer,'basins': sub_basin_raster_layer,'output':lfp_output}, feedback=self.no_feedback)
-            except QgsProcessingException as e:
-                # Catch the specific exception for processing errors
-                self.log_to_qtalsim_tab(
-                    "Error: Whitebox might not be installed or configured properly. "
-                    "Please ensure Whitebox is available and try again.", 
-                    Qgis.Critical
-                )
-                return
+            
+            except:
+                try:
+                    processing.run("whitebox_workflows:longest_flowpath", {'dem':dem_burnfill_clip_layer,'basins': sub_basin_raster_layer,'output':lfp_output}, feedback=self.no_feedback)
+                except Exception as e:
+                    self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+                    return
             #new_layer = QgsVectorLayer(lfp_output,'LFP')
 
             #Store files to delete them later
