@@ -2,7 +2,7 @@
 Sub-basins preprocessing
 ========================
 
-   The third core functionality allows you to pre-process a sub-basins layer. It calculates the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin, and the longest flow path for each sub-basin. Output includes a line layer containing the longest flow paths, a sub-basins layer (and Geopackage) containing the sub-basins with all calculated parameters and an .EZG-ASCII file, which can be used as `input to Talsim <https://www.talsim.de/docs/index.php?title=EZG-Datei>`__ (optional). Please note that to use this functionality the QGIS-Plugin WhiteboxTools must be installed. 
+   The third core functionality allows you to pre-process a sub-basins layer. It calculates the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin, and the longest flow path for each sub-basin. Output includes a line layer containing the longest flow paths, a sub-basins layer (and Geopackage) containing the sub-basins with all calculated parameters and an .EZG-ASCII file, which can be used as `input to Talsim <https://www.talsim.de/docs/index.php?title=EZG-Datei>`__ (optional). Please note that to use this functionality the QGIS-Plugin "Whitebox Workflows" must be installed. 
 
 Prerequisites
 ^^^^^^^^^^^^^
@@ -15,19 +15,14 @@ Prerequisites
    -  Optional: Water network layer (necessary for LongestFlowPath-calculation)
    -  Optional: Layer with impervious areas
    
-   To use this plugin's functionality, WhiteboxTools must be installed.
+   To use this plugin's functionality, Whitebox Workflows must be installed.
 
-   -  WhiteboxTools: Install the "WhiteboxTools for QGIS" plugin, and make sure the environment path is set correctly. 
-
-      -  Install the "WhiteboxTools for QGIS" plugin.
-      -  Download and install `WhiteboxTools Open Core <https://www.whiteboxgeo.com/download-whiteboxtools/>`__ and remember the path where you installed it.
-      -  In QGIS go to Settings - Options - Processing - Providers - WhiteboxTools executable and insert the path to the binary of your download (e.g. C:/Users/Test/WhiteboxTools_win_amd64/WBT/whitebox_tools.exe).
-      -  For further guidance, you can watch this instructional `video <https://www.youtube.com/watch?v=xJXDBsNbcTg>`__ produced by Whitebox. 
+   -  Whitebox Workflows for QGIS: Install the "Whitebox Workflows for QGIS" plugin, and follow the instructions. 
 
 Executing the Plugin
 ^^^^^^^^^^^^^^^^^^^^
    
-   After installing WhiteboxTools, you can run the plugin. 
+   After installing Whitebox Workflows, you can run the plugin. 
 
 Select Layers
 -------------
@@ -50,7 +45,7 @@ Calculation of LongestFlowPath
 ------------------------------
 
    The calculation of LongestFlowPath is optional. The plugin first burns the water network into the DEM using the QGIS "Raster calculator".
-   It then applies Whitebox' "FillDepressionsWangAndLiu" tool to fill any sinks in the DEM. After this the plugin uses WhiteboxTools' "LongestFlowPath" (LFP) to generate the longest flowpath for each sub-basin. To address an issue with LFP creating disconnected flowpaths across different sub-basins (see details `here <https://github.com/jblindsay/whitebox-tools/issues/289>`__), the plugin processes each sub-basin individually, generating the LFP for each one separately. Finally, the plugin saves the correct LFP for each sub-basin and merges them into a single layer.
+   It then applies Whitebox' "FillDepressionsWangAndLiu" tool to fill any sinks in the DEM. After this the plugin uses Whitebox Workflows' "LongestFlowPath" (LFP) to generate the longest flowpath for each sub-basin. To address an issue with LFP creating disconnected flowpaths across different sub-basins (see details `here <https://github.com/jblindsay/whitebox-tools/issues/289>`__), the plugin processes each sub-basin individually, generating the LFP for each one separately. Finally, the plugin saves the correct LFP for each sub-basin and merges them into a single layer.
    
    The final LFP layer is added to the current QGIS project and saved to the specified output folder. Additionally, the burned and filled DEM layer is also saved and added to the current project.
 
