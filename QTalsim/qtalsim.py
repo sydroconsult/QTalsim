@@ -309,6 +309,39 @@ class QTalsim:
             self.iface.mainWindow().menuBar().removeAction(self.plugin_menu.menuAction())
             self.plugin_menu = None
 
+        # Tear down self.dlg (created in init_dialog(), no Qt parent, no destroyed-connect)
+        if hasattr(self, 'dlg') and self.dlg is not None:
+            self.dlg.close()
+            self.dlg.deleteLater()
+            self.dlg = None
+
+        # Tear down the Talsim DB dock. CustomDockWidget.closeEvent() shows a blocking
+        # confirmation dialog, so detach via iface.removeDockWidget() instead of close().
+        if hasattr(self, 'sqlConnectDock') and self.sqlConnectDock is not None:
+            self.iface.removeDockWidget(self.sqlConnectDock)
+            self.safeDisconnect(self.sqlConnectDock.destroyed, self.onDockDestroyed)
+            self.sqlConnectDock.deleteLater()
+            self.sqlConnectDock = None
+
+        # Tear down the three QMainWindow tool windows (subBasin/soil/landuse)
+        if hasattr(self, 'subBasinWindow') and self.subBasinWindow is not None:
+            self.safeDisconnect(self.subBasinWindow.destroyed, self.onWindowDestroyedSubbasin)
+            self.subBasinWindow.close()
+            self.subBasinWindow.deleteLater()
+            self.subBasinWindow = None
+
+        if hasattr(self, 'soilWindow') and self.soilWindow is not None:
+            self.safeDisconnect(self.soilWindow.destroyed, self.onWindowDestroyedSoil)
+            self.soilWindow.close()
+            self.soilWindow.deleteLater()
+            self.soilWindow = None
+
+        if hasattr(self, 'landuseWindow') and self.landuseWindow is not None:
+            self.safeDisconnect(self.landuseWindow.destroyed, self.onWindowDestroyedLanduse)
+            self.landuseWindow.close()
+            self.landuseWindow.deleteLater()
+            self.landuseWindow = None
+
 
     class CustomFeedback(QgsProcessingFeedback):
         def __init__(self, log_function):
@@ -4415,7 +4448,7 @@ class QTalsim:
             self.dlg.comboboxUICatchment.addItems(
                 [field.name() for field in self.ezgLayerCombobox.fields()]
             )
-        self.dlg.comboboxSubBasinLayer.layerChanged.connect(self.on_ezg_changed)
+        self.safeConnect(self.dlg.comboboxSubBasinLayer.layerChanged, self.on_ezg_changed)
 
         #Soil Layer
         self.dlg.comboboxSoilLayer.setFilters(
@@ -4500,7 +4533,7 @@ class QTalsim:
         '''
         if self.first_start:
             self.first_start = False
-        if not hasattr(self, 'sqlConnectDock'):
+        if not hasattr(self, 'sqlConnectDock') or self.sqlConnectDock is None:
             #Create the dock widget if it doesn't exist
             self.sqlConnectDock = CustomDockWidget("Connect to Talsim DB", self.iface.mainWindow())
 
