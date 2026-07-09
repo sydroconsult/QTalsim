@@ -7,3 +7,6 @@ test-plugin.yaml
 test/testdata
 prepare_for_push.bat
 undo_prepare_for_push.bat
+.env
+symbology-style.db
+pyqt6_checker.log
