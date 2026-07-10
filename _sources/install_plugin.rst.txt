@@ -2,6 +2,13 @@
 =====================
 Install Plugin
 =====================
+   **Requirements:** QTalsim needs the Python packages ``pandas``, ``numpy``
+   and ``requests`` available in your QGIS Python environment. These
+   usually ship with QGIS already; if the plugin fails to load with a
+   missing-package error, open the OSGeo4W Shell (Windows) or your
+   system's QGIS Python environment and run:
+   ``python -m pip install pandas numpy requests``
+
    If the plugin is not installed yet, you must do this by following
    these steps:
 

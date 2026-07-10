@@ -43,7 +43,13 @@
   <section id="install-plugin">
 <h1>Install Plugin<a class="headerlink" href="#install-plugin" title="Permalink to this heading">¶</a></h1>
 <blockquote>
-<div><p>If the plugin is not installed yet, you must do this by following
+<div><p><strong>Requirements:</strong> QTalsim needs the Python packages <code class="docutils literal notranslate"><span class="pre">pandas</span></code>, <code class="docutils literal notranslate"><span class="pre">numpy</span></code>
+and <code class="docutils literal notranslate"><span class="pre">requests</span></code> available in your QGIS Python environment. These
+usually ship with QGIS already; if the plugin fails to load with a
+missing-package error, open the OSGeo4W Shell (Windows) or your
+system’s QGIS Python environment and run:
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">install</span> <span class="pre">pandas</span> <span class="pre">numpy</span> <span class="pre">requests</span></code></p>
+<p>If the plugin is not installed yet, you must do this by following
 these steps:</p>
 <ol class="arabic simple">
 <li><p>Navigate to the Menu Bar, select ‘Plugins’</p></li>
