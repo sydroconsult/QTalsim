@@ -277,7 +277,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.root.removeChildNode(self.layerGroup)
         self.reconnectDatabase()
         try:
-            sql_query = f'''SELECT Id
+            sql_query = '''SELECT Id
                                 ,ElementTypeCharacter || ElementIdentifier AS Identifier
                                 ,Name
                                 ,Description
@@ -289,10 +289,9 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                                 ,Outflow3
                                 ,Geometry
                             FROM SystemElement
-                            WHERE scenarioId = {self.scenarioId} 
+                            WHERE scenarioId = ?
                         '''
-            #AND ElementTypeCharacter = '{self.elementTypeCharacter}'
-            self.cur.execute(sql_query)
+            self.cur.execute(sql_query, (self.scenarioId,))
 
             columns = [description[0] for description in self.cur.description]
             lat_index = columns.index('Latitude')
@@ -439,7 +438,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
             Add the Sub-basins
         '''
-        sql_query = f'''SELECT SystemElementId
+        sql_query = '''SELECT SystemElementId
                         ,ElementTypeCharacter || ElementIdentifier AS Identifier
                         ,Name
                         ,Area
@@ -453,11 +452,11 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
                         JOIN SubBasin sb ON se.Id = sb.SystemElementId
 
-                        WHERE scenarioId = {self.scenarioId} 
+                        WHERE scenarioId = ?
                         AND Geometry IS NOT NULL
                     '''
-        
-        self.cur.execute(sql_query)
+
+        self.cur.execute(sql_query, (self.scenarioId,))
 
         self.subBasinData = self.cur.fetchall()
         self.subBasinsLayer = QgsVectorLayer(f"MultiPolygon?crs={self.elementsPointLayer.crs().authid()}", "WKT Polygons", "memory")
@@ -496,7 +495,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.layerGroup.addChildNode(self.elementsPolygonLayerTree)
 
     def addLinesTransportReach(self):
-        sql_query = f'''SELECT SystemElementId
+        sql_query = '''SELECT SystemElementId
                         ,ElementTypeCharacter || ElementIdentifier AS Identifier
                         ,Name
                         ,Length
@@ -506,10 +505,10 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
                         JOIN TransportReach tr ON se.Id = tr.SystemElementId
 
-                        WHERE scenarioId = {self.scenarioId} 
+                        WHERE scenarioId = ?
                         AND Geometry IS NOT NULL
                     '''
-        self.cur.execute(sql_query)
+        self.cur.execute(sql_query, (self.scenarioId,))
 
         self.transportReachData = self.cur.fetchall()
         self.transportReachLayer = QgsVectorLayer(f"MultiLineString?crs=epsg:{self.epsg}", "TransportReach", "memory")
@@ -1165,7 +1164,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             if changes['geomChanged'] and (feature.geometry().type() == QgsWkbTypes.PolygonGeometry or feature.geometry().type() == QgsWkbTypes.LineGeometry): #und feature ist polygon
                 # Store this feature for later
                 #Spatial containment check here?
-                sql_query += f"{self.geometryFieldName} = ?, "
+                sql_query += f"{self.geometryFieldName} = ?, "  # nosec B608 - self.geometryFieldName is a fixed constant ('Geometry')
                 wkt = feature.geometry().asWkt()
                 update_params_systemelements.append(wkt)
 
@@ -1178,7 +1177,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                 update_params_systemelements.append(long)
             
             for attrName in changes['changedAttributes']:
-                if attrName in self.columnsSystemElement or attrName == 'Identifier':
+                if attrName in self.columnsSystemElement or attrName == 'Identifier':  # attrName validated against the live DB schema (self.columnsSystemElement) here
                     if attrName == 'Identifier':
                             attr_value1 = str(feature[attrName])[0]
                             sql_query += f"ElementTypeCharacter = ?, "
@@ -1190,7 +1189,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
                     else: #attrName == 'Name'
                         attr_value = feature[attrName]
-                        sql_query += f"{attrName} = ?, "
+                        sql_query += f"{attrName} = ?, "  # nosec B608 - attrName validated above
                         update_params_systemelements.append(attr_value)
                     
             
@@ -1202,7 +1201,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                 else:
                     #SystemElementId is null (in the layer) for features where the feature exists in DB but does not have a polygon
                     # --> Get the SystemElementId from the DB
-                    sql_get_systemelement_id = f'''
+                    sql_get_systemelement_id = '''
                                 SELECT Id FROM SystemElement
 
                                 WHERE ElementIdentifier = ?
@@ -1220,17 +1219,20 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             update_params = []
             
             elementTypeTableName = self.mappingElementTypeTableName.get(feature['Identifier'][0], "Unknown")
-            sql_query = f'SELECT * FROM {elementTypeTableName}'
+            if elementTypeTableName not in self.mappingElementTypeTableName.values():
+                self.log_to_qtalsim_tab(f"Unknown element type for feature {feature['Identifier']}; skipping table update.", Qgis.Warning)
+                continue
+            sql_query = f'SELECT * FROM {elementTypeTableName}'  # nosec B608 - elementTypeTableName validated above against the fixed mappingElementTypeTableName table set
             self.cur.execute(sql_query)
 
             columns = [description[0] for description in self.cur.description]
-            sql_query = f"UPDATE {elementTypeTableName} SET "
-      
+            sql_query = f"UPDATE {elementTypeTableName} SET "  # nosec B608 - elementTypeTableName validated above
+
             #Loop over the changes and concatenate update-query
             for attrName in changes['changedAttributes']:
-                if attrName in columns:
+                if attrName in columns:  # attrName validated against the live DB schema (self.cur.description) above
                     attr_value = feature[attrName]
-                    sql_query += f"{attrName} = ?, "
+                    sql_query += f"{attrName} = ?, "  # nosec B608 - attrName validated above
                     update_params.append(attr_value)
 
             #Update the non-system-elements table (e.g. Sub-Basin)
@@ -1242,7 +1244,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                 else:
                     #SystemElementId is null (in the layer) for features where the feature exists in DB but does not have a polygon
                     # --> Get the SystemElementId from the DB
-                    sql_get_systemelement_id = f'''
+                    sql_get_systemelement_id = '''
                                 SELECT Id FROM SystemElement
 
                                 WHERE ElementIdentifier = ?
@@ -1263,9 +1265,11 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
         try:
             self.reconnectDatabase()
-            #elementTypeCharacter = self.mappingElementTypeTableName.get(feature['Identifier'][0], "Unknown")
             elementTypeTableName = self.mappingElementTypeTableName.get(feature['Identifier'][0], "Unknown")
-            sql_query = f'SELECT * FROM {elementTypeTableName}'
+            if elementTypeTableName not in self.mappingElementTypeTableName.values():
+                self.log_to_qtalsim_tab(f"Unknown element type for feature {feature['Identifier']}; cannot insert into type table.", Qgis.Warning)
+                return
+            sql_query = f'SELECT * FROM {elementTypeTableName}'  # nosec B608 - elementTypeTableName validated above against the fixed mappingElementTypeTableName table set
             self.cur.execute(sql_query)
             columns = [description[0] for description in self.cur.description]
 
@@ -1304,12 +1308,12 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                         sql_query += "ElementIdentifier, "
                         params.append(attr_value2)
                     elif column == 'Rotation' and str(feature[column]).strip().upper() == 'NULL':
-                        sql_query += f'{column}, '
+                        sql_query += f'{column}, '  # nosec B608 - column validated against self.columnsSystemElement above
                         params.append(0.0)
                     elif str(feature[column]).strip().upper() == 'NULL':
                         continue
                     else: #append all other columns, resp. their values
-                        sql_query += f'{column}, '
+                        sql_query += f'{column}, '  # nosec B608 - column validated against self.columnsSystemElement above
                         params.append(feature[column])
             
             elementtype = self.mappingElementType.get(feature['Identifier'][0], "Unknown")
@@ -1324,30 +1328,30 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
             #Get SystemElementId
             self.reconnectDatabase()
-            sql_query = f'''
+            sql_query = '''
                             SELECT Id FROM SystemElement
 
-                            WHERE ElementIdentifier = '{feature['Identifier'][1:]}'
-                            AND ElementTypeCharacter = '{feature['Identifier'][0]}'
-                            AND ScenarioId = '{self.scenarioId}'
+                            WHERE ElementIdentifier = ?
+                            AND ElementTypeCharacter = ?
+                            AND ScenarioId = ?
                         '''
-            self.cur.execute(sql_query)
+            self.cur.execute(sql_query, (feature['Identifier'][1:], feature['Identifier'][0], self.scenarioId))
             feature_id_tuple = self.cur.fetchone()
 
             #Start Insert-Statement into SubBasin-Table
             paramsSubBasins = []
 
             sql_query = f'''
-                            INSERT INTO {elementTypeTableName} 
-                        '''
+                            INSERT INTO {elementTypeTableName}
+                        '''  # nosec B608 - elementTypeTableName validated above against the fixed mappingElementTypeTableName table set
             sql_query += '(SystemElementId, '
             feature_id = feature_id_tuple[0]
             paramsSubBasins.append(feature_id)
-            
+
             for column in feature.fields().names():
                 #SystemElementId was added above, no null-features
                 if column in columns and column != 'SystemElementId' and feature[column] is not None and str(feature[column]).strip().upper() != 'NULL':
-                    sql_query += f"{column}, "
+                    sql_query += f"{column}, "  # nosec B608 - column validated against the live DB schema (columns) above
                     paramsSubBasins.append(feature[column])
             sql_query = sql_query.rstrip(', ') + ') VALUES (' + ', '.join(['?'] * len(paramsSubBasins)) + ')'
 
@@ -1369,7 +1373,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.cur.execute("DELETE FROM SystemElement WHERE id = ?", (systemElementId,))
             self.conn.commit()
             if elementTypeTableName != "Unknown":
-                self.cur.execute(f"DELETE FROM {elementTypeTableName} WHERE SystemElementId = ?", (systemElementId,))
+                self.cur.execute(f"DELETE FROM {elementTypeTableName} WHERE SystemElementId = ?", (systemElementId,))  # nosec B608 - elementTypeTableName validated above (guarded by the != "Unknown" check)
                 self.conn.commit()
             else:
                 self.log_to_qtalsim_tab("Due to unknown ElementType, the element was only deleted from SystemElement Table.", Qgis.Warning)
@@ -1384,7 +1388,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             Update only coordinates (lat, long) of features.
         '''
         self.reconnectDatabase()
-        sql_query = f'''
+        sql_query = '''
                         UPDATE SystemElement
                         SET Longitude = ?, Latitude = ?
                         WHERE Id = ?;
@@ -1407,7 +1411,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         update_params_systemelements = []
         sql_query = "UPDATE SystemElement SET "
         for attrName in feature.fields().names():
-            if attrName in self.columnsSystemElement or attrName == 'Identifier':
+            if attrName in self.columnsSystemElement or attrName == 'Identifier':  # attrName validated against the live DB schema (self.columnsSystemElement) here
                 if attrName == 'Identifier':
                     attr_value1 = str(feature[attrName])[0]
                     sql_query += f"ElementTypeCharacter = ?, "
@@ -1419,7 +1423,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 elif attrName != 'Longitude' and attrName != 'Latitude': #attrName == 'Name'
                     attr_value = feature[attrName]
-                    sql_query += f"{attrName} = ?, "
+                    sql_query += f"{attrName} = ?, "  # nosec B608 - attrName validated above
                     update_params_systemelements.append(attr_value)
         
         if len(update_params_systemelements) > 0:
@@ -1429,7 +1433,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                 # --> Get the SystemElementId from the DB
             
             #Get the SystemElementId
-            sql_get_systemelement_id = f'''
+            sql_get_systemelement_id = '''
                         SELECT Id FROM SystemElement
 
                         WHERE ElementIdentifier = ?
@@ -1448,16 +1452,19 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         #Update Geometry-table
         
         elementTypeTableName = self.mappingElementTypeTableName.get(feature['Identifier'][0], "Unknown") #Get table name (SubBasins or TransportReach)
-        sql_query = f'SELECT * FROM {elementTypeTableName}'
+        if elementTypeTableName not in self.mappingElementTypeTableName.values():
+            self.log_to_qtalsim_tab(f"Unknown element type for feature {feature['Identifier']}; skipping table update.", Qgis.Warning)
+            return
+        sql_query = f'SELECT * FROM {elementTypeTableName}'  # nosec B608 - elementTypeTableName validated above against the fixed mappingElementTypeTableName table set
         self.cur.execute(sql_query)
         columns = [description[0] for description in self.cur.description]
-        sql_query = f"UPDATE {elementTypeTableName} SET "
+        sql_query = f"UPDATE {elementTypeTableName} SET "  # nosec B608 - elementTypeTableName validated above
         update_params = []
         #Loop over the changes and concatenate update-query
         for attrName in feature.fields().names():
-            if attrName in columns:
+            if attrName in columns:  # attrName validated against the live DB schema (self.cur.description) above
                 attr_value = feature[attrName]
-                sql_query += f"{attrName} = ?, "
+                sql_query += f"{attrName} = ?, "  # nosec B608 - attrName validated above
                 update_params.append(attr_value)
 
         #Update the non-system-elements table (e.g. Sub-Basin)
@@ -1475,7 +1482,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
     def updatePolygonsAndCoordinates(self, feature):
         self.insertGeometriesToExistingFeatures(feature)
         self.reconnectDatabase()
-        sql_query = f'''
+        sql_query = '''
             UPDATE SystemElement
             SET Longitude = ?, Latitude = ?
             WHERE Id = ?;

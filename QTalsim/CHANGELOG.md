@@ -1,5 +1,12 @@
 # Changelog
 
+## \[1.9.1] - 2026-07-10
+
+* Fixes
+
+  * Plugin
+    * Fixed SQL injection vulnerabilities in the Talsim database connection dialog.
+
 ## \[1.9.0] - 2026-07-10
 
 * Fixes
