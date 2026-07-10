@@ -1,5 +1,35 @@
 # Changelog
 
+## \[1.9.0] - 2026-07-10
+
+* Fixes
+
+  * HRU Calculation
+    * Fixed bugs in filling gaps during HRU calculation.
+    * Soil type table now also includes the soil name at export.
+
+  * Sub-basin preprocessing
+    * Fixed reprojection of the water network layer.
+    * Switched from WhiteboxTools to Whitebox Workflows for longest flow path calculation.
+
+  * Land Use Mapping
+    * Fixed issues in the land use mapping UI.
+
+  * Plugin
+    * Fixed dialogs/windows remaining open across plugin reloads.
+    * Fixed crashes on QGIS installations using PyQt6.
+
+* Enhancements
+
+  * Land Use Mapping
+    * Added support for resampling ESA WorldCover downloads to a coarser resolution.
+    * Added English translations for ESA WorldCover land use names.
+    * Land use parameter mapping now also matches English land use names, not just German.
+    * Sped up land use parameter mapping for large layers.
+
+  * Plugin
+    * Show a clear message if a required Python package (pandas/numpy/requests) is missing instead of crashing silently.
+
 ## \[1.8.0] - 2026-06-12
 
 * Fixes
