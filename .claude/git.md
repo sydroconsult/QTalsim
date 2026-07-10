@@ -55,9 +55,20 @@
   (Reihenfolge Fixes vor Enhancements, zweistufige Bullet-Verschachtelung
   nach Bereich, Datum im ISO-Format.)
 - Immer einen konkreten Vorschlag für **beides** liefern, bevor etwas
-  geändert wird: (a) den CHANGELOG-Eintrag im obigen Format, (b) eine
-  Release-Message (analog zur Commit-Message bei normalen Commits) —
-  und auf Bestätigung warten, wie bei normalen Commits (siehe oben).
+  geändert wird: (a) den CHANGELOG-Eintrag im obigen Format, (b) die
+  Release-Message — und auf Bestätigung warten, wie bei normalen Commits
+  (siehe oben).
+  - Release-Message: **kein** separater Prosa-Text ("Highlights: ...").
+    Verifiziert an den bisherigen GitHub-Releases (z. B. 1.8.0,
+    https://github.com/sydroconsult/QTalsim/releases): die Release Notes
+    sind dort exakt derselbe Fixes/Enhancements-Inhalt wie der
+    CHANGELOG-Eintrag, nur ohne die `## [X.Y.Z] - Datum`-Kopfzeile (Version
+    und Datum zeigt GitHub schon über Tag-Namen/Release-Datum an) und mit
+    `**Fixes**`/`**Enhancements**` als fette Überschrift statt `* Fixes`
+    als Bullet. Vermutlich übernimmt `qgis-plugin-ci` (`publish_to_github:
+    true`, `changelog: CHANGELOG.md`) den jeweiligen CHANGELOG-Abschnitt
+    automatisch als Release-Text — die Release-Message ist also im Kern
+    eine Reformatierung des CHANGELOG-Eintrags, keine eigene Formulierung.
 - Vor dem eigentlichen Tag/Release zusätzlich:
   - Testsuite lokal laufen lassen (siehe Haupt-`CLAUDE.md`,
     `docker compose run --rm qtalsim-tests` bzw. lokale
