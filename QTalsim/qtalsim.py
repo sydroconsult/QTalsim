@@ -909,8 +909,7 @@ class QTalsim:
         #Merge the layer with the gaps to the initial layer
         result_merge = processing.run("native:mergevectorlayers", {'LAYERS': [layer, gapsLayer],  'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)
         merged_layer = result_merge['OUTPUT']
-        # Todo: weg
-        self.log_to_qtalsim_tab("Fixing geometries of the merged layer...", Qgis.Info)
+
         merged_layer = processing.run("native:fixgeometries", {
             'INPUT': merged_layer,
             'OUTPUT': 'TEMPORARY_OUTPUT'
@@ -933,7 +932,6 @@ class QTalsim:
             'OUTPUT': 'TEMPORARY_OUTPUT'
         }, feedback=self.feedback)
         layer_without_gaps = result_eliminate['OUTPUT']
-        self.log_to_qtalsim_tab("Fixing geometries of the eliminated...", Qgis.Info) #todo: weg
         layer_without_gaps = processing.run("native:fixgeometries", {
             'INPUT': layer_without_gaps,
             'OUTPUT': 'TEMPORARY_OUTPUT'
@@ -2041,6 +2039,16 @@ class QTalsim:
             landuseValuesTalsimPath = os.path.join(current_path, "talsim_parameter", "landuseParameterValues.csv")
             self.dfLanduseParameterValuesTalsim = pd.read_csv(landuseValuesTalsimPath, delimiter = ';', decimal = ',')
 
+            #Precompute a normalized name (German or English) -> row index lookup once, instead of
+            #re-deriving a full-column string mask for every feature/field combination below.
+            #setdefault preserves the original .iloc[0] "first match wins" tie-breaking behavior.
+            name_norm = self.dfLanduseParameterValuesTalsim['Name'].str.strip().str.lower()
+            name_en_norm = self.dfLanduseParameterValuesTalsim['Name_en'].str.strip().str.lower()
+            self.landuseNameToRowIndex = {}
+            for idx, name, name_en in zip(self.dfLanduseParameterValuesTalsim.index, name_norm, name_en_norm):
+                self.landuseNameToRowIndex.setdefault(name, idx)
+                self.landuseNameToRowIndex.setdefault(name_en, idx)
+
             #Create Layer
             self.landuseTalsim = QgsVectorLayer(f"Polygon?crs={self.landuseLayer.crs().authid()}", "LanduseLayerEdited", "memory")
 
@@ -2112,15 +2120,10 @@ class QTalsim:
                         if old_field == 'Parameter not available' and not str(new_field).startswith('pTAW'):
                             if new_field in self.dfLanduseParameterValuesTalsim.columns:
                                 #Assign the saved talsim land use parameters to the land use features
-                                input_norm = input_landuse.strip().lower()
+                                row_idx = self.landuseNameToRowIndex.get(input_landuse)
 
-                                mask_de = self.dfLanduseParameterValuesTalsim['Name'].str.strip().str.lower() == input_norm
-                                mask_en = self.dfLanduseParameterValuesTalsim['Name_en'].str.strip().str.lower() == input_norm
-
-                                mask = mask_de | mask_en
-
-                                if mask.any():
-                                    val = self.dfLanduseParameterValuesTalsim.loc[mask, new_field].iloc[0]
+                                if row_idx is not None:
+                                    val = self.dfLanduseParameterValuesTalsim.at[row_idx, new_field]
                                     feature[new_field] = None if pd.isna(val) else val
                             else:
                                 feature[new_field] = None 
@@ -3905,7 +3908,7 @@ class QTalsim:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     get_feature_value(feature, "Id", int),
-                    get_feature_value(feature, f"{self.nameSoil}", str), #TODO: testen ob es passt
+                    get_feature_value(feature, f"{self.nameSoil}", str),
                     get_feature_value(feature, f"soillayer1_{self.soilTypeThickness}", float),
                     get_feature_value(feature, "soillayer1_id_boa", int),
                     get_feature_value(feature, f"soillayer2_{self.soilTypeThickness}", float),
