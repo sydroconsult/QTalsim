@@ -126,6 +126,9 @@ ohne `qgis`-Modul.
   `run_pyqt_checker.bat` (Docker-Image `ghcr.io/qgis/pyqgis4-checker`) →
   schreibt nach `pyqt6_checker.log` (aktuell leer/nie ausgeführt).
 
+## Git-Workflow (Commits, Releases)
+Siehe @.claude/git.md
+
 ## TODOs aus der Analyse
 - [ ] `unload()` in `qtalsim.py` (Z.296-310): alle `.connect()`-Verbindungen
       trennen und `self.dlg`/`sqlConnectDock`/`subBasinWindow`/`soilWindow`/
