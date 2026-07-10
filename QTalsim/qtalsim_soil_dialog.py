@@ -63,7 +63,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.connectButtontoFunction(self.onDownloadData, self.downloadData)
         self.connectButtontoFunction(self.onCalculateSoilTypes, self.calculateSoilTypes)
         self.connectButtontoFunction(self.onSelectCRS, self.selectCrs)
-        self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
+        self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.StandardButton.Help), self.openDocumentation)
         self.checkboxResample.toggled.connect(self.on_resample_toggled)        
 
         self.fillLayerComboboxes()
@@ -336,10 +336,10 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     self,
                     "Data Found",
                     message,
-                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 )
                 
-                if reply == QMessageBox.Yes:
+                if reply == QMessageBox.StandardButton.Yes:
                     self.log_to_qtalsim_tab("Proceeding with the existing data for further processing. "
                                             "Please select a CRS and start the process by clicking 'Calculate Soil Types'.", Qgis.Info)
                     self.onDownloadData.setVisible(False)
@@ -378,7 +378,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         dialog = QgsProjectionSelectionDialog()
         
         #Display the dialog and check if the user pressed OK
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec_() == QDialog.DialogCode.Accepted:
             #Get the selected CRS
             self.destinationCRS = dialog.crs()
             self.dstSRS = self.destinationCRS.authid() 

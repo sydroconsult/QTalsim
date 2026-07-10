@@ -78,8 +78,8 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         self.connectButtontoFunction(self.onOutputFolder, self.selectOutputFile)
         #self.connectButtontoFunction(self.onSelectOutputESA, self.selectOutputFile)
         self.connectButtontoFunction(self.onCreateLanduseLayer, self.landuseMapping)
-        self.connectButtontoFunction(self.onHelp.button(QDialogButtonBox.Help), self.openDocumentation)
-        self.connectButtontoFunction(self.onHelp.button(QDialogButtonBox.Help), self.openDocumentation)
+        self.connectButtontoFunction(self.onHelp.button(QDialogButtonBox.StandardButton.Help), self.openDocumentation)
+        self.connectButtontoFunction(self.onHelp.button(QDialogButtonBox.StandardButton.Help), self.openDocumentation)
         self.checkboxResample.toggled.connect(self.on_resample_toggled)  
 
         self.comboboxESAChoice.currentTextChanged.connect(

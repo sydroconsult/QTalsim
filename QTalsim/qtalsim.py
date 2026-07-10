@@ -1169,10 +1169,10 @@ class QTalsim:
                     None,
                     "Invalid sub-basin identifiers",
                     message,
-                    QMessageBox.Yes | QMessageBox.No
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
 
-                if reply == QMessageBox.No:
+                if reply == QMessageBox.StandardButton.No:
                     return  #User chose not to continue
                 else:
                     self.start_operation()
@@ -1632,7 +1632,7 @@ class QTalsim:
                 self.dlg.tableSoilTypeDelete.setItem(row, 1, item2)
 
                 transparent_item = QTableWidgetItem()
-                transparent_item.setFlags(Qt.ItemIsEnabled)
+                transparent_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
                 self.dlg.tableSoilTypeDelete.setItem(row, 2, transparent_item)
 
                 #Add radio buttons to select features in the layer
@@ -2251,7 +2251,7 @@ class QTalsim:
 
                 #Styling
                 transparent_item = QTableWidgetItem()
-                transparent_item.setFlags(Qt.ItemIsEnabled)
+                transparent_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
                 self.dlg.tableLanduseDelete.setItem(row, 2, transparent_item)
 
                 #Add chechboxes to select features in the layer
@@ -3307,7 +3307,7 @@ class QTalsim:
             #self.dlg.progressbar.setValue(0)
             self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
 
-            self.dlg.finalButtonBox.button(QDialogButtonBox.Save).setEnabled(True)
+            self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Save).setEnabled(True)
             #Add checkmark when process is finished
             current_text = self.dlg.onPerformIntersect.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
@@ -3777,11 +3777,11 @@ class QTalsim:
                             "\n".join(tables_with_data) +
                             "\n\nYou can only continue if all entries are deleted.")
                 msg.setInformativeText("Would you like to delete all entries in these tables?")
-                msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-                msg.setDefaultButton(QMessageBox.No)
+                msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                msg.setDefaultButton(QMessageBox.StandardButton.No)
                 response = msg.exec_()
 
-                if response == QMessageBox.No:
+                if response == QMessageBox.StandardButton.No:
                     conn.close()
                     return False
 
@@ -4404,25 +4404,25 @@ class QTalsim:
             self.dlg.onCreateSoilLayer.setVisible(False)
             #self.dlg.onLanduseConfirm2.setVisible(False)
             self.dlg.onCreateLanduseLayer.setVisible(False)
-            self.dlg.finalButtonBox.button(QDialogButtonBox.Save).setEnabled(False)
+            self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Save).setEnabled(False)
         self.dlg.progressBar.setVisible(False)
 
         #Translating the buttons to English for consistency
         if self.dlg.finalButtonBox:
             #Set button texts in English
-            self.dlg.finalButtonBox.button(QDialogButtonBox.Save).setText('Save')
-            self.dlg.finalButtonBox.button(QDialogButtonBox.Cancel).setText('Cancel')
-            self.dlg.finalButtonBox.button(QDialogButtonBox.Reset).setText('Reset')
-            self.dlg.finalButtonBox.button(QDialogButtonBox.Help).setText('Help')
+            self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Save).setText('Save')
+            self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Cancel).setText('Cancel')
+            self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Reset).setText('Reset')
+            self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Help).setText('Help')
 
         #Reload Function
-        self.connectButtontoFunction(self.dlg.finalButtonBox.button(QDialogButtonBox.Save), self.saveFiles) #write function
+        self.connectButtontoFunction(self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Save), self.saveFiles) #write function
 
         #Reload Function
-        self.connectButtontoFunction(self.dlg.finalButtonBox.button(QDialogButtonBox.Reset), self.reloadPlugin)
+        self.connectButtontoFunction(self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Reset), self.reloadPlugin)
 
         #Open help - documentation
-        self.connectButtontoFunction(self.dlg.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
+        self.connectButtontoFunction(self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Help), self.openDocumentation)
     
         # Layer comboboxes
         # Sub-basin layer
@@ -4623,8 +4623,8 @@ class CustomDockWidget(QDockWidget):
         
         reply = QMessageBox.question(self, 'Confirm Close',
                                      "Warning: Closing this window will disconnect you from the Talsim DB and any unsaved changes will be lost. Are you sure you want to proceed?",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             QTalsim.log_to_qtalsim_tab(self, "Talsim DB was disconnected.", Qgis.Info)
             super(CustomDockWidget, self).closeEvent(event)
             '''

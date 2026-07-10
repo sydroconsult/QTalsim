@@ -29,7 +29,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.mainPlugin = mainPluginInstance
         self.initialize_parameters()
-        self.finalButtonBox.button(QDialogButtonBox.Help).setText('Help')
+        self.finalButtonBox.button(QDialogButtonBox.StandardButton.Help).setText('Help')
 
     def initialize_parameters(self):
         #Initialize variables
@@ -61,7 +61,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.connectButtontoFunction(self.onLongestFlowPath, self.performLFP) #Calculate LongestFlowPath
         self.connectButtontoFunction(self.onRun, self.runSubBasinPreprocessing) 
         self.connectButtontoFunction(self.onOutputFolder, self.selectOutputFolder) 
-        self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
+        self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.StandardButton.Help), self.openDocumentation)
         self.log_to_qtalsim_tab(
             "This feature processes a sub-basins layer. It calculates the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin, and the longest flow path for each sub-basin. "
             "Please ensure that WhiteboxTools is installed and properly configured. "
@@ -240,13 +240,13 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     "This will lead to errors when importing in Talsim."
                 )
                 msg.setInformativeText(f"Do you still want to continue?")
-                msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-                msg.setDefaultButton(QMessageBox.No)
+                msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                msg.setDefaultButton(QMessageBox.StandardButton.No)
                 response = msg.exec_()
-                if response == QMessageBox.No:
+                if response == QMessageBox.StandardButton.No:
                     self.log_to_qtalsim_tab("Process cancelled by user due to duplicate Sub-basin IDs.", Qgis.Warning)
                     return
-                if response == QMessageBox.Yes:
+                if response == QMessageBox.StandardButton.Yes:
                     self.log_to_qtalsim_tab("Continuing despite duplicate Sub-basin IDs.", Qgis.Warning)
             self.log_to_qtalsim_tab(f"Calculating the max- and min-height and area of each sub-basin...", Qgis.Info)
             self.calculateHeightandAreaSubBasins()

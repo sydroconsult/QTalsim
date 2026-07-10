@@ -28,7 +28,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.mainPlugin = mainPluginInstance
         self.initialize_parameters()
-        self.finalButtonBox.button(QDialogButtonBox.Help).setText('Help')
+        self.finalButtonBox.button(QDialogButtonBox.StandardButton.Help).setText('Help')
 
     def initialize_parameters(self):
         #Clear from previous runs
@@ -81,7 +81,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.maplayerComboboxSystemLogic.setLayer(None)
         #Functions
         self.connectButtontoFunction = self.mainPlugin.connectButtontoFunction
-        self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.Help), self.openDocumentation)
+        self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.StandardButton.Help), self.openDocumentation)
         self.log_to_qtalsim_tab = self.mainPlugin.log_to_qtalsim_tab
         self.connectButtontoFunction(self.onSelectDB, self.selectDB)
         self.comboxDBScenarios.currentIndexChanged.connect(self.on_scenario_change)
@@ -861,10 +861,10 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                             outflow_summary +
                             "\n\nYou can only continue if all outflows are deleted.")
                 msg.setInformativeText(f"Would you like to delete all outflows and reload the outflows from layer {self.externalSystemLogicLayer.name()}?")
-                msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-                msg.setDefaultButton(QMessageBox.No)
+                msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                msg.setDefaultButton(QMessageBox.StandardButton.No)
                 response = msg.exec_()
-                if response == QMessageBox.No:
+                if response == QMessageBox.StandardButton.No:
                     self.log_to_qtalsim_tab("Operation cancelled by user.", Qgis.Info)
                     return
                 else:

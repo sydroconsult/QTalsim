@@ -37,11 +37,11 @@ class QTalsimDialogTest(unittest.TestCase):
 
     def test_dialog_cancel(self):
         """Test that the Cancel button works."""
-        cancel_btn = self.dialog.finalButtonBox.button(QDialogButtonBox.Cancel)
+        cancel_btn = self.dialog.finalButtonBox.button(QDialogButtonBox.StandardButton.Cancel)
         if cancel_btn:
             cancel_btn.click()
             result = self.dialog.result()
-            self.assertEqual(result, QDialog.Rejected)
+            self.assertEqual(result, QDialog.DialogCode.Rejected)
 
     def tearDown(self):
         self.plugin = None
@@ -67,11 +67,11 @@ class SubBasinPreprocessingDialogTest(unittest.TestCase):
     def test_dialog_cancel(self):
         """Test that the Cancel button works in SubBasinPreprocessingDialog."""
         # Look for cancel button - adjust based on your dialog's actual button setup
-        cancel_btn = self.dialog.finalButtonBox.button(QDialogButtonBox.Cancel)
+        cancel_btn = self.dialog.finalButtonBox.button(QDialogButtonBox.StandardButton.Cancel)
         if cancel_btn:
             cancel_btn.click()
             result = self.dialog.result()
-            self.assertEqual(result, QDialog.Rejected)
+            self.assertEqual(result, QDialog.DialogCode.Rejected)
             print("SUCCESS: SubBasinPreprocessingDialog cancel button works")
 
     def tearDown(self):
