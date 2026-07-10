@@ -29,7 +29,7 @@ jobs:
       - name: Run Bandit scan
         run: |
           set +e
-          bandit -r QTalsim -ll -iii -f txt -o bandit-report.txt
+          bandit -r QTalsim -ll -f txt -o bandit-report.txt
           exit_code=$?
           set -e
           cat bandit-report.txt
