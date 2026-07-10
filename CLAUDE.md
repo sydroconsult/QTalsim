@@ -81,7 +81,7 @@ Kein bekannter Ordering-Zwang zwischen den beiden folgenden Exporten
 | `qtalsim_sqllite_dialog.py` | ~1500 | Direkter SQLite-CRUD gegen ein **bestehendes** Talsim-Szenario (System-Elemente/Teilgebiete/Transportstrecken bearbeiten) — kein Bezug zu `talsim_parameter/` |
 | `resources.py` | 7222 (autogeneriert) | `pyrcc5`-Output aus `resources.qrc` — nie von Hand editieren |
 | `talsim_parameter/` | — | CSV-Mappings + Talsim-4-ASCII-Template-Dateien (`template.EZG/.EFL/.TRS/.SYS/.BOD/.BOA/.LNZ`) |
-| `DB/QTalsim.db`, `DB/QTalsim_alt.db` | — | Leere Schema-Vorlage-Datenbanken, die bei jedem Talsim-5-Export (`qtalsim_subbasin_dialog.py::DBExport`) kopiert und befüllt werden |
+| `DB/QTalsim.db` | — | Leere Schema-Vorlage-Datenbank, die bei jedem Talsim-5-Export (`qtalsim_subbasin_dialog.py::DBExport`) kopiert und befüllt wird |
 
 ## ⚠️ Stub-Version ≠ Minimum-Version
 `metadata.txt` deklariert `qgisMinimumVersion=3.34`, `qgisMaximumVersion`

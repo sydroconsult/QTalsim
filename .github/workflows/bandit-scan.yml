@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      security-events: write
       contents: read
       actions: read
 
@@ -29,12 +28,16 @@ jobs:
 
       - name: Run Bandit scan
         run: |
-          bandit -r . -ll -iii -f json -o bandit-report.json
-        continue-on-error: true
+          set +e
+          bandit -r QTalsim -ll -iii -f txt -o bandit-report.txt
+          exit_code=$?
+          set -e
+          cat bandit-report.txt
+          exit $exit_code
 
       - name: Upload Bandit results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bandit-report
-          path: bandit-report.json
+          path: bandit-report.txt

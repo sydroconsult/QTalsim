@@ -31,6 +31,16 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :param iface: A QGIS interface instance.
     :type iface: QgsInterface
     """
-    #
-    from .qtalsim import QTalsim
+    try:
+        from .qtalsim import QTalsim
+    except ImportError as e:
+        from qgis.PyQt.QtWidgets import QMessageBox
+        QMessageBox.critical(
+            None,
+            "QTalsim",
+            "QTalsim could not be loaded because a required Python package is "
+            f"missing ({e}). Install it in the QGIS Python environment, e.g. "
+            "via the OSGeo4W Shell: python -m pip install pandas numpy requests",
+        )
+        raise
     return QTalsim(iface)
