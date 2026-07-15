@@ -466,7 +466,7 @@ class QTalsim:
             if progress - last_logged_progress >= 10:
                 self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
                 last_logged_progress = progress
-                #self.dlg.progressbar.setValue(int(last_logged_progress))
+                self.dlg.progressBar.setValue(int(last_logged_progress))
 
             for cid in candidate_ids:
                 if cid == fid or (fid, cid) in checked_ids or (cid, fid) in checked_ids:
@@ -484,7 +484,7 @@ class QTalsim:
                 checked_ids.add((fid, cid))
                 checked_ids.add((cid, fid))
 
-        #self.dlg.progressbar.setValue(100)
+        self.dlg.progressBar.setValue(100)
         if len(overlapping_features) >= 1:
             self.log_to_qtalsim_tab(f"{len(overlapping_features)} overlaps were detected. The following features overlap: {overlapping_features}", level=Qgis.Info)
             
@@ -567,7 +567,7 @@ class QTalsim:
             if progress - last_logged_progress >= 10:
                 self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
                 last_logged_progress = progress
-                #self.dlg.progressbar.setValue(int(last_logged_progress))
+                self.dlg.progressBar.setValue(int(last_logged_progress))
 
             for fid in candidate_ids:
                 if fid == feature_id or fid not in feature_dict:
@@ -661,7 +661,7 @@ class QTalsim:
                 self.log_to_qtalsim_tab(f"The following features were deleted due to invalid geometries: {deleted_features}", Qgis.Warning)
         if last_logged_progress <= 99:
             self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
-            #self.dlg.progressbar.setValue(0)
+            self.dlg.progressBar.setValue(100)
         return layer, changes_made
 
     def clipLayer(self, layer, clipping_layer):
@@ -1126,8 +1126,10 @@ class QTalsim:
         '''
         try:
             self.start_operation()
+            self.dlg.progressBar.setRange(0, 100)
+            self.dlg.progressBar.setValue(0)
+            self.dlg.progressBar.setVisible(True)
             self.log_to_qtalsim_tab(f"Selecting sub-basin layer...", Qgis.Info)
-            #self.dlg.progressbar.setValue(0)
             self.ezgLayer = self.ezgLayerCombobox
 
             self.ezgUniqueIdentifier = self.dlg.comboboxUICatchment.currentText()
@@ -1176,7 +1178,7 @@ class QTalsim:
                     return  #User chose not to continue
                 else:
                     self.start_operation()
-            #self.dlg.progressbar.setValue(10)
+            self.dlg.progressBar.setValue(10)
             self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
 
             #Delete overlapping features in the catchment area layer
@@ -1189,15 +1191,15 @@ class QTalsim:
             result = processing.run("native:dissolve", {'INPUT': self.ezgLayer, 'FIELD':[],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             outputLayer = result['OUTPUT']
             self.log_to_qtalsim_tab(f"Progress: 60.00% done", Qgis.Info)
-            #self.dlg.progressbar.setValue(60)
+            self.dlg.progressBar.setValue(60)
             result_deleteholes = processing.run("native:deleteholes", {'INPUT':outputLayer,'MIN_AREA':0,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.feedback)
             self.clippingEZG = result_deleteholes['OUTPUT'] #delete holes within the dissolved catchment area layer for clipping
             #QgsProject.instance().addMapLayer(self.clippingEZG)
-            #self.dlg.progressbar.setValue(70)
+            self.dlg.progressBar.setValue(70)
             self.log_to_qtalsim_tab(f"Progress: 70.00% done", Qgis.Info)
             result = processing.run("native:dissolve", {'INPUT': self.ezgLayer, 'FIELD':[self.ezgUniqueIdentifier],'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
             self.ezgLayer = result['OUTPUT']
-            #self.dlg.progressbar.setValue(90)
+            self.dlg.progressBar.setValue(90)
             self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             current_text = self.dlg.onEZG.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
@@ -1223,12 +1225,12 @@ class QTalsim:
             self.ezgLayer.setName("Sub-basins")
             QgsProject.instance().addMapLayer(self.ezgLayer)
 
-            #self.dlg.progressbar.setValue(0)
-            self.log_to_qtalsim_tab(f"Successfully selected and clipped sub-basin layer: {self.ezgLayer.name()}.", Qgis.Info) 
+            self.dlg.progressBar.setValue(100)
+            self.log_to_qtalsim_tab(f"Successfully selected and clipped sub-basin layer: {self.ezgLayer.name()}.", Qgis.Info)
 
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
         finally:
             self.end_operation()
 
@@ -1245,8 +1247,10 @@ class QTalsim:
         '''
         try:
             self.start_operation()
-            #self.dlg.progressbar.setValue(0)
-            self.log_to_qtalsim_tab(f"Starting the clipping process of the Soil Layer.", Qgis.Info) 
+            self.dlg.progressBar.setRange(0, 100)
+            self.dlg.progressBar.setValue(0)
+            self.dlg.progressBar.setVisible(True)
+            self.log_to_qtalsim_tab(f"Starting the clipping process of the Soil Layer.", Qgis.Info)
             if self.clippingEZG is None:
                 self.soilLayerInput = None
                 raise Exception("User has not selected a sub-basins layer.")
@@ -1261,7 +1265,7 @@ class QTalsim:
             if self.soilFieldInputID in existing_field_names:
                 self.log_to_qtalsim_tab(f"Please rename field {self.soilFieldInputID} of layer {self.soilLayer.name()} or delete the field.", Qgis.Critical)
                 return
-            #self.dlg.progressbar.setValue(10)
+            self.dlg.progressBar.setValue(10)
             self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
 
             self.soilLayerInput.startEditing()
@@ -1273,7 +1277,7 @@ class QTalsim:
             #Assign ID values to each feature
             for i, feature in enumerate(self.soilLayerInput.getFeatures()):
                 self.soilLayerInput.changeAttributeValue(feature.id(), self.soilLayerInput.fields().indexFromName(self.soilFieldInputID), i + 1)
-            #self.dlg.progressbar.setValue(25)
+            self.dlg.progressBar.setValue(25)
             self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)
             self.soilLayerInput.commitChanges()
 
@@ -1283,8 +1287,8 @@ class QTalsim:
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': outputLayer ,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
             self.soilLayer = outputLayer
 
-            self.fillSoilTable()            
-            #self.dlg.progressbar.setValue(90)
+            self.fillSoilTable()
+            self.dlg.progressBar.setValue(90)
             self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             #Add checkmark when process is finished
             current_text = self.dlg.onSoil.text()
@@ -1292,13 +1296,13 @@ class QTalsim:
                 self.dlg.onSoil.setText(f"{current_text} ✓")
             self.soilLayer.setName("SoilLayer")
             QgsProject.instance().addMapLayer(self.soilLayer)
-            #self.dlg.progressbar.setValue(0)
+            self.dlg.progressBar.setValue(100)
             self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
-            self.log_to_qtalsim_tab(f"Successfully selected and clipped Soil Layer: {self.soilLayer.name()}.", Qgis.Info) 
+            self.log_to_qtalsim_tab(f"Successfully selected and clipped Soil Layer: {self.soilLayer.name()}.", Qgis.Info)
 
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
 
         finally:
             if self.soilLayerInput:
@@ -1338,7 +1342,7 @@ class QTalsim:
             self.dlg.tableSoilMapping.setColumnWidth(4, 200)
             self.dlg.tableSoilMapping.setColumnWidth(5, 200)
             self.dlg.tableSoilMapping.setColumnWidth(6, 200)
-            #self.dlg.progressbar.setValue(30)
+            self.dlg.progressBar.setValue(30)
 
             #Get Data from csv-file
             soilTextures = self.dfsoilParametersTalsim.loc[:,'SoilTexture']
@@ -1384,12 +1388,12 @@ class QTalsim:
                         if f"{layer_isric_mapping[i-1]}_{soilTexturesIsricNames[row]}" in fieldsSoil:
                             combo_box.setCurrentText(f"{layer_isric_mapping[i-1]}_{soilTexturesIsricNames[row]}") #Set the corresponding field name as current text of the combo box
 
-            #self.dlg.progressbar.setValue(40)
+            self.dlg.progressBar.setValue(40)
             self.dlg.onCreateSoilLayer.setVisible(True)
-        
+
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
 
         finally:
             self.end_operation()
@@ -1402,8 +1406,10 @@ class QTalsim:
         '''
         try:
             self.start_operation()
-            self.log_to_qtalsim_tab(f"Starting Soil Mapping.", Qgis.Info) 
-            #self.dlg.progressbar.setValue(0)
+            self.dlg.progressBar.setRange(0, 100)
+            self.dlg.progressBar.setValue(0)
+            self.dlg.progressBar.setVisible(True)
+            self.log_to_qtalsim_tab(f"Starting Soil Mapping.", Qgis.Info)
             self.soilLayerIntermediate = None
 
             #Create Layer
@@ -1424,8 +1430,8 @@ class QTalsim:
             value_mapping = {}
             new_fields = []
             self.soilIDNames = []
-            fields_wrong_datatype = [] #Store those fields that have a wrong datatype 
-            #self.dlg.progressbar.setValue(10)
+            fields_wrong_datatype = [] #Store those fields that have a wrong datatype
+            self.dlg.progressBar.setValue(10)
             self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
 
             for row in range(self.dlg.tableSoilMapping.rowCount()): #Loop over all entries of the Soil Mapping Table
@@ -1453,8 +1459,8 @@ class QTalsim:
                             self.log_to_qtalsim_tab(f'You entered {old_field} for Talsim parameter {new_field}. Your field has type {QVariant.typeToName(type_old)}, when it should have type {QVariant.typeToName(type)}.', Qgis.Warning)
                             fields_wrong_datatype.append(old_field)
                         #if new_field == 'Name' and old_field is 'Parameter not available':
-            #self.dlg.progressbar.setValue(20)
-            
+            self.dlg.progressBar.setValue(20)
+
             #Get the number of soilLayers added by the user
             self.number_soilLayers = 0 
             #Iterate over the columns of the names
@@ -1495,8 +1501,8 @@ class QTalsim:
                     progress = start_progress + relative_progress
                     if relative_progress - last_logged_progress >= 5:
                         last_logged_progress = progress
-                        #self.dlg.progressbar.setValue(int(progress))
-                        self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info) 
+                        self.dlg.progressBar.setValue(int(progress))
+                        self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
                     for field_name in self.soilIDNames: #Set an ID for each soil layer
                         feature.setAttribute(field_name, i) 
                     i += 1 #increment ID
@@ -1531,7 +1537,7 @@ class QTalsim:
             
             if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
                 self.soilLayerIntermediate = self.deletePolygonsBelowThreshold(self.soilLayerIntermediate, self.soilFieldNames, self.soilIDNames)
-            #self.dlg.progressbar.setValue(90)
+            self.dlg.progressBar.setValue(90)
             self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             try:   
                 #Only keep relevant fields
@@ -1557,23 +1563,26 @@ class QTalsim:
             QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
             
             self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
-            #self.dlg.progressbar.setValue(0)
-            self.log_to_qtalsim_tab(f"Finished soil parameter mapping. Inspect results in this temporary layer: {self.soilLayerIntermediate.name()}.", Qgis.Info) 
-        
+            self.dlg.progressBar.setValue(100)
+            self.log_to_qtalsim_tab(f"Finished soil parameter mapping. Inspect results in this temporary layer: {self.soilLayerIntermediate.name()}.", Qgis.Info)
+
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
 
         finally:
             self.end_operation()
-        
+
     def checkOverlappingSoil(self):
         '''
             Checks for overlapping soilFeatures and fills the table to delete overlapping parts of features.
         '''
         try:
-            
+
             self.start_operation()
+            self.dlg.progressBar.setRange(0, 100)
+            self.dlg.progressBar.setValue(0)
+            self.dlg.progressBar.setVisible(True)
             layer_input_name = self.soilLayerIntermediate.name()
             self.log_to_qtalsim_tab(f"QTalsim is currently loading, checking for overlapping features.", Qgis.Info)
             self.soilLayerIntermediate, self.overlapping_soil_features = self.checkOverlappingFeatures(self.soilLayerIntermediate)
@@ -1657,8 +1666,8 @@ class QTalsim:
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onOverlappingSoils.setText(f"{current_text} ✓")
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
 
         finally:
             self.end_operation()
@@ -1669,16 +1678,19 @@ class QTalsim:
         ''' 
         try:
             self.start_operation()
+            self.dlg.progressBar.setRange(0, 100)
+            self.dlg.progressBar.setValue(0)
+            self.dlg.progressBar.setVisible(True)
             self.log_to_qtalsim_tab("QTalsim is currently loading, editing overlapping soil features.", Qgis.Info)
             layer_input_name = self.soilLayerIntermediate.name()
 
             for radio_button in self.radio_buttons_soil:
                 radio_button.setChecked(False)
             self.soilLayerIntermediate = self.deleteOverlappingFeatures(self.soilLayerIntermediate, self.dlg.tableSoilTypeDelete, self.overlapping_soil_features)
-            #self.dlg.progressbar.setValue(50)
+            self.dlg.progressBar.setValue(50)
             self.log_to_qtalsim_tab(f"Progress: 50.00% done", Qgis.Info)
             self.checkOverlappingSoil()
-            #self.dlg.progressbar.setValue(90)
+            self.dlg.progressBar.setValue(90)
             self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             if not layer_input_name.startswith("SoilLayerEdited"):
                 layer_input_name = "SoilLayerEdited"
@@ -1691,14 +1703,14 @@ class QTalsim:
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onSoilTypeDelete.setText(f"{current_text} ✓")
             QgsProject.instance().addMapLayer(self.soilLayerIntermediate)
-            #self.dlg.progressbar.setValue(0)
+            self.dlg.progressBar.setValue(100)
             self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
 
             self.log_to_qtalsim_tab(f"Deleting overlapping soil features finished.", Qgis.Info)
 
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
 
         finally:
             self.end_operation()
@@ -1814,7 +1826,9 @@ class QTalsim:
         '''
         try:
             self.start_operation()
-            #self.dlg.progressbar.setValue(0)
+            self.dlg.progressBar.setRange(0, 100)
+            self.dlg.progressBar.setValue(0)
+            self.dlg.progressBar.setVisible(True)
             #Dissolve the layer using the talsim soil parameters
             if not self.soilLayerIntermediate:
                 self.log_to_qtalsim_tab("Soil layer was deleted or not yet created. Please create the soil layer.", Qgis.Critical)
@@ -1827,8 +1841,8 @@ class QTalsim:
                 self.soilLayerIntermediate,_ = self.make_geometries_valid(self.soilLayerIntermediate)
                 resultDissolve = processing.run("native:dissolve", {'INPUT':self.soilLayerIntermediate,'FIELD': self.soilFieldNames,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
                 self.soilTalsim = resultDissolve['OUTPUT']
-            
-            #self.dlg.progressbar.setValue(50)
+
+            self.dlg.progressBar.setValue(50)
             self.log_to_qtalsim_tab(f"Progress: 50.00% done", Qgis.Info)
 
             all_fields = [field.name() for field in self.soilTalsim.fields()]
@@ -1837,7 +1851,7 @@ class QTalsim:
             self.soilTalsim.dataProvider().deleteAttributes(fields_to_delete_indices)
             self.soilTalsim.commitChanges()
             self.soilTalsim.updateFields()
-            #self.dlg.progressbar.setValue(90)
+            self.dlg.progressBar.setValue(90)
             self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
 
             layer_tree = QgsProject.instance().layerTreeRoot()
@@ -1864,12 +1878,12 @@ class QTalsim:
             if self.landuseTalsim:
                 self.dlg.groupboxIntersect.setEnabled(True)
                 self.dlg.groupboxIntersect.setChecked(True)
-            #self.dlg.progressbar.setValue(0)
-            self.log_to_qtalsim_tab(f"Created Soil Layer with Talsim Parameters: {self.soilTalsim.name()}.", Qgis.Info) 
-        
+            self.dlg.progressBar.setValue(100)
+            self.log_to_qtalsim_tab(f"Created Soil Layer with Talsim Parameters: {self.soilTalsim.name()}.", Qgis.Info)
+
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
 
         finally:
             self.end_operation()
@@ -1883,8 +1897,11 @@ class QTalsim:
         '''
         try:
             self.start_operation()
+            self.dlg.progressBar.setRange(0, 100)
+            self.dlg.progressBar.setValue(0)
+            self.dlg.progressBar.setVisible(True)
             self.log_to_qtalsim_tab(f"QTalsim is currently loading, starting the clipping process of the land use layer.", Qgis.Info)
-            
+
             if self.landuseLayer:
                 QgsProject.instance().removeMapLayer(self.landuseLayer)
             if self.clippingEZG is None:
@@ -1917,20 +1934,20 @@ class QTalsim:
 
             #Commit changes
             self.landuseLayerInput.commitChanges()
-            #self.dlg.progressbar.setValue(10)
+            self.dlg.progressBar.setValue(10)
             self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
             number_of_features = self.landuseLayerInput.featureCount()
             #Clip Layer
             outputLayer = self.clipLayer(self.landuseLayerInput, self.clippingEZG)
             outputLayer = processing.run("native:deleteduplicategeometries", {'INPUT': outputLayer ,'OUTPUT':'TEMPORARY_OUTPUT'},feedback=self.feedback)['OUTPUT']
             self.landuseLayer = outputLayer
-            #self.dlg.progressbar.setValue(50)
+            self.dlg.progressBar.setValue(50)
             self.log_to_qtalsim_tab(f"Progress: 50.00% done", Qgis.Info)
             #Get the fields of the selected layer
             self.landuseFields = self.landuseLayer.fields()
             
             self.fillLanduseTable()
-            #self.dlg.progressbar.setValue(90)
+            self.dlg.progressBar.setValue(90)
             self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             self.landuseLayer.setName("LanduseLayer")
             QgsProject.instance().addMapLayer(self.landuseLayer)
@@ -1940,12 +1957,12 @@ class QTalsim:
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onLanduseLayer.setText(f"{current_text} ✓")
 
-            self.log_to_qtalsim_tab(f"Successfully selected and clipped land use layer: {self.landuseLayer.name()}.", Qgis.Info) 
-            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"Successfully selected and clipped land use layer: {self.landuseLayer.name()}.", Qgis.Info)
+            self.dlg.progressBar.setValue(100)
             self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
 
         finally:
             if self.landuseLayerInput:
@@ -2031,7 +2048,10 @@ class QTalsim:
         '''
         try:
             self.start_operation()
-            self.log_to_qtalsim_tab(f"Starting Land use Mapping.", Qgis.Info) 
+            self.dlg.progressBar.setRange(0, 100)
+            self.dlg.progressBar.setValue(0)
+            self.dlg.progressBar.setVisible(True)
+            self.log_to_qtalsim_tab(f"Starting Land use Mapping.", Qgis.Info)
             self.landuseTalsim = None
 
             #Get Talsim land use parameter values
@@ -2089,7 +2109,7 @@ class QTalsim:
                     if type_old != type:
                         self.log_to_qtalsim_tab(f'You entered {old_field} for Talsim parameter {new_field}. Your field has type {QVariant.typeToName(type_old)}, when it should have type {QVariant.typeToName(type)}.', Qgis.Warning)
                         fields_wrong_datatype.append(old_field)
-            #self.dlg.progressbar.setValue(20)      
+            self.dlg.progressBar.setValue(20)
             self.landuseTalsim.dataProvider().addAttributes(new_fields) #Create new fields with the talsim parameters
             self.landuseTalsim.updateFields()
             #Populate landuse parameter fields in land use layer
@@ -2112,7 +2132,7 @@ class QTalsim:
                     progress = start_progress + relative_progress
                     if relative_progress - last_logged_progress >= 5:
                         last_logged_progress = progress
-                        #self.dlg.progressbar.setValue(int(progress))
+                        self.dlg.progressBar.setValue(int(progress))
                         self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
                     old_field = value_mapping['Name']
                     input_landuse = str(feature[old_field]).strip().lower()
@@ -2157,7 +2177,7 @@ class QTalsim:
 
             if self.dlg.checkboxIntersectShareofArea.isChecked() or self.dlg.checkboxIntersectMinSizeArea.isChecked(): 
                 self.landuseTalsim = self.deletePolygonsBelowThreshold(self.landuseTalsim, self.selected_landuse_parameters, self.fieldLanduseID)
-            #self.dlg.progressbar.setValue(90)   
+            self.dlg.progressBar.setValue(90)
             self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             try:   
                 #Only keep relevant fields
@@ -2177,15 +2197,15 @@ class QTalsim:
                 self.dlg.onConfirmLanduseMapping.setText(f"{current_text} ✓")
                 self.dlg.groupboxLanduseOptional.setEnabled(True)
 
-            self.log_to_qtalsim_tab(f"Finished land use parameter mapping. Inspect results in this temporary layer: {self.landuseTalsim.name()}.", Qgis.Info) 
-            #self.dlg.progressbar.setValue(0) 
+            self.log_to_qtalsim_tab(f"Finished land use parameter mapping. Inspect results in this temporary layer: {self.landuseTalsim.name()}.", Qgis.Info)
+            self.dlg.progressBar.setValue(100)
             QTimer.singleShot(0, lambda: self.log_to_qtalsim_tab("Progress: 100.00% done", Qgis.Info))
 
             self.landuseTalsim.setName("LanduseLayerEdited")
             QgsProject.instance().addMapLayer(self.landuseTalsim)
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-            #self.dlg.progressbar.setValue(0) 
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
         finally:
             self.end_operation()
 
@@ -2195,10 +2215,13 @@ class QTalsim:
         '''
         try:
             self.start_operation()
+            self.dlg.progressBar.setRange(0, 100)
+            self.dlg.progressBar.setValue(0)
+            self.dlg.progressBar.setVisible(True)
             layer_input_name = self.landuseTalsim.name()
             self.log_to_qtalsim_tab(f"QTalsim is currently loading, checking for overlapping features.", Qgis.Info)
             self.landuseTalsim, self.overlapping_landuse_features = self.checkOverlappingFeatures(self.landuseTalsim)
-            #self.dlg.progressbar.setValue(30)
+            self.dlg.progressBar.setValue(30)
             self.log_to_qtalsim_tab(f"Progress: 30% done", Qgis.Info)
             #Create unique combinations of the overlapping features
             unique_combinations_set = set()
@@ -2207,7 +2230,7 @@ class QTalsim:
                 feature_pair_tuple = tuple(sorted(feature_pair))
                 unique_combinations_set.add(feature_pair_tuple)
             self.overlapping_landuse_features = [list(pair) for pair in unique_combinations_set]
-            #self.dlg.progressbar.setValue(40)
+            self.dlg.progressBar.setValue(40)
             self.log_to_qtalsim_tab(f"Progress: 40% done", Qgis.Info)
             self.dlg.tableLanduseDelete.clear()
 
@@ -2236,7 +2259,7 @@ class QTalsim:
                 if progress - last_logged_progress >= 10:
                     self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
                     last_logged_progress = progress
-                    #self.dlg.progressbar.setValue(progress)
+                    self.dlg.progressBar.setValue(int(progress))
 
                 feature_id1, feature_id2 = feature_pair
                 feature1 = self.landuseTalsim.getFeature(feature_id1)
@@ -2273,9 +2296,11 @@ class QTalsim:
             current_text = self.dlg.onCheckOverlappingLanduse.text()
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onCheckOverlappingLanduse.setText(f"{current_text} ✓")
+            self.dlg.progressBar.setValue(100)
 
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
 
         finally:
             self.end_operation()
@@ -2697,6 +2722,9 @@ class QTalsim:
         '''
         try:
             self.start_operation()
+            self.dlg.progressBar.setRange(0, 100)
+            self.dlg.progressBar.setValue(0)
+            self.dlg.progressBar.setVisible(True)
             if self.ezgLayer is None:
                 self.log_to_qtalsim_tab("Sub-basins Layer does not exist.", Qgis.Critical)
                 raise Exception("Sub-basins Layer does not exist.")
@@ -2726,7 +2754,8 @@ class QTalsim:
                 ezgLayer1.updateFields()
                 mem_layer_data.addFeatures(feats)
             except Exception as e:
-                self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+                self.log_to_qtalsim_tab(f"Failed to create a working copy of the sub-basins layer: {e}", Qgis.Critical)
+                raise
 
             '''
                 Intersection
@@ -2750,7 +2779,7 @@ class QTalsim:
 
             #Calculate and store area of every catchment area
             intersectedLayer, _ = self.make_geometries_valid(intersectedLayer)
-            #self.dlg.progressbar.setValue(10)
+            self.dlg.progressBar.setValue(10)
             self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
             #Get the area of each sub-basin
             ezgAreas = {}
@@ -2773,8 +2802,9 @@ class QTalsim:
             self.log_to_qtalsim_tab("Deleting overlapping features...", Qgis.Info)
             try:
                 intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayerFilledGaps, ezgDissolved) #necessary because also wanted gaps (of sub-basins-layer) are filled when performing 'Fill Gaps'
-            except:
-                pass
+            except Exception as e:
+                self.log_to_qtalsim_tab(f"Clipping the filled-gap layer to the sub-basins failed, continuing with un-clipped data: {e}", Qgis.Warning)
+                self.iface.messageBar().pushWarning("Intersection warning", "Clipping step failed and was skipped — results may include un-clipped areas. See log for details.")
                 
             intersectedDissolvedLayer, _ = self.editOverlappingFeatures(intersectedDissolvedLayer)
         
@@ -2805,7 +2835,7 @@ class QTalsim:
                     'OUTPUT': 'TEMPORARY_OUTPUT'
                 }, feedback=None)
             outputDirSplit = resultSplit['OUTPUT']
-            #self.dlg.progressbar.setValue(20)
+            self.dlg.progressBar.setValue(20)
             self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)
             #Logging variables:
             if 'memory:' in outputDirSplit:  # If using in-memory output
@@ -2904,7 +2934,7 @@ class QTalsim:
                 #tempLayerSplitEliminated = processing.run("native:fixgeometries", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
                 tempLayerSplitEliminated, _ = self.make_geometries_valid(tempLayerSplitEliminated)
                 splitLayers.append(tempLayerSplitEliminated)
-            #self.dlg.progressbar.setValue(30)
+            self.dlg.progressBar.setValue(30)
             self.log_to_qtalsim_tab(f"Progress: 30.00% done", Qgis.Info)
             #Merge all of the split layers
             resultMerge = processing.run("native:mergevectorlayers", {'LAYERS':splitLayers,'CRS':intersectedDissolvedLayer.crs(),'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
@@ -2959,7 +2989,7 @@ class QTalsim:
                 if i not in dissolve_fields_indices:
                     self.finalLayer.deleteAttribute(i)
             self.finalLayer.commitChanges()
-            #self.dlg.progressbar.setValue(40)
+            self.dlg.progressBar.setValue(40)
             self.log_to_qtalsim_tab(f"Progress: 40.00% done", Qgis.Info)
 
             '''
@@ -2991,8 +3021,8 @@ class QTalsim:
             self.landuseFinal.renameAttribute(field_index, 'Id')
             self.landuseFinal.commitChanges()
 
-            QgsProject.instance().addMapLayer(self.landuseFinal) 
-            #self.dlg.progressbar.setValue(50)
+            QgsProject.instance().addMapLayer(self.landuseFinal)
+            self.dlg.progressBar.setValue(50)
             self.log_to_qtalsim_tab(f"Progress: 50.00% done", Qgis.Info)
 
             '''
@@ -3064,7 +3094,7 @@ class QTalsim:
 
             self.soilTextureFinal.commitChanges()  
             QgsProject.instance().addMapLayer(self.soilTextureFinal)
-            #self.dlg.progressbar.setValue(65)
+            self.dlg.progressBar.setValue(65)
             self.log_to_qtalsim_tab(f"Progress: 65.00% done", Qgis.Info)
 
             '''
@@ -3148,7 +3178,7 @@ class QTalsim:
 
             self.soilTypeFinal.setName("BOD")
             QgsProject.instance().addMapLayer(self.soilTypeFinal)
-            #self.dlg.progressbar.setValue(75)
+            self.dlg.progressBar.setValue(75)
             self.log_to_qtalsim_tab(f"Progress: 75.00% done", Qgis.Info)
 
             '''
@@ -3227,7 +3257,7 @@ class QTalsim:
                 if key in sum_areas:
                     if round(ezgAreas[key], -2) != round(sum_areas[key], -2):
                         self.log_to_qtalsim_tab(f'Sub-basin with Unique-Identifier {key} has a different area {ezgAreas[key]} than the sum of all features in this sub-basin {sum_areas[key]}.', Qgis.Warning)
-            #self.dlg.progressbar.setValue(85)
+            self.dlg.progressBar.setValue(85)
             self.log_to_qtalsim_tab(f"Progress: 85.00% done", Qgis.Info)
             eflFieldList.append(self.hruSoilTypeId)
 
@@ -3259,7 +3289,7 @@ class QTalsim:
             eflLayerDP.addAttributes([QgsField(self.fieldNameAreaEFL, QVariant.Double)])
             self.eflLayer.commitChanges()
             self.eflLayer.updateFields()
-            #self.dlg.progressbar.setValue(90)
+            self.dlg.progressBar.setValue(90)
             self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
             #Add data
             self.eflLayer.startEditing()
@@ -3283,7 +3313,7 @@ class QTalsim:
                 self.eflLayer.deleteFeature(fid)
 
             self.eflLayer.commitChanges()
-            #self.dlg.progressbar.setValue(95)
+            self.dlg.progressBar.setValue(95)
             self.log_to_qtalsim_tab(f"Progress: 95.00% done", Qgis.Info)
             eflFieldList.append(self.fieldNameAreaEFL) #Area of Elementarfläche
             self.eflLayer.startEditing()
@@ -3304,7 +3334,7 @@ class QTalsim:
             #Add the updated eflLayer to the map
             self.eflLayer.setName("EFL")
             QgsProject.instance().addMapLayer(self.eflLayer)
-            #self.dlg.progressbar.setValue(0)
+            self.dlg.progressBar.setValue(100)
             self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
 
             self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Save).setEnabled(True)
@@ -3321,8 +3351,9 @@ class QTalsim:
             )
 
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
-            #self.dlg.progressbar.setValue(0)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
+            self.iface.messageBar().pushCritical("Intersection failed", str(e))
         finally:
             self.end_operation()
 
@@ -3339,11 +3370,14 @@ class QTalsim:
         '''
             Saves the final layers to ASCII-files
         '''
-
+        success = False
         try:
             #filename, _ = QInputDialog.getText(None, 'Input Dialog', 'Enter filename for ASCII-Files:')
             filename = self.dlg.textAsciiFileName.text()
             self.start_operation()
+            self.dlg.progressBar.setRange(0, 100)
+            self.dlg.progressBar.setValue(0)
+            self.dlg.progressBar.setVisible(True)
             #The template file of every output file holds a line that defines the field lengths and spaces between lengths
             def parse_definition_linev1(line):
                 field_lengths = []
@@ -3481,6 +3515,9 @@ class QTalsim:
                 with open(outputPathEfl, 'w', encoding='iso-8859-1', errors='replace') as outputEfl:
                     outputEfl.writelines(completeContentEfl)
 
+                self.dlg.progressBar.setValue(20)
+                self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)
+
                 '''
                     BOD
                 '''
@@ -3543,6 +3580,9 @@ class QTalsim:
                 with open(outputPathBod, 'w', encoding='iso-8859-1', errors='replace') as outputBod:
                     outputBod.writelines(completeContentBod)
 
+                self.dlg.progressBar.setValue(40)
+                self.log_to_qtalsim_tab(f"Progress: 40.00% done", Qgis.Info)
+
                 '''
                     BOA
                 '''
@@ -3589,7 +3629,10 @@ class QTalsim:
                 
                 with open(outputPathBoa, 'w', encoding='iso-8859-1', errors='replace') as outputBoa:
                     outputBoa.writelines(completeContentBoa)
-            
+
+                self.dlg.progressBar.setValue(60)
+                self.log_to_qtalsim_tab(f"Progress: 60.00% done", Qgis.Info)
+
                 '''
                     LNZ (template file v2)
                 '''
@@ -3648,6 +3691,9 @@ class QTalsim:
                 with open(outputPathLnz, 'w', encoding='iso-8859-1', errors='replace') as outputLnz:
                     outputLnz.writelines(completeContentLnz)
 
+                self.dlg.progressBar.setValue(80)
+                self.log_to_qtalsim_tab(f"Progress: 80.00% done", Qgis.Info)
+
                 '''
                     JGG
                 '''
@@ -3694,18 +3740,32 @@ class QTalsim:
                 with open(outputPathLnz, "w", encoding="utf-8") as f:
                     f.writelines(keep_lines)
 
+                self.dlg.progressBar.setValue(100)
+                self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
                 self.log_to_qtalsim_tab(f"ASCII-files were saved to this folder: {self.outputFolder}",Qgis.Info)
-                
+
                 #Add checkmark when process is finished
                 current_text_groupbox = self.dlg.groupboxASCIIExport.title()
                 if "✓" not in current_text_groupbox:  #Avoid duplicate checkmarks
                     self.dlg.groupboxASCIIExport.setTitle(f"{current_text_groupbox} ✓")
 
+                self.iface.messageBar().pushSuccess(
+                    "ASCII export was successful", f"ASCII files were saved to this folder: {self.outputFolder}"
+                )
+                success = True
+            else:
+                self.log_to_qtalsim_tab("Please enter a filename for the ASCII export before saving.", Qgis.Warning)
+                success = False
+
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
+            self.iface.messageBar().pushCritical("ASCII export failed", str(e))
+            success = False
 
         finally:
             self.end_operation()
+        return success
     
     def selectInputDB(self):
         '''
@@ -3724,10 +3784,13 @@ class QTalsim:
         '''
             Function that inserts landuse, soiltexture, soiltype and hydrological response units to existing database.
         '''
+        success = False
         try:
+            self.start_operation()
             if not self.file_path_db:
                 self.log_to_qtalsim_tab("Please select a Talsim Database first.", Qgis.Warning)
-                return
+                QMessageBox.warning(None, "No Database Selected", "Please select a Talsim Database before continuing.")
+                return False
 
             def check_and_delete_existing_data(scenario_id):
                 if scenario_id is None:
@@ -3735,109 +3798,109 @@ class QTalsim:
                     return False
 
                 conn = sqlite3.connect(self.file_path_db)
-                cur = conn.cursor()
+                try:
+                    cur = conn.cursor()
 
-                #Tables and queries with Scenario filtering
-                table_queries = {
-                    "SoilType": "SELECT COUNT(*) FROM SoilType WHERE ScenarioId = ?",
-                    "SoilTexture": "SELECT COUNT(*) FROM SoilTexture WHERE ScenarioId = ?",
-                    "Landuse": "SELECT COUNT(*) FROM Landuse WHERE ScenarioId = ?",
-                    "HydrologicalResponseUnit": """
-                        SELECT COUNT(*)
-                        FROM HydrologicalResponseUnit hru
-                        JOIN SystemElement se ON hru.SystemElementId = se.Id
-                        WHERE se.ScenarioId = ?
-                    """,
-                    "PatternNumberValue": """
-                        SELECT COUNT(*)
-                        FROM PatternNumberValue pn
-                        JOIN Pattern p ON pn.PatternId = p.Id
-                        WHERE p.ScenarioId = ?
-                    """,
-                    "Pattern": "SELECT COUNT(*) FROM Pattern WHERE ScenarioId = ?"
-                }
+                    #Tables and queries with Scenario filtering
+                    table_queries = {
+                        "SoilType": "SELECT COUNT(*) FROM SoilType WHERE ScenarioId = ?",
+                        "SoilTexture": "SELECT COUNT(*) FROM SoilTexture WHERE ScenarioId = ?",
+                        "Landuse": "SELECT COUNT(*) FROM Landuse WHERE ScenarioId = ?",
+                        "HydrologicalResponseUnit": """
+                            SELECT COUNT(*)
+                            FROM HydrologicalResponseUnit hru
+                            JOIN SystemElement se ON hru.SystemElementId = se.Id
+                            WHERE se.ScenarioId = ?
+                        """,
+                        "PatternNumberValue": """
+                            SELECT COUNT(*)
+                            FROM PatternNumberValue pn
+                            JOIN Pattern p ON pn.PatternId = p.Id
+                            WHERE p.ScenarioId = ?
+                        """,
+                        "Pattern": "SELECT COUNT(*) FROM Pattern WHERE ScenarioId = ?"
+                    }
 
-                tables_with_data = []
+                    tables_with_data = []
 
-                for table, query in table_queries.items():
-                    cur.execute(query, (scenario_id,))
-                    count = cur.fetchone()[0]
-                    if count > 0:
-                        tables_with_data.append(table)
+                    for table, query in table_queries.items():
+                        cur.execute(query, (scenario_id,))
+                        count = cur.fetchone()[0]
+                        if count > 0:
+                            tables_with_data.append(table)
 
-                if not tables_with_data:
-                    conn.close()
-                    return True 
+                    if not tables_with_data:
+                        return True
 
-                #Ask user for confirmation to delete table entries
-                msg = QMessageBox()
-                msg.setIcon(QMessageBox.Warning)
-                msg.setWindowTitle("Existing Data Found")
-                msg.setText("There are existing entries in the following tables for the selected scenario:\n\n" +
-                            "\n".join(tables_with_data) +
-                            "\n\nYou can only continue if all entries are deleted.")
-                msg.setInformativeText("Would you like to delete all entries in these tables?")
-                msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-                msg.setDefaultButton(QMessageBox.StandardButton.No)
-                response = msg.exec_()
+                    #Ask user for confirmation to delete table entries
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Warning)
+                    msg.setWindowTitle("Existing Data Found")
+                    msg.setText("There are existing entries in the following tables for the selected scenario:\n\n" +
+                                "\n".join(tables_with_data) +
+                                "\n\nYou can only continue if all entries are deleted.")
+                    msg.setInformativeText("Would you like to delete all entries in these tables?")
+                    msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                    msg.setDefaultButton(QMessageBox.StandardButton.No)
+                    response = msg.exec_()
 
-                if response == QMessageBox.StandardButton.No:
-                    conn.close()
-                    return False
+                    if response == QMessageBox.StandardButton.No:
+                        return False
 
-                # tables hardcoded, as dynamic coding results in security issues
-                DELETE_QUERIES = {
-                    "SoilType": "DELETE FROM SoilType WHERE ScenarioId = ?",
-                    "SoilTexture": "DELETE FROM SoilTexture WHERE ScenarioId = ?",
-                    "Landuse": "DELETE FROM Landuse WHERE ScenarioId = ?",
-                    "Pattern": "DELETE FROM Pattern WHERE ScenarioId = ?"
-                }
+                    # tables hardcoded, as dynamic coding results in security issues
+                    DELETE_QUERIES = {
+                        "SoilType": "DELETE FROM SoilType WHERE ScenarioId = ?",
+                        "SoilTexture": "DELETE FROM SoilTexture WHERE ScenarioId = ?",
+                        "Landuse": "DELETE FROM Landuse WHERE ScenarioId = ?",
+                        "Pattern": "DELETE FROM Pattern WHERE ScenarioId = ?"
+                    }
 
-                COUNT_QUERIES = {
-                    "SoilType": "SELECT COUNT(*) FROM SoilType",
-                    "SoilTexture": "SELECT COUNT(*) FROM SoilTexture",
-                    "Landuse": "SELECT COUNT(*) FROM Landuse",
-                    "HydrologicalResponseUnit": "SELECT COUNT(*) FROM HydrologicalResponseUnit",
-                    "PatternNumberValue": "SELECT COUNT(*) FROM PatternNumberValue",
-                    "Pattern": "SELECT COUNT(*) FROM Pattern"
-                }
-                #Delete entries with the matching scenario_id
-                for table in tables_with_data:
-                    if table == "HydrologicalResponseUnit":
-                        #Delete HRUs by joining with SystemElement
-                        cur.execute("""
-                            DELETE FROM HydrologicalResponseUnit
-                            WHERE SystemElementId IN (
-                                SELECT Id FROM SystemElement WHERE ScenarioId = ?
+                    COUNT_QUERIES = {
+                        "SoilType": "SELECT COUNT(*) FROM SoilType",
+                        "SoilTexture": "SELECT COUNT(*) FROM SoilTexture",
+                        "Landuse": "SELECT COUNT(*) FROM Landuse",
+                        "HydrologicalResponseUnit": "SELECT COUNT(*) FROM HydrologicalResponseUnit",
+                        "PatternNumberValue": "SELECT COUNT(*) FROM PatternNumberValue",
+                        "Pattern": "SELECT COUNT(*) FROM Pattern"
+                    }
+                    #Delete entries with the matching scenario_id
+                    for table in tables_with_data:
+                        if table == "HydrologicalResponseUnit":
+                            #Delete HRUs by joining with SystemElement
+                            cur.execute("""
+                                DELETE FROM HydrologicalResponseUnit
+                                WHERE SystemElementId IN (
+                                    SELECT Id FROM SystemElement WHERE ScenarioId = ?
+                                )
+                            """, (scenario_id,))
+                        elif table == "PatternNumberValue":
+                            #Delete PatternNumberValue by joining with Pattern
+                            cur.execute("""
+                                DELETE FROM PatternNumberValue
+                                WHERE PatternId IN (
+                                    SELECT Id FROM Pattern WHERE ScenarioId = ?
+                                )
+                            """, (scenario_id,))
+
+                        elif table in DELETE_QUERIES:
+                            cur.execute(
+                                DELETE_QUERIES[table],
+                                (scenario_id,)
                             )
-                        """, (scenario_id,))
-                    elif table == "PatternNumberValue":
-                        #Delete PatternNumberValue by joining with Pattern
-                        cur.execute("""
-                            DELETE FROM PatternNumberValue
-                            WHERE PatternId IN (
-                                SELECT Id FROM Pattern WHERE ScenarioId = ?
-                            )
-                        """, (scenario_id,))
 
-                    elif table in DELETE_QUERIES:
-                        cur.execute(
-                            DELETE_QUERIES[table],
-                            (scenario_id,)
-                        )
+                        #Check if the table is now empty
+                        cur.execute(COUNT_QUERIES[table])
+                        remaining = cur.fetchone()[0]
+                        #If the table is empty, reset AUTOINCREMENT counter
+                        if remaining == 0:
+                            cur.execute("DELETE FROM sqlite_sequence WHERE name = ?", (table,))
 
-                    #Check if the table is now empty
-                    cur.execute(COUNT_QUERIES[table])
-                    remaining = cur.fetchone()[0]
-                    #If the table is empty, reset AUTOINCREMENT counter
-                    if remaining == 0:
-                        cur.execute("DELETE FROM sqlite_sequence WHERE name = ?", (table,))
+                    conn.commit()
 
-                conn.commit()
-                conn.close()
-
-                QMessageBox.information(None, "Data Deleted", "All data for the selected scenario has been deleted.")
-                return True
+                    QMessageBox.information(None, "Data Deleted", "All data for the selected scenario has been deleted.")
+                    return True
+                finally:
+                    conn.close()
 
             def safe_cast(value, to_type):
                 #Safely cast value to a given type (int or float), returning None if invalid.
@@ -3859,10 +3922,12 @@ class QTalsim:
                     subbasins.add(feature[self.subBasinUI])
                 #Get sub-basins from the database
                 conn = sqlite3.connect(self.file_path_db)
-                cur = conn.cursor()
-                cur.execute("SELECT DISTINCT ElementTypeCharacter || ElementIdentifier FROM SystemElement WHERE ElementType = 2")
-                db_subbasins = set([row[0] for row in cur.fetchall()])
-                conn.close()
+                try:
+                    cur = conn.cursor()
+                    cur.execute("SELECT DISTINCT ElementTypeCharacter || ElementIdentifier FROM SystemElement WHERE ElementType = 2")
+                    db_subbasins = set([row[0] for row in cur.fetchall()])
+                finally:
+                    conn.close()
 
                 #Check if there are differences in the sub-basins of layer and DB
                 if subbasins == db_subbasins:
@@ -3880,136 +3945,152 @@ class QTalsim:
             #Get selected Scenario ID from the combobox
             scenario_id = self.dlg.comboboxScenarios.currentData()
             
-            check_and_delete_existing_data(scenario_id) #Check if there is data in the relevant tables
-            check_subbasins()
+            data_check_ok = check_and_delete_existing_data(scenario_id) #Check if there is data in the relevant tables
+            if not data_check_ok:
+                self.log_to_qtalsim_tab("DB export aborted: existing-data check failed or was cancelled by the user.", Qgis.Warning)
+                return False
+
+            subbasins_check_ok = check_subbasins()
+            if not subbasins_check_ok:
+                QMessageBox.warning(None, "Sub-basin Mismatch", "The sub-basins in the current layer do not match those in the database. HRUs cannot be inserted. See the QTalsim log panel for details.")
+                return False
 
             #Connect to DB
             conn = sqlite3.connect(self.file_path_db)
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
-            orderby = QgsFeatureRequest.OrderBy([clause])
+                clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
+                orderby = QgsFeatureRequest.OrderBy([clause])
 
-            request = QgsFeatureRequest()
-            request.setOrderBy(orderby)
+                request = QgsFeatureRequest()
+                request.setOrderBy(orderby)
 
-            '''
-                SoilType
-            '''
-            features = self.soilTypeFinal.getFeatures(request)
+                '''
+                    SoilType
+                '''
+                features = self.soilTypeFinal.getFeatures(request)
 
-            for feature in features:
-                cur.execute("""
-                    INSERT INTO SoilType (
-                        Id, Name, LayerThickness1, SoilTextureId1, LayerThickness2, SoilTextureId2, 
-                        LayerThickness3, SoilTextureId3, LayerThickness4, SoilTextureId4, 
-                        LayerThickness5, SoilTextureId5, LayerThickness6, SoilTextureId6, ScenarioId
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    get_feature_value(feature, "Id", int),
-                    get_feature_value(feature, f"{self.nameSoil}", str),
-                    get_feature_value(feature, f"soillayer1_{self.soilTypeThickness}", float),
-                    get_feature_value(feature, "soillayer1_id_boa", int),
-                    get_feature_value(feature, f"soillayer2_{self.soilTypeThickness}", float),
-                    get_feature_value(feature, "soillayer2_id_boa", int),
-                    get_feature_value(feature, f"soillayer3_{self.soilTypeThickness}", float),
-                    get_feature_value(feature, "soillayer3_id_boa", int),
-                    get_feature_value(feature, f"soillayer4_{self.soilTypeThickness}", float),
-                    get_feature_value(feature, "soillayer4_id_boa", int),
-                    get_feature_value(feature, f"soillayer5_{self.soilTypeThickness}", float),
-                    get_feature_value(feature, "soillayer5_id_boa", int),
-                    get_feature_value(feature, f"soillayer6_{self.soilTypeThickness}", float),
-                    get_feature_value(feature, "soillayer6_id_boa", int),
-                    scenario_id
-                ))
+                for feature in features:
+                    cur.execute("""
+                        INSERT INTO SoilType (
+                            Id, Name, LayerThickness1, SoilTextureId1, LayerThickness2, SoilTextureId2,
+                            LayerThickness3, SoilTextureId3, LayerThickness4, SoilTextureId4,
+                            LayerThickness5, SoilTextureId5, LayerThickness6, SoilTextureId6, ScenarioId
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        get_feature_value(feature, "Id", int),
+                        get_feature_value(feature, f"{self.nameSoil}", str),
+                        get_feature_value(feature, f"soillayer1_{self.soilTypeThickness}", float),
+                        get_feature_value(feature, "soillayer1_id_boa", int),
+                        get_feature_value(feature, f"soillayer2_{self.soilTypeThickness}", float),
+                        get_feature_value(feature, "soillayer2_id_boa", int),
+                        get_feature_value(feature, f"soillayer3_{self.soilTypeThickness}", float),
+                        get_feature_value(feature, "soillayer3_id_boa", int),
+                        get_feature_value(feature, f"soillayer4_{self.soilTypeThickness}", float),
+                        get_feature_value(feature, "soillayer4_id_boa", int),
+                        get_feature_value(feature, f"soillayer5_{self.soilTypeThickness}", float),
+                        get_feature_value(feature, "soillayer5_id_boa", int),
+                        get_feature_value(feature, f"soillayer6_{self.soilTypeThickness}", float),
+                        get_feature_value(feature, "soillayer6_id_boa", int),
+                        scenario_id
+                    ))
 
-            conn.commit()
-            conn.close()
+                conn.commit()
+            finally:
+                conn.close()
+            self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)
 
             '''
                 SoilTexture
             '''
             conn = sqlite3.connect(self.file_path_db)
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            clause = QgsFeatureRequest.OrderByClause('ID_Soil', ascending=True)
-            orderby = QgsFeatureRequest.OrderBy([clause])
-            request = QgsFeatureRequest()
-            request.setOrderBy(orderby)
+                clause = QgsFeatureRequest.OrderByClause('ID_Soil', ascending=True)
+                orderby = QgsFeatureRequest.OrderBy([clause])
+                request = QgsFeatureRequest()
+                request.setOrderBy(orderby)
 
-            #Retrieve sorted features
-            features = self.soilTextureFinal.getFeatures(request)
+                #Retrieve sorted features
+                features = self.soilTextureFinal.getFeatures(request)
 
-            #Loop through features and insert directly
-            for feature in features:
-                cur.execute("""
-                    INSERT INTO SoilTexture (
-                        Id, BulkDensityClass, Category, FieldCapacity, KfValue, MaxCapillarySuction,
-                        MaxInfiltration, Name, ScenarioId, TotalPoreVolume, WiltingPoint
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    get_feature_value(feature, "ID_Soil", int),
-                    get_feature_value(feature, "BulkDensityClass", int),
-                    get_feature_value(feature, "Category", int),
-                    get_feature_value(feature, "FieldCapacity", float),
-                    get_feature_value(feature, "KfValue", float),
-                    get_feature_value(feature, "MaxCapillarySuction", float),
-                    get_feature_value(feature, "MaxInfiltration", float),
-                    get_feature_value(feature, self.nameSoil, str), 
-                    scenario_id,  #Use the latest ScenarioId
-                    get_feature_value(feature, "TotalPoreVolume", float),
-                    get_feature_value(feature, "WiltingPoint", float)
-                ))
+                #Loop through features and insert directly
+                for feature in features:
+                    cur.execute("""
+                        INSERT INTO SoilTexture (
+                            Id, BulkDensityClass, Category, FieldCapacity, KfValue, MaxCapillarySuction,
+                            MaxInfiltration, Name, ScenarioId, TotalPoreVolume, WiltingPoint
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        get_feature_value(feature, "ID_Soil", int),
+                        get_feature_value(feature, "BulkDensityClass", int),
+                        get_feature_value(feature, "Category", int),
+                        get_feature_value(feature, "FieldCapacity", float),
+                        get_feature_value(feature, "KfValue", float),
+                        get_feature_value(feature, "MaxCapillarySuction", float),
+                        get_feature_value(feature, "MaxInfiltration", float),
+                        get_feature_value(feature, self.nameSoil, str),
+                        scenario_id,  #Use the latest ScenarioId
+                        get_feature_value(feature, "TotalPoreVolume", float),
+                        get_feature_value(feature, "WiltingPoint", float)
+                    ))
 
-            conn.commit()
-            conn.close()
+                conn.commit()
+            finally:
+                conn.close()
             self.log_to_qtalsim_tab(f"Finished inserting soil data into Talsim DB", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Progress: 40.00% done", Qgis.Info)
 
             '''
                 LNZ
             '''
 
             conn = sqlite3.connect(self.file_path_db)
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
-            orderby = QgsFeatureRequest.OrderBy([clause])
-            request = QgsFeatureRequest()
-            request.setOrderBy(orderby)
+                clause = QgsFeatureRequest.OrderByClause("Id", ascending=True)
+                orderby = QgsFeatureRequest.OrderBy([clause])
+                request = QgsFeatureRequest()
+                request.setOrderBy(orderby)
 
-            #Retrieve sorted features
-            features = self.landuseFinal.getFeatures(request)
+                #Retrieve sorted features
+                features = self.landuseFinal.getFeatures(request)
 
-            for feature in features:
-                cur.execute("""
-                    INSERT INTO Landuse (
-                        Id, BulkDensityChange, Name, KcCoeffAnnualPatternId, KyYieldAnnualPatternId,
-                        LeafAreaIndex, LeafAreaIndexAnnualPatternId, PlantCoverage, PlantCoverageAnnualPatternId, 
-                        RootDepth, RootDepthAnnualPatternId, RoughnessCoefficient, ScenarioId, pTAW
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    safe_cast(feature["Id"], int), 
-                    get_feature_value(feature, "BulkDensityChange", int),
-                    get_feature_value(feature, "Name", str),  
-                    get_feature_value(feature, "KcCoeffAnnualPatternId", int),
-                    get_feature_value(feature, "KyYieldAnnualPatternId", int),
-                    get_feature_value(feature, "LeafAreaIndex", float),
-                    get_feature_value(feature, "LeafAreaIndexAnnualPatternId", int),
-                    get_feature_value(feature, "PlantCoverage", float),
-                    get_feature_value(feature, "PlantCoverageAnnualPatternId", int),
-                    get_feature_value(feature, "RootDepth", float),
-                    get_feature_value(feature, "RootDepthAnnualPatternId", int),
-                    get_feature_value(feature, "RoughnessCoefficient", float),
-                    scenario_id,
-                    get_feature_value(feature, "pTAW", float) if get_feature_value(feature, "pTAW", float) is not None else 0.5
-                ))
+                for feature in features:
+                    cur.execute("""
+                        INSERT INTO Landuse (
+                            Id, BulkDensityChange, Name, KcCoeffAnnualPatternId, KyYieldAnnualPatternId,
+                            LeafAreaIndex, LeafAreaIndexAnnualPatternId, PlantCoverage, PlantCoverageAnnualPatternId,
+                            RootDepth, RootDepthAnnualPatternId, RoughnessCoefficient, ScenarioId, pTAW
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        safe_cast(feature["Id"], int),
+                        get_feature_value(feature, "BulkDensityChange", int),
+                        get_feature_value(feature, "Name", str),
+                        get_feature_value(feature, "KcCoeffAnnualPatternId", int),
+                        get_feature_value(feature, "KyYieldAnnualPatternId", int),
+                        get_feature_value(feature, "LeafAreaIndex", float),
+                        get_feature_value(feature, "LeafAreaIndexAnnualPatternId", int),
+                        get_feature_value(feature, "PlantCoverage", float),
+                        get_feature_value(feature, "PlantCoverageAnnualPatternId", int),
+                        get_feature_value(feature, "RootDepth", float),
+                        get_feature_value(feature, "RootDepthAnnualPatternId", int),
+                        get_feature_value(feature, "RoughnessCoefficient", float),
+                        scenario_id,
+                        get_feature_value(feature, "pTAW", float) if get_feature_value(feature, "pTAW", float) is not None else 0.5
+                    ))
 
-            conn.commit()
-            conn.close()
+                conn.commit()
+            finally:
+                conn.close()
             self.log_to_qtalsim_tab(f"Finished inserting land use data into Talsim DB", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Progress: 60.00% done", Qgis.Info)
 
             '''
                 Insert land use patterns to DB
@@ -4095,109 +4176,122 @@ class QTalsim:
 
             # Insert into Pattern table
             conn = sqlite3.connect(self.file_path_db)
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            df_pattern = df.drop_duplicates(subset=["Id"]).copy()
+                df_pattern = df.drop_duplicates(subset=["Id"]).copy()
 
-            pattern_rows = [
-                (
-                    int(row["Id"]),
-                    str(row["name"]),
-                    0,          # IsFlexible
-                    0,          # IsInterpolated
-                    1,          # PatternType
-                    scenario_id
-                )
-                for _, row in df_pattern.iterrows()
-            ]
+                pattern_rows = [
+                    (
+                        int(row["Id"]),
+                        str(row["name"]),
+                        0,          # IsFlexible
+                        0,          # IsInterpolated
+                        1,          # PatternType
+                        scenario_id
+                    )
+                    for _, row in df_pattern.iterrows()
+                ]
 
-            cur.executemany("""
-                INSERT OR REPLACE INTO Pattern
-                (Id, Description, IsFlexible, IsInterpolated, PatternType, ScenarioId)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, pattern_rows)
+                cur.executemany("""
+                    INSERT OR REPLACE INTO Pattern
+                    (Id, Description, IsFlexible, IsInterpolated, PatternType, ScenarioId)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, pattern_rows)
 
-            # Insert into PatternNumberValue table
-            pattern_values_rows = [
-                (
-                    int(row["Id"]),
-                    int(row["line_no"]),
-                    float(row["value"]) if row["value"] is not None else None
-                )
-                for _, row in df.iterrows()
-            ]
-            cur.executemany("""
-                INSERT INTO PatternNumberValue
-                (PatternId, Number, Value)
-                VALUES (?, ?, ?)
-            """, pattern_values_rows)
+                # Insert into PatternNumberValue table
+                pattern_values_rows = [
+                    (
+                        int(row["Id"]),
+                        int(row["line_no"]),
+                        float(row["value"]) if row["value"] is not None else None
+                    )
+                    for _, row in df.iterrows()
+                ]
+                cur.executemany("""
+                    INSERT INTO PatternNumberValue
+                    (PatternId, Number, Value)
+                    VALUES (?, ?, ?)
+                """, pattern_values_rows)
 
-            conn.commit()
-            conn.close()
+                conn.commit()
+            finally:
+                conn.close()
+            self.log_to_qtalsim_tab(f"Progress: 80.00% done", Qgis.Info)
 
             '''
                 EFL
             '''
             conn = sqlite3.connect(self.file_path_db)
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            #Define sorting order (ascending by subBasinUI)
-            clause = QgsFeatureRequest.OrderByClause(self.subBasinUI, ascending=True)
-            orderby = QgsFeatureRequest.OrderBy([clause])
-            request = QgsFeatureRequest()
-            request.setOrderBy(orderby)
+                #Define sorting order (ascending by subBasinUI)
+                clause = QgsFeatureRequest.OrderByClause(self.subBasinUI, ascending=True)
+                orderby = QgsFeatureRequest.OrderBy([clause])
+                request = QgsFeatureRequest()
+                request.setOrderBy(orderby)
 
-            #Retrieve sorted features
-            features = self.eflLayer.getFeatures(request)
+                #Retrieve sorted features
+                features = self.eflLayer.getFeatures(request)
 
-            calculation_order_index = 1
-            last_subbasin_ui = None
-            #Loop through features and insert directly
-            for feature in features:
-                
-                #Get the SystemElementId from the SystemElement table
-                subBasinUI = feature[self.subBasinUI]
+                calculation_order_index = 1
+                last_subbasin_ui = None
+                #Loop through features and insert directly
+                for feature in features:
 
-                cur.execute("SELECT Id FROM SystemElement WHERE (ElementTypeCharacter || ElementIdentifier) = ?", (subBasinUI,))
-                result = cur.fetchone()
-                systemElementId = result[0]
+                    #Get the SystemElementId from the SystemElement table
+                    subBasinUI = feature[self.subBasinUI]
 
-                if last_subbasin_ui is None or subBasinUI != last_subbasin_ui:
-                    calculation_order_index = 1
-                else:
-                    calculation_order_index += 1
-                #Insert into the HydrologicalResponseUnit table
-                cur.execute("""
-                    INSERT INTO HydrologicalResponseUnit (
-                        LandUseId, PercentageShare, Slope, SoilTypeId, SystemElementId, CalculationOrderIndex
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (
-                    get_feature_value(feature, self.hruLandUseId, int),
-                    get_feature_value(feature, self.fieldNameAreaEFL, float),
-                    get_feature_value(feature, self.slopeFieldName, float),
-                    get_feature_value(feature, self.hruSoilTypeId, int),
-                    systemElementId,
-                    calculation_order_index
-                ))
+                    cur.execute("SELECT Id FROM SystemElement WHERE (ElementTypeCharacter || ElementIdentifier) = ?", (subBasinUI,))
+                    result = cur.fetchone()
+                    systemElementId = result[0]
 
-                last_subbasin_ui = subBasinUI
-            
-            conn.commit()
-            conn.close()
+                    if last_subbasin_ui is None or subBasinUI != last_subbasin_ui:
+                        calculation_order_index = 1
+                    else:
+                        calculation_order_index += 1
+                    #Insert into the HydrologicalResponseUnit table
+                    cur.execute("""
+                        INSERT INTO HydrologicalResponseUnit (
+                            LandUseId, PercentageShare, Slope, SoilTypeId, SystemElementId, CalculationOrderIndex
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (
+                        get_feature_value(feature, self.hruLandUseId, int),
+                        get_feature_value(feature, self.fieldNameAreaEFL, float),
+                        get_feature_value(feature, self.slopeFieldName, float),
+                        get_feature_value(feature, self.hruSoilTypeId, int),
+                        systemElementId,
+                        calculation_order_index
+                    ))
 
+                    last_subbasin_ui = subBasinUI
+
+                conn.commit()
+            finally:
+                conn.close()
+
+            self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
             self.log_to_qtalsim_tab(f"Finished inserting HRUs into Talsim DB", Qgis.Info)
 
             current_text_groupbox = self.dlg.groupboxDBExport.title()
             if "✓" not in current_text_groupbox:  #Avoid duplicate checkmarks
                 self.dlg.groupboxDBExport.setTitle(f"{current_text_groupbox} ✓")
             self.log_to_qtalsim_tab(f"All Data was exported to the Talsim Database: {self.file_path_db}", Qgis.Info)
-        
+            self.iface.messageBar().pushSuccess(
+                "Database export was successful", f"All data was exported to the Talsim Database: {self.file_path_db}"
+            )
+            success = True
+
         except Exception as e:
             self.log_to_qtalsim_tab(f"Error: {e}", Qgis.Critical)
+            self.iface.messageBar().pushCritical("Database export failed", str(e))
+            success = False
 
         finally:
             self.end_operation()
+        return success
 
     def saveFiles(self):
         '''
@@ -4205,13 +4299,18 @@ class QTalsim:
         '''
         try:
             geopackage_name, ok = QInputDialog.getText(None, "GeoPackage Name", "Enter the name of the GeoPackage:")
+            if not ok or not geopackage_name.strip():
+                self.log_to_qtalsim_tab("GeoPackage export cancelled by user.", Qgis.Info)
+                return
 
             self.start_operation()
 
-            if self.dlg.groupboxDBExport.isChecked(): 
-                self.DBExport()
+            db_export_ok = True
+            ascii_export_ok = True
+            if self.dlg.groupboxDBExport.isChecked():
+                db_export_ok = self.DBExport()
             if self.dlg.groupboxASCIIExport.isChecked():
-                self.saveASCII()
+                ascii_export_ok = self.saveASCII()
 
             #Save Geopackage
             self.geopackage_path = os.path.join(self.outputFolder, f"{geopackage_name}.gpkg")
@@ -4240,17 +4339,25 @@ class QTalsim:
             create_gpkg_save_layer(self.eflLayer, gpkg_path,'hru') 
             add_layers_to_gpkg(self.landuseFinal, gpkg_path, 'landuse')
             add_layers_to_gpkg(self.soilTextureFinal, gpkg_path, 'soiltexture') 
-            add_layers_to_gpkg(self.soilTypeFinal, gpkg_path, 'soiltype') 
+            add_layers_to_gpkg(self.soilTypeFinal, gpkg_path, 'soiltype')
             self.log_to_qtalsim_tab(f"File was saved to this folder: {self.outputFolder}", Qgis.Info)
-            self.iface.messageBar().pushSuccess(
-                "HRU Calculation was successful", f"Files were saved to this folder: {self.outputFolder}"
-            )
+
+            if db_export_ok and ascii_export_ok:
+                self.iface.messageBar().pushSuccess(
+                    "HRU Calculation was successful", f"Files were saved to this folder: {self.outputFolder}"
+                )
+            else:
+                self.iface.messageBar().pushWarning(
+                    "HRU Calculation completed with errors",
+                    "GeoPackage was saved, but Database and/or ASCII export reported an error. Check the QTalsim log panel for details."
+                )
 
         except Exception as e:
             self.log_to_qtalsim_tab(f"Error: {e}", Qgis.Critical)
+            self.iface.messageBar().pushCritical("HRU Calculation failed", str(e))
 
         finally:
-            self.end_operation() 
+            self.end_operation()
 
 
     def connectButtontoFunction(self, button, function):
