@@ -685,12 +685,16 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
 
         self.log_to_qtalsim_tab(f"Burning and filling the DEM...", Qgis.Info)
+        '''
         #Necessary for small gaps?
         result = processing.run("qgis:deleteholes", {
                 'INPUT': sub_basins_layer,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
         }, feedback=self.no_feedback)
         sub_basins_layer = result['OUTPUT']
+        '''
+        QgsProject.instance().addMapLayer(sub_basins_layer)
+        self.log_to_qtalsim_tab(f"Clipping the DEM to the sub-basins...", Qgis.Info)
 
         result = processing.run("gdal:cliprasterbymasklayer", {'INPUT':dem_layer,'MASK':sub_basins_layer,'SOURCE_CRS':None,'TARGET_CRS':None,'TARGET_EXTENT':None,'NODATA':None,'ALPHA_BAND':False,'CROP_TO_CUTLINE':True,'KEEP_RESOLUTION':False,'SET_RESOLUTION':False,'X_RESOLUTION':None,'Y_RESOLUTION':None,'MULTITHREADING':False,'OPTIONS':'','DATA_TYPE':0,'EXTRA':'','OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.no_feedback)
         dem_layer = QgsRasterLayer(result['OUTPUT'], 'Clipped DEM')
@@ -704,6 +708,12 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.extent = f"{self.dem_extent.xMinimum()},{self.dem_extent.xMaximum()},{self.dem_extent.yMinimum()},{self.dem_extent.yMaximum()}"
 
         #Rasterize Water Network
+        self.log_to_qtalsim_tab(f"Rasterizing water network...", Qgis.Info)
+        water_network_layer = processing.run("native:fixgeometries", {
+            'INPUT': water_network_layer,
+            'METHOD': 1,
+            'OUTPUT': 'TEMPORARY_OUTPUT'
+        })['OUTPUT']
         water_network_layer = processing.run("native:clip", {'INPUT':water_network_layer,'OVERLAY':sub_basins_layer,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
         result = processing.run("gdal:rasterize", {'INPUT':water_network_layer,'FIELD':'','BURN':1,'USE_Z':False,'UNITS':1,'WIDTH':self.dem_pixel_size_x,'HEIGHT':self.dem_pixel_size_y,'EXTENT': f"{self.extent}[{crs_water_network}]",'NODATA':0,'OPTIONS':'','DATA_TYPE':5,'INIT':2,'INVERT':False,'EXTRA':'','OUTPUT': 'TEMPORARY_OUTPUT'})
         water_network_rasterized_temp = QgsRasterLayer(result['OUTPUT'],'WaterNetworkRasterized')

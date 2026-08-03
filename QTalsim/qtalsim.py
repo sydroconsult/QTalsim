@@ -21,7 +21,7 @@
  *                                                                         *
  ***************************************************************************/
 """
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QThread
 from qgis.PyQt.QtGui import QIcon, QCursor, QMovie
 from qgis.PyQt.QtWidgets import QMainWindow, QAction, QTableWidgetItem, QComboBox, QFileDialog, QInputDialog, QDialogButtonBox, QCompleter, QAbstractItemView, QRadioButton, QMenu, QToolButton, QDockWidget, QMessageBox, QApplication, QDialog, QPushButton, QGroupBox
 from qgis.PyQt.QtCore import QVariant, QTimer, pyqtSignal, QEvent, QObject
@@ -42,7 +42,7 @@ except:
     from qtalsim_soil_dialog import SoilPreprocessingDialog
     from qtalsim_landuse_dialog import LanduseAssignmentDialog
 import os.path
-from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsRasterLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest, QgsMapLayer, QgsFields, QgsMapLayerProxyModel
+from qgis.core import QgsProject, QgsField, QgsVectorLayer, QgsRasterLayer, QgsFeature, QgsGeometry, QgsSpatialIndex, Qgis, QgsMessageLog, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsProcessingFeedback, QgsWkbTypes, QgsFeatureRequest, QgsMapLayer, QgsFields, QgsMapLayerProxyModel, QgsTask, QgsApplication
 from qgis.analysis import QgsGeometrySnapper
 import processing
 import pandas as pd
@@ -109,6 +109,8 @@ class QTalsim:
         self.selected_layer_ezg = None
         self.ezgLayer = None
         self.clippingEZG = None
+        self._intersectTask = None
+        self._saveTask = None
         self.soilTalsim = None
         self.soilLayer = None
         self.soilFieldNames = []
@@ -361,6 +363,38 @@ class QTalsim:
         def reportError(self, error, fatalError=False):
             level = Qgis.Critical if fatalError else Qgis.Warning
             self.log_function(f"Error: {error}", level)
+
+    class TaskFeedback(QgsProcessingFeedback):
+        '''
+            QgsProcessingFeedback whose isCanceled() is backed by a QgsTask's own isCanceled() -
+            passing an instance of this to processing.run(...) is what actually makes a long-running
+            native processing algorithm (native:intersection, native:dissolve, ...) abort mid-way when
+            the task is canceled. Passing feedback=None (the old pattern) makes processing.run() create
+            its own throwaway QgsProcessingFeedback() per call, which is never told about our task's
+            cancellation, so the algorithm always runs to completion regardless of Cancel being clicked.
+        '''
+        def __init__(self, cancel_cb, log_function, quiet=False):
+            super().__init__()
+            self.cancel_cb = cancel_cb
+            self.log_function = log_function
+            self.quiet = quiet #suppress pushInfo/pushWarning/non-fatal reportError noise; fatal errors always still get through
+
+        def isCanceled(self):
+            return self.cancel_cb()
+
+        def pushInfo(self, info):
+            if not self.quiet:
+                self.log_function(f"Info: {info}", Qgis.Info)
+
+        def pushWarning(self, warning):
+            if not self.quiet:
+                self.log_function(f"Warning: {warning}", Qgis.Warning)
+
+        def reportError(self, error, fatalError=False):
+            if self.quiet and not fatalError:
+                return
+            level = Qgis.Critical if fatalError else Qgis.Warning
+            self.log_function(f"Error: {error}", level)
     
     '''
         QTalsim Functions
@@ -399,10 +433,13 @@ class QTalsim:
     def log_to_qtalsim_tab(self, message, level):
         '''
             Logging to a QTalsim tab in the current Qgis Project.
+            Safe to call from a background QgsTask thread (QgsMessageLog is thread-safe) - the
+            processEvents() call is skipped off the main thread since worker threads have no event loop.
         '''
         try:
             QgsMessageLog.logMessage(message, 'QTalsim', level)
-            QCoreApplication.processEvents()
+            if QThread.currentThread() is QCoreApplication.instance().thread():
+                QCoreApplication.processEvents()
         except Exception as e:
             pass
 
@@ -501,38 +538,162 @@ class QTalsim:
                 Also deletes features with empty geometries.
         '''
         invalid_features = False
-        layer.startEditing() 
+        layer.startEditing()
         for feature in layer.getFeatures():
             geom = feature.geometry()
             if not geom.isGeosValid():
-                fixed_geom = geom.makeValid()
-                # Check if the fixed geometry is valid and of the correct type
-                if fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
-                    feature.setGeometry(fixed_geom)
-                    layer.updateFeature(feature)
-                else:
-                    # Attempt to fix the geometry to be a MultiPolygon
-                    if fixed_geom.wkbType() == QgsWkbTypes.Polygon:
-                        fixed_geom = QgsGeometry.fromMultiPolygonXY([fixed_geom.asPolygon()])
-                    elif fixed_geom.wkbType() == QgsWkbTypes.LineString or fixed_geom.wkbType() == QgsWkbTypes.MultiLineString:
-                        fixed_geom = QgsGeometry.fromPolygonXY([fixed_geom.asPolyline()])
-                    # Set the fixed geometry if it's valid
-                    if fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
-                        feature.setGeometry(fixed_geom)
-                        layer.updateFeature(feature)
-                    else:
-                        invalid_features = True
+                geom = geom.makeValid()
+            #Coerce to MultiPolygon regardless of validity - a GeometryCollection (e.g. Polygon+LineString) can be GEOS-valid and would otherwise slip through untouched
+            if geom.wkbType() == QgsWkbTypes.Polygon:
+                geom = QgsGeometry.fromMultiPolygonXY([geom.asPolygon()])
+            elif geom.wkbType() in (QgsWkbTypes.LineString, QgsWkbTypes.MultiLineString):
+                geom = QgsGeometry.fromPolygonXY([geom.asPolyline()])
+            elif QgsWkbTypes.geometryType(geom.wkbType()) == QgsWkbTypes.UnknownGeometry:
+                #GeometryCollection (typically from makeValid() on a defective polygon): usually still
+                #contains the real, legitimate polygon area alongside degenerate line/point junk from the
+                #defect - salvage just the polygon part(s) instead of discarding the whole feature's data.
+                polygon_parts = [part for part in geom.asGeometryCollection()
+                                  if QgsWkbTypes.geometryType(part.wkbType()) == QgsWkbTypes.PolygonGeometry]
+                if polygon_parts:
+                    geom = QgsGeometry.unaryUnion(polygon_parts)
+                    if geom.wkbType() == QgsWkbTypes.Polygon:
+                        geom = QgsGeometry.fromMultiPolygonXY([geom.asPolygon()])
+            if geom.isGeosValid() and geom.wkbType() == QgsWkbTypes.MultiPolygon:
+                feature.setGeometry(geom)
+                layer.updateFeature(feature)
+            else:
+                #Not coercible to a clean (multi)polygon, and no polygon part could be salvaged - genuinely degenerate, drop it
+                invalid_features = True
+                layer.deleteFeature(feature.id())
+                continue
             if geom.isEmpty() or geom.area() == 0:
                 layer.deleteFeature(feature.id())
         layer.commitChanges()
         return layer, invalid_features
-    
-    def editOverlappingFeatures(self, layer):
+
+    def _runEliminateSelectedPolygons(self, layer, mode, feedback, log_cb=None, context_label="", max_attempts=3):
+        '''
+            Runs qgis:eliminateselectedpolygons (the selection on `layer` must already be set) with retries.
+            That algorithm can hit a flaky internal PyQGIS/SIP lifecycle bug ("wrapped C/C++ object ... has
+            been deleted") that succeeds on the vast majority of calls but occasionally fails outright - a
+            transient failure, not a deterministic geometry problem, so retrying the same call usually
+            recovers. Falls back to None (caller should keep the un-eliminated layer) if every attempt fails,
+            logging once so the affected sub-basin/group is traceable instead of just silently losing area.
+        '''
+        log_cb = log_cb or self.log_to_qtalsim_tab
+        last_error = None
+        for attempt in range(max_attempts):
+            try:
+                result = processing.run("qgis:eliminateselectedpolygons", {
+                    'INPUT': layer, 'MODE': mode, 'OUTPUT': 'TEMPORARY_OUTPUT'
+                }, feedback=feedback)['OUTPUT']
+                #eliminateselectedpolygons can leave a GeometryCollection feature; clean it before any
+                #further typed sink (same crash pattern fixed elsewhere this session).
+                result, _ = self.make_geometries_valid(result)
+                return result
+            except Exception as e:
+                last_error = e
+        log_cb(f"qgis:eliminateselectedpolygons failed {max_attempts}x{(' for ' + context_label) if context_label else ''}, keeping un-eliminated features: {last_error}", Qgis.Warning)
+        return None
+
+    def _eliminatePolygonsBelowThresholdForFile(self, filename, outputDirSplit, eflFieldList, ezgAreas, min_size_checked, min_size_value, share_checked, share_value, mode, feedback):
+        '''
+            Full per-split-file elimination pipeline: load, clean, compute area/percentage thresholds,
+            eliminate, clean again. Shared by performIntersectWork's main loop and
+            deletePolygonsBelowThreshold (soil/landuse threshold elimination) - they used to duplicate
+            this chain. Raises on failure so the caller can retry the WHOLE chain fresh (reloading from
+            disk) rather than just one internal call - the PyQGIS/SIP "wrapped C/C++ object has been
+            deleted" bug can hit ANY processing.run() call in this chain, not just eliminateselectedpolygons.
+        '''
+        file_path = os.path.join(outputDirSplit, filename)
+        tempLayersplit = QgsVectorLayer(file_path, filename, 'ogr')
+        tempLayersplit, _ = self.make_geometries_valid(tempLayersplit)
+
+        #'Multipart to singleparts' necessary because 'mergevectorlayer' does not allow Geometry Collections
+        if tempLayersplit.isValid():
+            tempLayersplit = processing.run("native:multiparttosingleparts", {
+                'INPUT': tempLayersplit, 'OUTPUT': 'memory:'
+            }, feedback=feedback)['OUTPUT']
+
+        fieldAreaEFL = QgsField(self.fieldNameAreaEFL, QVariant.Double)
+        tempLayersplit.dataProvider().addAttributes([fieldAreaEFL])
+        tempLayersplit.updateFields()
+
+        area_sums = defaultdict(float)
+        ezg_values = {}
+        for feature in tempLayersplit.getFeatures():
+            attributes_key = tuple(feature[field] for field in eflFieldList)
+            ezg_values[attributes_key] = feature[self.ezgUniqueIdentifier]
+            area_sums[attributes_key] += feature.geometry().area()
+
+        percentage_sums = {}
+        for attributes_key, summed_area in area_sums.items():
+            ezg = ezg_values[attributes_key]
+            ezgArea = ezgAreas[ezg]
+            percentage_sums[attributes_key] = (summed_area / ezgArea) * 100
+
+        ids_to_eliminate = []
+        features_to_delete = []
+        for feature in tempLayersplit.getFeatures():
+            attributes_key = tuple(feature[field] for field in eflFieldList)
+            area = area_sums[attributes_key]
+            percentage = percentage_sums[attributes_key]
+            if feature.geometry().isEmpty() or feature.geometry() is None or feature.geometry().area() == 0:
+                features_to_delete.append(feature.id())
+            else:
+                if min_size_checked and area < min_size_value: # if area of feature < minimum accepted area specified by user
+                    ids_to_eliminate.append(feature.id())
+                if share_checked and feature.id() not in ids_to_eliminate: #if the percentage-chechbox is chosen
+                    if percentage < share_value:
+                        ids_to_eliminate.append(feature.id()) #eliminate
+                if area == 0 and feature.id() not in ids_to_eliminate: #also eliminate features with area = 0
+                    ids_to_eliminate.append(feature.id())
+
+        tempLayersplit.startEditing()
+        for feature_id in features_to_delete:
+            tempLayersplit.deleteFeature(feature_id)
+        tempLayersplit.commitChanges()
+
+        tempLayersplit.selectByIds(ids_to_eliminate)
+        eliminated = self._runEliminateSelectedPolygons(tempLayersplit, mode, feedback, context_label=filename)
+        tempLayerSplitEliminated = eliminated if eliminated is not None else tempLayersplit
+
+        #make_geometries_valid edits the layer directly (no typed sink), so it can't crash on a degenerate result the way fixgeometries can
+        tempLayerSplitEliminated, _ = self.make_geometries_valid(tempLayerSplitEliminated)
+        tempLayerSplitEliminated = processing.run("native:multiparttosingleparts", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+        tempLayerSplitEliminated, _ = self.make_geometries_valid(tempLayerSplitEliminated)
+        return tempLayerSplitEliminated
+
+    def _eliminatePolygonsBelowThresholdForFileWithRetry(self, filename, outputDirSplit, eflFieldList, ezgAreas, min_size_checked, min_size_value, share_checked, share_value, mode, feedback, max_attempts=3):
+        '''
+            Retries _eliminatePolygonsBelowThresholdForFile from a fresh start (reloading the split file
+            from disk) up to max_attempts times - a whole-chain retry, not just retrying one internal call,
+            since the flaky PyQGIS/SIP bug can hit any processing.run() call in the chain. Falls back to a
+            cleaned-but-un-eliminated reload of the split file if every attempt fails, so one flaky
+            sub-basin never crashes the whole multi-hour run or silently loses that sub-basin's data.
+        '''
+        last_error = None
+        for _ in range(max_attempts):
+            try:
+                return self._eliminatePolygonsBelowThresholdForFile(filename, outputDirSplit, eflFieldList, ezgAreas, min_size_checked, min_size_value, share_checked, share_value, mode, feedback)
+            except Exception as e:
+                last_error = e
+        self.log_to_qtalsim_tab(f"Could not process {filename} after {max_attempts} attempts, using un-eliminated features for this sub-basin: {last_error}", Qgis.Warning)
+        fallback_layer = QgsVectorLayer(os.path.join(outputDirSplit, filename), filename, 'ogr')
+        fallback_layer, _ = self.make_geometries_valid(fallback_layer)
+        return fallback_layer
+
+    def editOverlappingFeatures(self, layer, progress_cb=None, log_cb=None, cancel_cb=None, feedback=None):
         '''
             Deletes overlapping features of input layer.
         '''
+        progress_cb = progress_cb or (lambda v: self.dlg.progressBar.setValue(v))
+        log_cb = log_cb or self.log_to_qtalsim_tab
+        cancel_cb = cancel_cb or (lambda: False)
+        feedback = feedback or self.feedback
+
         layer, _ = self.make_geometries_valid(layer)
-        layer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+        layer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
         layer.startEditing()
         index = QgsSpatialIndex()
 
@@ -545,9 +706,16 @@ class QTalsim:
             index.addFeature(feature)
         
         snap_tolerance = 0.01
-        snapper = QgsGeometrySnapper(layer)
+        #QgsGeometrySnapper is not safe to use off the main thread - performIntersectWork calls this
+        #function from a background QgsTask, and constructing/using the snapper there caused a native
+        #"access violation" crash (Windows fatal exception) inside QgsGeometrySnapper::snapGeometry.
+        #Only construct it when actually on the main thread; otherwise skip straight to the makeValid()
+        #fallback below, which already handles the main failure mode (self-intersections/slivers from
+        #the preceding difference()) without touching any thread-unsafe QGIS API.
+        is_main_thread = QThread.currentThread() is QCoreApplication.instance().thread()
+        snapper = QgsGeometrySnapper(layer) if is_main_thread else None
         def apply_snap_geometry(new_geom, tolerance):
-            snapped_geom = snapper.snapGeometry(new_geom, tolerance)
+            snapped_geom = snapper.snapGeometry(new_geom, tolerance) if snapper is not None else new_geom
             if not snapped_geom.isGeosValid():
                 snapped_geom = snapped_geom.makeValid()
             return snapped_geom #if snapped_geom.isGeosValid() else None
@@ -559,15 +727,18 @@ class QTalsim:
         analysed_features = 0
 
         for feature_id, feature in feature_dict.items():
+            if cancel_cb():
+                return layer, changes_made
+
             feature_geom = feature.geometry()
             candidate_ids = index.intersects(feature_geom.boundingBox())
 
             analysed_features += 1
             progress = (analysed_features / total_features) * 100
             if progress - last_logged_progress >= 10:
-                self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
+                log_cb(f"Progress: {progress:.2f}% done", Qgis.Info)
                 last_logged_progress = progress
-                self.dlg.progressBar.setValue(int(last_logged_progress))
+                progress_cb(int(last_logged_progress))
 
             for fid in candidate_ids:
                 if fid == feature_id or fid not in feature_dict:
@@ -654,54 +825,59 @@ class QTalsim:
 
         if invalid_features:
             original_features = {feature.id(): feature for feature in layer.getFeatures()}
-            layer = processing.run("native:fixgeometries", {'INPUT': layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
+            layer = processing.run("native:fixgeometries", {'INPUT': layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback).get('OUTPUT')
             fixed_features = {feature.id(): feature for feature in layer.getFeatures()}
             deleted_features = set(original_features.keys()) - set(fixed_features.keys())
             if len(deleted_features) > 0:
-                self.log_to_qtalsim_tab(f"The following features were deleted due to invalid geometries: {deleted_features}", Qgis.Warning)
+                log_cb(f"The following features were deleted due to invalid geometries: {deleted_features}", Qgis.Warning)
         if last_logged_progress <= 99:
-            self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
-            self.dlg.progressBar.setValue(100)
+            log_cb(f"Progress: 100.00% done", Qgis.Info)
+            progress_cb(100)
         return layer, changes_made
 
-    def clipLayer(self, layer, clipping_layer):
+    def clipLayer(self, layer, clipping_layer, feedback=None):
         '''
             Clips input layer with clipping_layer.
                 First checks validity of input layer and then clips this layer.
         '''
+        feedback = feedback or self.feedback
         #Check Geometry
-        outputLayer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+        layer, _ = self.make_geometries_valid(layer)
+        outputLayer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
         outputLayer, _ = self.make_geometries_valid(outputLayer)
         try:
             resultClipping = processing.run("native:clip", {
                     'INPUT': outputLayer,
                     'OVERLAY': clipping_layer,
                     'OUTPUT': 'TEMPORARY_OUTPUT'
-            }, feedback=None)
+            }, feedback=feedback)
         except:
-            outputLayer = processing.run("native:fixgeometries", {'INPUT': outputLayer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
-            clipping_layer = processing.run("native:fixgeometries", {'INPUT': clipping_layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
+            outputLayer = processing.run("native:fixgeometries", {'INPUT': outputLayer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback).get('OUTPUT')
+            clipping_layer = processing.run("native:fixgeometries", {'INPUT': clipping_layer, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback).get('OUTPUT')
             has_multipart = False
             for feature in outputLayer.getFeatures():
                 geom = feature.geometry()
                 if geom.isMultipart():
                     has_multipart = True
                     break
-                    
+
             if has_multipart:
-                outputLayer = processing.run("native:multiparttosingleparts", {'INPUT': outputLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                outputLayer = processing.run("native:multiparttosingleparts", {'INPUT': outputLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
                 outputLayer, _ = self.make_geometries_valid(outputLayer)
 
             resultClipping = processing.run("native:clip", {
                     'INPUT': outputLayer,
                     'OVERLAY': clipping_layer,
                     'OUTPUT': 'TEMPORARY_OUTPUT'
-            }, feedback=None)
-        
+            }, feedback=feedback)
+
         resultClippingLayer = resultClipping['OUTPUT']
-        
+
+        #Clipping itself can introduce fresh degenerate slivers at the cut boundary - clean before the next typed sink
+        resultClippingLayer, _ = self.make_geometries_valid(resultClippingLayer)
+
         #After clipping, problems with multipart polygons can arise
-        result_singlepart = processing.run("native:multiparttosingleparts", {'INPUT': resultClippingLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)
+        result_singlepart = processing.run("native:multiparttosingleparts", {'INPUT': resultClippingLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback)
         layer = result_singlepart['OUTPUT']
         return layer
     
@@ -796,14 +972,113 @@ class QTalsim:
         gapsLayer.commitChanges()        
 
         return gapsLayer
-    
-    def fillGaps(self, layer, extent, mode):
+
+    def _eliminateGapsWithinGroup(self, merged_layer, gap_feature_ids, group_field, mode, feedback=None):
+        '''
+            Eliminates gap features only into neighbours belonging to the same group (e.g. sub-basin) as
+            the gap itself. Each gap feature must already carry the correct group_field value - fillGaps()
+            clips gaps against group_layer via native:intersection before merging, so a gap spanning
+            multiple groups arrives here already split into per-group fragments (assigning the whole,
+            possibly multi-group-spanning, gap geometry to whichever single group has the largest overlap
+            would let that group "steal" area that geometrically belongs to its neighbour).
+            Splits off only the groups that actually contain a gap and runs qgis:eliminateselectedpolygons
+            within each of those groups separately, so a gap can never be absorbed by a polygon from a
+            different group. Groups without any gap are passed through untouched: gaps are rare edge
+            artifacts, so splitting/eliminating every single group (there can be hundreds of sub-basins)
+            instead of just the handful that need it was pure overhead and log noise.
+            A gap with no same-group neighbour is left untouched (eliminateselectedpolygons is a no-op when
+            every feature in its input is selected) and is cleaned up by fillGaps' existing end-of-function
+            "delete remaining gapFeature==1" step, same as an unmergeable gap always was.
+        '''
+        if not gap_feature_ids:
+            return merged_layer
+
+        affected_groups = {merged_layer.getFeature(fid)[group_field] for fid in gap_feature_ids} - {None}
+
+        if not affected_groups:
+            #No gap carries a group value (fully outside all groups) - nothing to restrict, single eliminate call is fine
+            merged_layer.selectByIds(gap_feature_ids)
+            result = self._runEliminateSelectedPolygons(merged_layer, mode, feedback, context_label="ungrouped gaps")
+            return result if result is not None else merged_layer
+
+        quoted = ", ".join("'{}'".format(str(g).replace("'", "''")) for g in affected_groups)
+        affected_expr = f'"{group_field}" IN ({quoted})'
+        unaffected_expr = f'"{group_field}" IS NULL OR "{group_field}" NOT IN ({quoted})'
+
+        affected_layer = processing.run("native:extractbyexpression", {
+            'INPUT': merged_layer, 'EXPRESSION': affected_expr, 'OUTPUT': 'TEMPORARY_OUTPUT'
+        }, feedback=feedback)['OUTPUT']
+        passthrough_layer = processing.run("native:extractbyexpression", {
+            'INPUT': merged_layer, 'EXPRESSION': unaffected_expr, 'OUTPUT': 'TEMPORARY_OUTPUT'
+        }, feedback=feedback)['OUTPUT']
+
+        #Extract each affected group in-memory instead of native:splitvectorlayer's disk-based per-group
+        #GeoPackage files: affected_groups is normally a small handful of sub-basins (only ones with a
+        #gap), and fillGaps() can call this several times in its own retry loop - repeatedly writing and
+        #reopening real .gpkg files across passes risks stale file handles/locks on Windows, which showed
+        #up as "UNIQUE constraint failed: ...fid" on a later pass. Pure in-memory extraction sidesteps that
+        #whole class of problem entirely.
+        eliminated_parts = [passthrough_layer]
+        for group_value in affected_groups:
+            quoted_value = "'{}'".format(str(group_value).replace("'", "''"))
+            part = processing.run("native:extractbyexpression", {
+                'INPUT': affected_layer, 'EXPRESSION': f'"{group_field}" = {quoted_value}', 'OUTPUT': 'memory:'
+            }, feedback=feedback)['OUTPUT']
+            gap_request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(['gapFeature'], part.fields())
+            part_gap_ids = [f.id() for f in part.getFeatures(gap_request) if f['gapFeature'] == 1]
+            if part_gap_ids:
+                part.selectByIds(part_gap_ids)
+                eliminated = self._runEliminateSelectedPolygons(part, mode, feedback, context_label=f"group {group_value}")
+                if eliminated is not None:
+                    part = eliminated
+            eliminated_parts.append(part)
+
+        return processing.run("native:mergevectorlayers", {
+            'LAYERS': eliminated_parts, 'CRS': merged_layer.crs(), 'OUTPUT': 'TEMPORARY_OUTPUT'
+        }, feedback=feedback)['OUTPUT']
+
+    def fillGaps(self, layer, extent, mode, log_cb=None, progress_cb=None, feedback=None, group_layer=None, group_field=None, max_passes=10):
         '''
         Fills Gaps
-            First finds gaps between extent layer and layer and then gaps within the layer; fills those gaps with the eliminate-tool.
+            Repeatedly detects and eliminates gaps (see _fillGapsOnce) until none remain, no further
+            progress is made, or max_passes is reached. One pass can leave residual gaps behind: the
+            merge/fixgeometries steps involved in eliminating a gap can introduce tiny new precision
+            slivers that weren't gaps before, which then only show up on the next fresh hole-detection.
+            Keeps going only while the number of remaining gaps is actually decreasing, so a genuinely
+            unmergeable gap (nothing to merge into at all) doesn't burn through every pass for nothing.
         :param layer: layer where polygons are eliminated
         :param extent: layer (e.g. dissolved catchment area layer) that defines the boundary of layer
+        :param group_layer: optional - if given (together with group_field), gaps are only eliminated into
+            neighbours belonging to the same group (e.g. sub-basin) instead of qgis:eliminateselectedpolygons'
+            default of picking whichever neighbour wins by area/boundary regardless of group.
+        :param group_field: attribute name on group_layer identifying the group (must also exist on layer)
         '''
+        log_cb = log_cb or self.log_to_qtalsim_tab
+        result = layer
+        previous_remaining = None
+        for pass_num in range(max_passes):
+            result, remaining_count = self._fillGapsOnce(result, extent, mode, log_cb=log_cb, progress_cb=progress_cb, feedback=feedback, group_layer=group_layer, group_field=group_field)
+            if remaining_count == 0:
+                break
+            if previous_remaining is not None and remaining_count >= previous_remaining:
+                log_cb(f"{remaining_count} gap(s) could not be eliminated (no further progress after {pass_num + 1} pass(es)); left as-is.", Qgis.Info)
+                break
+            previous_remaining = remaining_count
+        return result
+
+    def _fillGapsOnce(self, layer, extent, mode, log_cb=None, progress_cb=None, feedback=None, group_layer=None, group_field=None):
+        '''
+            One detect-and-eliminate pass. Returns (layer_without_gaps, remaining_gap_count) - see fillGaps().
+        '''
+        log_cb = log_cb or self.log_to_qtalsim_tab
+        progress_cb = progress_cb or (lambda v: self.dlg.progressBar.setValue(v))
+        feedback = feedback or self.feedback
+        #Force this function's own (many) processing.run() calls to stay quiet regardless of what feedback was
+        #passed in - callers like fillGapsSoil/fillGapsLanduse fall back to the non-quiet CustomFeedback by
+        #default. Cancellation still works via delegation; log_cb/progress_cb above are a separate path and
+        #still report the human-meaningful milestones ("Detecting Gaps...", progress %, ...) regardless.
+        feedback = self.TaskFeedback(feedback.isCanceled, self.log_to_qtalsim_tab, quiet=True)
+
         #If there is a field fid - rename it to old_fid (some tasks have problems with fields fid)
         field_index = layer.fields().indexFromName('fid')
         if field_index != -1:
@@ -817,7 +1092,10 @@ class QTalsim:
         layer = processing.run("native:multiparttosingleparts", {
             'INPUT': layer,
             'OUTPUT': 'memory:'
-        },feedback=None)['OUTPUT']
+        },feedback=feedback)['OUTPUT']
+
+        progress_cb(10)
+        log_cb(f"Progress: 10.00% done", Qgis.Info)
 
         #Find Gaps between layer and extent
         geom_request = QgsFeatureRequest().setNoAttributes()
@@ -837,9 +1115,9 @@ class QTalsim:
             'FIELD':[],
             'SEPARATE_DISJOINT':True,
             'OUTPUT': 'memory:'
-        }, feedback=None)['OUTPUT']
+        }, feedback=feedback)['OUTPUT']
         
-        self.log_to_qtalsim_tab("Detecting Gaps...", Qgis.Info)
+        log_cb("Detecting Gaps...", Qgis.Info)
         gaps = []
         for feature in dissolved.getFeatures():
             geom = feature.geometry()
@@ -890,68 +1168,96 @@ class QTalsim:
         gapsLayer.updateExtents()
         gapsLayer.commitChanges()
 
-        self.log_to_qtalsim_tab("Eliminating Gaps...", Qgis.Info)
+        progress_cb(30)
+        log_cb(f"Progress: 30.00% done", Qgis.Info)
+        log_cb("Eliminating Gaps...", Qgis.Info)
 
         gapsLayer, _ = self.make_geometries_valid(gapsLayer)
 
         gapsLayer = processing.run("native:multiparttosingleparts", {
                 'INPUT': gapsLayer,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
+        }, feedback=feedback)['OUTPUT']
+
+        if group_layer is not None and group_field is not None:
+            #Clip each gap to the group_layer polygon(s) it actually falls in - a gap that straddles two
+            #sub-basins must be physically split here, not just labelled with whichever group has the
+            #largest overlap, or the "losing" group's rightful area ends up absorbed by its neighbour.
+            gapsLayer = processing.run("native:intersection", {
+                'INPUT': gapsLayer,
+                'OVERLAY': group_layer,
+                'INPUT_FIELDS': ['gapFeature'],
+                'OVERLAY_FIELDS': [group_field],
+                'OUTPUT': 'TEMPORARY_OUTPUT'
+            }, feedback=feedback)['OUTPUT']
+            gapsLayer = processing.run("native:multiparttosingleparts", {
+                'INPUT': gapsLayer,
+                'OUTPUT': 'TEMPORARY_OUTPUT'
+            }, feedback=feedback)['OUTPUT']
 
         layer, _ = self.make_geometries_valid(layer)
 
         layer = processing.run("native:multiparttosingleparts", {
                 'INPUT': layer,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
+        }, feedback=feedback)['OUTPUT']
 
         #Merge the layer with the gaps to the initial layer
-        result_merge = processing.run("native:mergevectorlayers", {'LAYERS': [layer, gapsLayer],  'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)
+        result_merge = processing.run("native:mergevectorlayers", {'LAYERS': [layer, gapsLayer],  'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback)
         merged_layer = result_merge['OUTPUT']
 
         merged_layer = processing.run("native:fixgeometries", {
             'INPUT': merged_layer,
             'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
+        }, feedback=feedback)['OUTPUT']
 
-        #Select the gaps in the merged_layer 
+        progress_cb(60)
+        log_cb(f"Progress: 60.00% done", Qgis.Info)
+
+        #Select the gaps in the merged_layer
         request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(
                 ['gapFeature'], merged_layer.fields()
         )
         feature_ids_to_select = [feature.id() for feature in merged_layer.getFeatures(request) if feature['gapFeature'] == 1]
 
-        #Select all gap features 
-        if feature_ids_to_select:
-            merged_layer.selectByIds(feature_ids_to_select)
+        if group_layer is not None and group_field is not None:
+            layer_without_gaps = self._eliminateGapsWithinGroup(merged_layer, feature_ids_to_select, group_field, mode, feedback=feedback)
+        else:
+            #Select all gap features
+            if feature_ids_to_select:
+                merged_layer.selectByIds(feature_ids_to_select)
 
-        #Eliminate with the user's input mode
-        result_eliminate = processing.run("qgis:eliminateselectedpolygons", {
-            'INPUT': merged_layer,
-            'MODE': mode,  
-            'OUTPUT': 'TEMPORARY_OUTPUT'
-        }, feedback=self.feedback)
-        layer_without_gaps = result_eliminate['OUTPUT']
+            #Eliminate with the user's input mode
+            eliminated = self._runEliminateSelectedPolygons(merged_layer, mode, feedback, log_cb=log_cb, context_label="gaps")
+            layer_without_gaps = eliminated if eliminated is not None else merged_layer
+
+        progress_cb(90)
+        log_cb(f"Progress: 90.00% done", Qgis.Info)
+
         layer_without_gaps = processing.run("native:fixgeometries", {
             'INPUT': layer_without_gaps,
             'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
-        
+        }, feedback=feedback)['OUTPUT']
+
         layer_without_gaps, _ = self.make_geometries_valid(layer_without_gaps)
-        
+
         layer_without_gaps = processing.run("native:multiparttosingleparts", {
                 'INPUT': layer_without_gaps,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
+        }, feedback=feedback)['OUTPUT']
 
         request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(['gapFeature'], layer_without_gaps.fields())
         features_to_delete = [feature.id() for feature in layer_without_gaps.getFeatures(request) if feature['gapFeature'] == 1]
+        remaining_count = len(features_to_delete)
         if features_to_delete:
             layer_without_gaps.startEditing()
             layer_without_gaps.deleteFeatures(features_to_delete)
             layer_without_gaps.commitChanges()
-        
-        return layer_without_gaps
+
+        progress_cb(100)
+        log_cb(f"Progress: 100.00% done", Qgis.Info)
+
+        return layer_without_gaps, remaining_count
     
     def deleteOverlappingFeatures(self, layer, table, list_overlapping_features):
         '''
@@ -1778,7 +2084,10 @@ class QTalsim:
         self.log_to_qtalsim_tab("QTalsim is currently loading, filling gaps of soil layer.", Qgis.Info)
         try:
             self.start_operation()
-            mode = 0 
+            self.dlg.progressBar.setRange(0, 100)
+            self.dlg.progressBar.setValue(0)
+            self.dlg.progressBar.setVisible(True)
+            mode = 0
             layer_input_name = self.soilLayerIntermediate.name()
             if self.dlg.comboboxModeEliminateSoil.currentText() == 'Smallest Area':
                 mode = 1
@@ -1788,6 +2097,9 @@ class QTalsim:
                 mode = 0
             
             layerWithoutGaps = self.fillGaps(self.soilLayerIntermediate, self.clippingEZG, mode)
+            #qgis:eliminateselectedpolygons can leave the gap-absorbing polygon slightly overlapping a
+            #neighbour it wasn't merged into - clean that up here, same as performIntersectWork already does.
+            layerWithoutGaps, _ = self.editOverlappingFeatures(layerWithoutGaps)
             if self.soilLayerIntermediate:
                 QgsProject.instance().removeMapLayer(self.soilLayerIntermediate)
             if self.soilGaps:
@@ -1814,11 +2126,12 @@ class QTalsim:
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onFillGapsSoil.setText(f"{current_text} ✓")
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
 
         finally:
             self.end_operation()
-        
+
     def createSoilLayer(self):
         '''
             Creates Talsim Soil Layer 
@@ -2398,6 +2711,9 @@ class QTalsim:
         '''
         try:
             self.start_operation()
+            self.dlg.progressBar.setRange(0, 100)
+            self.dlg.progressBar.setValue(0)
+            self.dlg.progressBar.setVisible(True)
             self.log_to_qtalsim_tab("QTalsim is currently loading, filling gaps of land use layer.", Qgis.Info)
             layer_input_name = self.landuseTalsim.name()
             mode = 0 
@@ -2408,6 +2724,9 @@ class QTalsim:
             elif self.dlg.comboboxModeEliminateLanduse.currentText() == 'Largest Area':
                 mode = 0
             layerWithoutGaps = self.fillGaps(self.landuseTalsim,self.clippingEZG, mode)
+            #qgis:eliminateselectedpolygons can leave the gap-absorbing polygon slightly overlapping a
+            #neighbour it wasn't merged into - clean that up here, same as performIntersectWork already does.
+            layerWithoutGaps, _ = self.editOverlappingFeatures(layerWithoutGaps)
 
             if self.landuseGaps:
                 QgsProject.instance().removeMapLayer(self.landuseGaps)
@@ -2430,10 +2749,11 @@ class QTalsim:
             if "✓" not in current_text:  #Avoid duplicate checkmarks
                 self.dlg.onFillGapsLanduse.setText(f"{current_text} ✓")
 
-            self.log_to_qtalsim_tab(f"Filled gaps of layer {self.landuseTalsim.name()}.", Qgis.Info) 
+            self.log_to_qtalsim_tab(f"Filled gaps of layer {self.landuseTalsim.name()}.", Qgis.Info)
 
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
 
         finally:
             self.end_operation()
@@ -2496,6 +2816,11 @@ class QTalsim:
         '''
         try:
             self.log_to_qtalsim_tab("Eliminating polygons below elimination thresholds...", Qgis.Info)
+            #Every processing.run() call below used feedback=None (or the implicit default), which makes QGIS
+            #create a fresh plain QgsProcessingFeedback() per call - its default pushInfo() writes straight to
+            #the QGIS "Processing" log tab, independent of our own quiet TaskFeedback elsewhere. Use one quiet,
+            #shared feedback instead (no external cancel mechanism exists in this function, hence lambda: False).
+            feedback = self.TaskFeedback(lambda: False, self.log_to_qtalsim_tab, quiet=True)
             all_fields = [field.name() for field in self.ezgLayer.fields()]
             fields_to_delete_indices = [self.ezgLayer.fields().indexFromName(field) for field in all_fields if field != self.ezgUniqueIdentifier]
             self.ezgLayer.startEditing()
@@ -2511,20 +2836,20 @@ class QTalsim:
                     'INPUT': inputLayer,
                     'OVERLAY': self.ezgLayer,
                     'OUTPUT': 'TEMPORARY_OUTPUT'
-                })['OUTPUT']
+                }, feedback=feedback)['OUTPUT']
             except:
                 #QgsProject.instance().addMapLayer(inputLayer)
-                inputLayer = processing.run("native:fixgeometries", {'INPUT': inputLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                inputLayer = processing.run("native:fixgeometries", {'INPUT': inputLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
                 intermediateResultIntersect = processing.run("native:intersection", {
                     'INPUT': inputLayer,
                     'OVERLAY': self.ezgLayer,
                     'OUTPUT': 'TEMPORARY_OUTPUT'
-                })['OUTPUT']
+                }, feedback=feedback)['OUTPUT']
 
             intermediateIntersectSingleparts = processing.run("native:multiparttosingleparts", {
                 'INPUT': intermediateResultIntersect,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
-            })['OUTPUT']
+            }, feedback=feedback)['OUTPUT']
 
             #Calculate and store area of every catchment area
             ezgAreas = {}
@@ -2534,17 +2859,17 @@ class QTalsim:
             #Dissolve Layer 1
             dissolve_list.append(self.ezgUniqueIdentifier)
             try:
-                resultDissolve = processing.run("native:dissolve", {'INPUT': intermediateIntersectSingleparts,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback = None)
+                resultDissolve = processing.run("native:dissolve", {'INPUT': intermediateIntersectSingleparts,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)
                 intersectedDissolvedLayer = resultDissolve['OUTPUT']
             except:
                 intermediateIntersectSingleparts, _ = self.make_geometries_valid(intermediateIntersectSingleparts)
-                resultDissolve = processing.run("native:dissolve", {'INPUT': intermediateIntersectSingleparts,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback = None)
+                resultDissolve = processing.run("native:dissolve", {'INPUT': intermediateIntersectSingleparts,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)
                 intersectedDissolvedLayer = resultDissolve['OUTPUT']
-            
-            ezgDissolved = processing.run("native:dissolve", {'INPUT': self.ezgLayer,'FIELD': [],'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-            
+
+            ezgDissolved = processing.run("native:dissolve", {'INPUT': self.ezgLayer,'FIELD': [],'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+
             try:
-                intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayer, ezgDissolved)            
+                intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayer, ezgDissolved, feedback=feedback)
             except:
                 pass
             #Split the intersected areas and create own layer for each catchment area
@@ -2578,7 +2903,7 @@ class QTalsim:
                     'PREFIX_FIELD': True,
                     'FILE_TYPE': 0,
                     'OUTPUT': 'TEMPORARY_OUTPUT'
-                }, feedback=None)
+                }, feedback=feedback)
             outputDirSplit = resultSplit['OUTPUT']
             
             #EFL-Dissolve-List
@@ -2595,6 +2920,19 @@ class QTalsim:
             total_features = len([name for name in os.listdir(outputDirSplit) if os.path.isfile(os.path.join(outputDirSplit, name))])
             last_logged_progress = 0
             analysed_features = 0
+
+            min_size_checked = self.dlg.checkboxIntersectMinSizeArea.isChecked()
+            min_size_value = self.dlg.spinboxIntersectMinSizeArea.value()
+            share_checked = self.dlg.checkboxIntersectShareofArea.isChecked()
+            share_value = self.dlg.spinboxIntersectShareofArea.value()
+            mode = 0
+            if self.dlg.comboboxEliminateModes.currentText() == 'Smallest Area':
+                mode = 1
+            elif self.dlg.comboboxEliminateModes.currentText() == 'Largest Common Boundary':
+                mode = 2
+            elif self.dlg.comboboxEliminateModes.currentText() == 'Largest Area':
+                mode = 0
+
             for filename in os.listdir(outputDirSplit):
                 #Logging Progress
                 analysed_features += 1
@@ -2603,97 +2941,35 @@ class QTalsim:
                     self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
                     last_logged_progress = progress
 
-                ids_to_eliminate = []
-                file_path = os.path.join(outputDirSplit, filename)
-                tempLayersplit = QgsVectorLayer(file_path, filename, 'ogr')
-                
-                #'Multipart to singleparts' necessary because 'mergevectorlayer' does not allow Geometry Collections
-                if tempLayersplit.isValid():
-                    tempLayersplit = processing.run("native:multiparttosingleparts", {
-                        'INPUT': tempLayersplit,
-                        'OUTPUT': 'memory:'
-                    },feedback=None)['OUTPUT']
-                fieldAreaEFL = QgsField(self.fieldNameAreaEFL, QVariant.Double)
-                tempLayersplit.dataProvider().addAttributes([fieldAreaEFL]) #create new field
-                tempLayersplit.updateFields()
-
-                area_sums = defaultdict(float)
-                ezg_values = {}
-                #Select features to eliminate
-                for feature in tempLayersplit.getFeatures():
-                    attributes_key = tuple(feature[field] for field in eflFieldList)
-                    ezg_values[attributes_key] = feature[self.ezgUniqueIdentifier]
-                    # Sum the area for this group
-                    area_sums[attributes_key] += feature.geometry().area()
-
-                percentage_sums = {}
-                # Get a representative feature to extract the ezg value
-                for attributes_key, summed_area in area_sums.items():
-                #This assumes all features in the same attributes_key group have the same ezg value
-                    ezg = ezg_values[attributes_key]
-                    ezgArea = ezgAreas[ezg]
-                    percentage = (summed_area / ezgArea) * 100
-                    percentage_sums[attributes_key] = percentage
-
-                features_to_delete = []
-                for feature in tempLayersplit.getFeatures():
-                    attributes_key = tuple(feature[field] for field in eflFieldList)
-                    area = area_sums[attributes_key]
-                    percentage = percentage_sums[attributes_key]
-                    if feature.geometry().isEmpty():
-                        features_to_delete.append(feature.id())
-                    else:   
-                        if self.dlg.checkboxIntersectMinSizeArea.isChecked() and area < self.dlg.spinboxIntersectMinSizeArea.value(): # if area of feature < minimum accepted area specified by user
-                            ids_to_eliminate.append(feature.id())
-                        if self.dlg.checkboxIntersectShareofArea.isChecked() and feature.id() not in ids_to_eliminate: #if the percentage-chechbox is chosen
-                            if percentage < self.dlg.spinboxIntersectShareofArea.value():
-                                ids_to_eliminate.append(feature.id()) #eliminate
-                        if area == 0 and feature.id() not in ids_to_eliminate: #also eliminate features with area = 0
-                            ids_to_eliminate.append(feature.id())
-                tempLayersplit.startEditing()
-                for feature_id in features_to_delete:
-                    tempLayersplit.deleteFeature(feature_id)
-                tempLayersplit.commitChanges()
-                #Eliminate with mode specified by user
-                tempLayersplit.selectByIds(ids_to_eliminate)
-                mode = 0 
-                if self.dlg.comboboxEliminateModes.currentText() == 'Smallest Area':
-                    mode = 1
-                elif self.dlg.comboboxEliminateModes.currentText() == 'Largest Common Boundary':
-                    mode = 2
-                elif self.dlg.comboboxEliminateModes.currentText() == 'Largest Area':
-                    mode = 0
-
-                tempLayerSplitEliminated = processing.run("qgis:eliminateselectedpolygons", {'INPUT':tempLayersplit,'MODE':mode,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                tempLayerSplitEliminated = processing.run("native:multiparttosingleparts", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                tempLayerSplitEliminated, _ = self.make_geometries_valid(tempLayerSplitEliminated)
-                #tempLayerSplitEliminated = processing.run("native:fixgeometries", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+                tempLayerSplitEliminated = self._eliminatePolygonsBelowThresholdForFileWithRetry(
+                    filename, outputDirSplit, eflFieldList, ezgAreas,
+                    min_size_checked, min_size_value, share_checked, share_value, mode, feedback
+                )
                 splitLayers.append(tempLayerSplitEliminated)
 
             #Merge all of the split layers
-            resultMerge = processing.run("native:mergevectorlayers", {'LAYERS':splitLayers,'CRS':intersectedDissolvedLayer.crs(),'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
+            resultMerge = processing.run("native:mergevectorlayers", {'LAYERS':splitLayers,'CRS':intersectedDissolvedLayer.crs(),'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
             dissolve_list.remove(self.ezgUniqueIdentifier)
             return resultMerge
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical) 
     
-    def calculateSlopeHRUs(self, hruLayer):
+    def calculateSlopeHRUs(self, hruLayer, dem_layer=None, feedback=None):
         '''
-            Calculates the slope for each polygon in hruLayer. 
+            Calculates the slope for each polygon in hruLayer.
                 Triggered in performIntersect
         '''
+        feedback = feedback or self.feedback
 
         #Get DEM Layer
-        self.demLayer = self.dlg.comboboxDEMLayer.currentLayer()
-        #selected_layer_name = self.dlg.comboboxDEMLayer.currentText()
-        #self.demLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
-        
+        self.demLayer = dem_layer if dem_layer is not None else self.dlg.comboboxDEMLayer.currentLayer()
+
         #Calculate Slope Layer
-        slope_layer_path = processing.run("native:slope", {'INPUT':self.demLayer, 'Z_FACTOR':1,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
+        slope_layer_path = processing.run("native:slope", {'INPUT':self.demLayer, 'Z_FACTOR':1,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
         self.slopeLayer = QgsRasterLayer(slope_layer_path, 'Slope Layer')
 
         #Calculate the mean slope for each HRU
-        statsLayer = processing.run("native:zonalstatisticsfb", {'INPUT':hruLayer,'INPUT_RASTER':self.slopeLayer,'RASTER_BAND':1,'COLUMN_PREFIX':'_','STATISTICS':[2],'OUTPUT':'TEMPORARY_OUTPUT'}).get('OUTPUT')
+        statsLayer = processing.run("native:zonalstatisticsfb", {'INPUT':hruLayer,'INPUT_RASTER':self.slopeLayer,'RASTER_BAND':1,'COLUMN_PREFIX':'_','STATISTICS':[2],'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback).get('OUTPUT')
 
         #Add field 'Slope'
         statsLayer.startEditing()
@@ -2716,646 +2992,735 @@ class QTalsim:
 
         return statsLayer
 
+    class PerformIntersectTask(QgsTask):
+        '''
+            Runs performIntersectWork() (the HRU intersection) on a background thread so QGIS's UI
+            stays responsive. Progress/log/messageBar/addMapLayer calls cannot happen directly from
+            run() (worker thread) - see performIntersectWork()'s docstring. onPerformIntersectFinished()
+            is called back on the main thread once this task completes, is canceled, or errors.
+        '''
+        messageBarRequested = pyqtSignal(str, str, int)
+
+        def __init__(self, qtalsim, dem_layer, min_size_checked, min_size_value, share_checked, share_value, eliminate_mode_text):
+            #Flag.Hidden keeps this out of QGIS's own background-task widget/status bar, so the only
+            #cancel affordance the user sees is our own Cancel button - having both was confusing.
+            super().__init__("Performing HRU intersection", QgsTask.Flag.CanCancel | QgsTask.Flag.Hidden)
+            self.qtalsim = qtalsim
+            self.dem_layer = dem_layer
+            self.min_size_checked = min_size_checked
+            self.min_size_value = min_size_value
+            self.share_checked = share_checked
+            self.share_value = share_value
+            self.eliminate_mode_text = eliminate_mode_text
+            self.error = None
+
+        def run(self):
+            try:
+                self.qtalsim.performIntersectWork(self, self.dem_layer, self.min_size_checked, self.min_size_value, self.share_checked, self.share_value, self.eliminate_mode_text)
+            except Exception as e:
+                self.error = e
+                return False
+            return not self.isCanceled()
+
+        def finished(self, result):
+            self.qtalsim.onPerformIntersectFinished(self, result)
+
     def performIntersect(self):
         '''
             Performs intersection of the three input layers after processing them in the previous steps.
+            Runs performIntersectWork() as a background PerformIntersectTask so QGIS stays responsive;
+            see onPerformIntersectFinished() for the completion/error/cancel handling.
         '''
+        if self._intersectTask is not None and self._intersectTask.status() not in (QgsTask.TaskStatus.Complete, QgsTask.TaskStatus.Terminated):
+            self.log_to_qtalsim_tab("An intersection is already running.", Qgis.Warning)
+            return
+
+        if self.ezgLayer is None:
+            self.log_to_qtalsim_tab("Sub-basins Layer does not exist.", Qgis.Critical)
+            self.iface.messageBar().pushCritical("Intersection failed", "Sub-basins Layer does not exist.")
+            return
+        elif self.landuseTalsim is None:
+            self.log_to_qtalsim_tab("Land use Talsim Layer does not exist.", Qgis.Critical)
+            self.iface.messageBar().pushCritical("Intersection failed", "Land use Talsim Layer does not exist.")
+            return
+        elif self.soilTalsim is None:
+            self.log_to_qtalsim_tab("Soil Talsim Layer does not exist.", Qgis.Critical)
+            self.iface.messageBar().pushCritical("Intersection failed", "Soil Talsim Layer does not exist.")
+            return
+        else:
+            self.log_to_qtalsim_tab(f"Starting the intersecting process of layers: {self.ezgLayer.name()}, {self.landuseTalsim.name()} and {self.soilTalsim.name()}.", Qgis.Info)
+
+        #Capture widget values on the main thread - performIntersectWork() must not read self.dlg.* from the worker thread
+        dem_layer = self.dlg.comboboxDEMLayer.currentLayer()
+        min_size_checked = self.dlg.checkboxIntersectMinSizeArea.isChecked()
+        min_size_value = self.dlg.spinboxIntersectMinSizeArea.value()
+        share_checked = self.dlg.checkboxIntersectShareofArea.isChecked()
+        share_value = self.dlg.spinboxIntersectShareofArea.value()
+        eliminate_mode_text = self.dlg.comboboxEliminateModes.currentText()
+
+        self.start_operation()
+        self.dlg.progressBar.setRange(0, 100)
+        self.dlg.progressBar.setValue(0)
+        self.dlg.progressBar.setVisible(True)
+        self.dlg.groupboxIntersect.setEnabled(False)
+        self.dlg.onCancelOperation.setVisible(True)
+        self.dlg.onCancelOperation.setEnabled(True)
+
+        self._intersectTask = self.PerformIntersectTask(self, dem_layer, min_size_checked, min_size_value, share_checked, share_value, eliminate_mode_text)
+        self._intersectTask.messageBarRequested.connect(self.onIntersectMessageBarRequested, Qt.ConnectionType.QueuedConnection)
+        QgsApplication.taskManager().addTask(self._intersectTask)
+
+    def onCancelOperationClicked(self):
+        '''
+            Cancels whichever background task (PerformIntersectTask or SaveOutputsTask) is currently
+            running. Only one of the two can be active at a time (Save is only enabled once the
+            intersection has finished), so checking self._intersectTask first is sufficient.
+        '''
+        if self._intersectTask is not None and self._intersectTask.status() not in (QgsTask.TaskStatus.Complete, QgsTask.TaskStatus.Terminated):
+            self._intersectTask.cancel()
+        elif self._saveTask is not None and self._saveTask.status() not in (QgsTask.TaskStatus.Complete, QgsTask.TaskStatus.Terminated):
+            self._saveTask.cancel()
+
+    def onIntersectMessageBarRequested(self, title, message, level):
+        '''
+            Relays a messageBar push requested by PerformIntersectTask from its worker thread to the main thread.
+        '''
+        level = Qgis.MessageLevel(level)
+        if level == Qgis.Critical:
+            self.iface.messageBar().pushCritical(title, message)
+        elif level == Qgis.Warning:
+            self.iface.messageBar().pushWarning(title, message)
+        else:
+            self.iface.messageBar().pushInfo(title, message)
+
+    def onPerformIntersectFinished(self, task, result):
+        '''
+            Called on the main thread once PerformIntersectTask completes, is canceled, or errors.
+        '''
+        self.end_operation()
+        self.dlg.groupboxIntersect.setEnabled(True)
+        self.dlg.onCancelOperation.setVisible(False)
+        self.dlg.onCancelOperation.setEnabled(False)
+        self._intersectTask = None
+
+        if task.isCanceled():
+            self.log_to_qtalsim_tab("Intersection was canceled by the user.", Qgis.Warning)
+            self.dlg.progressBar.setValue(0)
+            return
+
+        if not result or task.error is not None:
+            message = str(task.error) if task.error is not None else "Unknown error"
+            self.log_to_qtalsim_tab(message, Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
+            self.iface.messageBar().pushCritical("Intersection failed", message)
+            return
+
+        #Success: the layers were built (and named) by performIntersectWork() on the worker thread;
+        #adding them to the project must happen here, on the main thread.
+        for layer in (self.finalLayer, self.landuseFinal, self.soilTextureFinal, self.soilTypeFinal, self.eflLayer):
+            QgsProject.instance().addMapLayer(layer)
+
+        self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Save).setEnabled(True)
+        #Add checkmark when process is finished
+        current_text = self.dlg.onPerformIntersect.text()
+        if "✓" not in current_text:  #Avoid duplicate checkmarks
+            self.dlg.onPerformIntersect.setText(f"{current_text} ✓")
+            current_text_groupbox = self.dlg.groupboxIntersect.title()
+            self.dlg.groupboxIntersect.setTitle(f"{current_text_groupbox} ✓")
+
+        self.log_to_qtalsim_tab(f"Finished intersection of layers.", Qgis.Info)
+        self.iface.messageBar().pushSuccess(
+            "Intersection was successful", f"You can now save the output layers."
+        )
+
+    def performIntersectWork(self, task, dem_layer, min_size_checked, min_size_value, share_checked, share_value, eliminate_mode_text):
+        '''
+            The actual HRU intersection, run on PerformIntersectTask's background thread.
+            Must not touch self.dlg/self.iface widgets or QgsProject directly (unsafe off the main
+            thread) - use task.setProgress()/task.messageBarRequested.emit()/task.isCanceled()
+            instead, and the widget values captured by performIntersect() and passed in here.
+            self.log_to_qtalsim_tab() is safe to call directly (QgsMessageLog is thread-safe).
+            Results (self.finalLayer etc.) are added to the project by onPerformIntersectFinished().
+        '''
+        if task.isCanceled():
+            return
+
+        #Backs every processing.run() call below with the task's own cancellation state, so a long
+        #native algorithm (e.g. native:intersection on large layers) actually aborts when the user
+        #clicks Cancel, instead of always running to completion (feedback=None would otherwise make
+        #processing.run() substitute a disposable, never-canceled QgsProcessingFeedback per call).
+        #quiet=True: don't forward each algorithm's own pushInfo/pushWarning chatter to the QTalsim
+        #tab - the explicit log_to_qtalsim_tab() calls below already report what matters; errors still show.
+        feedback = self.TaskFeedback(task.isCanceled, self.log_to_qtalsim_tab, quiet=True)
+
+        all_fields = [field.name() for field in self.ezgLayer.fields()]
+        fields_to_delete_indices = [self.ezgLayer.fields().indexFromName(field) for field in all_fields if field != self.ezgUniqueIdentifier]
+        self.ezgLayer.startEditing()
+        self.ezgLayer.dataProvider().deleteAttributes(fields_to_delete_indices)
+        self.ezgLayer.commitChanges()
+        self.ezgLayer.updateFields()
         try:
-            self.start_operation()
-            self.dlg.progressBar.setRange(0, 100)
-            self.dlg.progressBar.setValue(0)
-            self.dlg.progressBar.setVisible(True)
-            if self.ezgLayer is None:
-                self.log_to_qtalsim_tab("Sub-basins Layer does not exist.", Qgis.Critical)
-                raise Exception("Sub-basins Layer does not exist.")
-            elif self.landuseTalsim is None:
-                self.log_to_qtalsim_tab("Land use Talsim Layer does not exist.", Qgis.Critical)
-                raise Exception("Land use Talsim Layer does not exist.")
-            elif self.soilTalsim is None:
-                self.log_to_qtalsim_tab("Soil Talsim Layer does not exist.", Qgis.Critical)
-                raise Exception("Soil Talsim Layer does not exist.")
-            else:
-                self.log_to_qtalsim_tab(f"Starting the intersecting process of layers: {self.ezgLayer.name()}, {self.landuseTalsim.name()} and {self.soilTalsim.name()}.", Qgis.Info)
+            #Create a copy of the sub-basins layer to not edit the input layer
+            ezgLayer1 = QgsVectorLayer(f"Polygon?crs={self.ezgLayer.crs().authid()}", "EZG", "memory")
+            feats = [feat for feat in self.ezgLayer.getFeatures()]
 
-            all_fields = [field.name() for field in self.ezgLayer.fields()]
-            fields_to_delete_indices = [self.ezgLayer.fields().indexFromName(field) for field in all_fields if field != self.ezgUniqueIdentifier]
-            self.ezgLayer.startEditing()
-            self.ezgLayer.dataProvider().deleteAttributes(fields_to_delete_indices)
-            self.ezgLayer.commitChanges()
-            self.ezgLayer.updateFields()
-            try:
-                #Create a copy of the sub-basins layer to not edit the input layer
-                ezgLayer1 = QgsVectorLayer(f"Polygon?crs={self.ezgLayer.crs().authid()}", "EZG", "memory")
-                feats = [feat for feat in self.ezgLayer.getFeatures()]
-
-                mem_layer_data = ezgLayer1.dataProvider()
-                attr = self.ezgLayer.dataProvider().fields().toList()
-                mem_layer_data.addAttributes(attr)
-                ezgLayer1.updateFields()
-                mem_layer_data.addFeatures(feats)
-            except Exception as e:
-                self.log_to_qtalsim_tab(f"Failed to create a working copy of the sub-basins layer: {e}", Qgis.Critical)
-                raise
-
-            '''
-                Intersection
-            '''
-            intermediateResultIntersect = processing.run("native:intersection", {
-                'INPUT': self.landuseTalsim,
-                'OVERLAY': ezgLayer1,
-                'OUTPUT': 'TEMPORARY_OUTPUT'
-            })['OUTPUT']
-            
-            intermediateIntersectSingleparts = processing.run("native:multiparttosingleparts", {
-                'INPUT': intermediateResultIntersect,
-                'OUTPUT': 'TEMPORARY_OUTPUT'
-            })['OUTPUT']
-            
-            intersectedLayer = processing.run("native:intersection", {
-                'INPUT': intermediateIntersectSingleparts,
-                'OVERLAY': self.soilTalsim,
-                'OUTPUT': 'TEMPORARY_OUTPUT'
-            })['OUTPUT']
-
-            #Calculate and store area of every catchment area
-            intersectedLayer, _ = self.make_geometries_valid(intersectedLayer)
-            self.dlg.progressBar.setValue(10)
-            self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
-            #Get the area of each sub-basin
-            ezgAreas = {}
-            for feature in ezgLayer1.getFeatures():
-                ezgAreas[feature[self.ezgUniqueIdentifier]] = feature.geometry().area()
-
-            #Dissolve intersected layer by sub-basin's, soil's and land use's parameters
-            dissolve_list = []
-            dissolve_list.append(self.ezgUniqueIdentifier)
-            dissolve_list.extend(self.selected_landuse_parameters)
-            dissolve_list.extend(self.soilFieldNames)
-            resultDissolve = processing.run("native:dissolve", {'INPUT': intersectedLayer,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback = None)
-            intersectedDissolvedLayer = resultDissolve['OUTPUT']
-            
-            #Intersecting layers can result in further overlaps/gaps --> fill gaps, edit overlaps 
-            intersectedDissolvedLayerFilledGaps = self.fillGaps(intersectedDissolvedLayer, self.clippingEZG, 0)
-            ezgDissolved = processing.run("native:dissolve", {'INPUT': self.ezgLayer,'FIELD': [],'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-            
-            self.log_to_qtalsim_tab(f"Progress: 15.00% done", Qgis.Info)
-            self.log_to_qtalsim_tab("Deleting overlapping features...", Qgis.Info)
-            try:
-                intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayerFilledGaps, ezgDissolved) #necessary because also wanted gaps (of sub-basins-layer) are filled when performing 'Fill Gaps'
-            except Exception as e:
-                self.log_to_qtalsim_tab(f"Clipping the filled-gap layer to the sub-basins failed, continuing with un-clipped data: {e}", Qgis.Warning)
-                self.iface.messageBar().pushWarning("Intersection warning", "Clipping step failed and was skipped — results may include un-clipped areas. See log for details.")
-                
-            intersectedDissolvedLayer, _ = self.editOverlappingFeatures(intersectedDissolvedLayer)
-        
-            all_fields = [field.name() for field in intersectedDissolvedLayer.fields()]
-            fields_to_delete_indices = [intersectedDissolvedLayer.fields().indexFromName(field) for field in all_fields if field not in dissolve_list]
-            intersectedDissolvedLayer.startEditing()
-            intersectedDissolvedLayer.dataProvider().deleteAttributes(fields_to_delete_indices)
-            intersectedDissolvedLayer.commitChanges()
-            intersectedDissolvedLayer.updateFields()
-            #Features with no geometry or NULL-values may lead to errors: delete those features
-            features_to_delete = []
-            for feature in intersectedDissolvedLayer.getFeatures():
-                if feature.geometry().isEmpty() or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' and str(feature[self.soilIDNames[0]]).strip().upper() == 'NULL' and str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
-                    features_to_delete.append(feature.id())                    
-            
-            intersectedDissolvedLayer.startEditing()
-            for feature_id in features_to_delete:
-                intersectedDissolvedLayer.deleteFeature(feature_id)
-            intersectedDissolvedLayer.commitChanges()
-            #QgsProject.instance().addMapLayer(intersectedDissolvedLayer)
-            #Split the intersected areas and create own layer for each catchment area
-                # --> necessary for eliminating: deleted areas (e.g. area too small) should only take the attributes of features in the same catchment area
-            resultSplit = processing.run("native:splitvectorlayer", {
-                    'INPUT': intersectedDissolvedLayer,
-                    'FIELD': self.ezgUniqueIdentifier,
-                    'PREFIX_FIELD': True,
-                    'FILE_TYPE': 0,
-                    'OUTPUT': 'TEMPORARY_OUTPUT'
-                }, feedback=None)
-            outputDirSplit = resultSplit['OUTPUT']
-            self.dlg.progressBar.setValue(20)
-            self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)
-            #Logging variables:
-            if 'memory:' in outputDirSplit:  # If using in-memory output
-                count_all_layers = len([layer for layer in QgsProject.instance().mapLayers().values() if layer.name().startswith(self.ezgUniqueIdentifier)])
-            else:  # If using a directory output
-                count_all_layers = len([name for name in os.listdir(outputDirSplit) if os.path.isfile(os.path.join(outputDirSplit, name))])
-            last_logged_progress = 0
-            analysed_features = 0
-
-            #EFL-Dissolve-List
-            eflFieldList = []
-            eflFieldList.append(self.ezgUniqueIdentifier) #ID of catchment area
-            eflFieldList.extend(self.soilIDNames) #ID Soil
-            eflFieldList.append(self.fieldLanduseID) #ID LNZ
-            splitLayers = []
-
-            self.log_to_qtalsim_tab("Eliminating polygons below elimination thresholds...", Qgis.Info)
-
-            #Loop over all sub-basins to eliminate polygons
-            for filename in os.listdir(outputDirSplit):
-                
-                #Logging the process
-                analysed_features += 1
-                progress = (analysed_features/count_all_layers)*100
-                if progress - last_logged_progress >= 10:
-                    self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
-                    last_logged_progress = progress
-
-                ids_to_eliminate = []
-                file_path = os.path.join(outputDirSplit, filename)
-                tempLayersplit = QgsVectorLayer(file_path, filename, 'ogr')
-                
-                #Clean the geometries before performing multipart to singlepart
-                tempLayersplit, _ = self.make_geometries_valid(tempLayersplit)
-
-                #'Multipart to singleparts' necessary because 'mergevectorlayer' does not allow Geometry Collections
-                if tempLayersplit.isValid():
-                    tempLayersplit = processing.run("native:multiparttosingleparts", {
-                        'INPUT': tempLayersplit,
-                        'OUTPUT': 'memory:'
-                    },feedback=None)['OUTPUT']
-                
-                fieldAreaEFL = QgsField(self.fieldNameAreaEFL, QVariant.Double)
-                tempLayersplit.dataProvider().addAttributes([fieldAreaEFL]) #create new field
-                tempLayersplit.updateFields()
-
-                area_sums = defaultdict(float)
-                ezg_values = {}
-                #Select features to eliminate
-                for feature in tempLayersplit.getFeatures():
-                    attributes_key = tuple(feature[field] for field in eflFieldList)
-                    ezg_values[attributes_key] = feature[self.ezgUniqueIdentifier]
-                    # Sum the area for this group
-                    area_sums[attributes_key] += feature.geometry().area()
-
-                percentage_sums = {}
-                # Get a representative feature to extract the ezg value
-                for attributes_key, summed_area in area_sums.items():
-                    ezg = ezg_values[attributes_key]
-                    ezgArea = ezgAreas[ezg]
-                    percentage = (summed_area / ezgArea) * 100
-                    percentage_sums[attributes_key] = percentage
-
-                features_to_delete = [] #features without/empty geometries are deleted
-                for feature in tempLayersplit.getFeatures():
-                    attributes_key = tuple(feature[field] for field in eflFieldList)
-                    area = area_sums[attributes_key]
-                    percentage = percentage_sums[attributes_key]
-                    if feature.geometry().isEmpty() or feature.geometry() is None or feature.geometry().area() == 0:
-                        features_to_delete.append(feature.id())
-                    else:   
-                        if self.dlg.checkboxIntersectMinSizeArea.isChecked() and area < self.dlg.spinboxIntersectMinSizeArea.value(): # if area of feature < minimum accepted area specified by user
-                            ids_to_eliminate.append(feature.id())
-                        if self.dlg.checkboxIntersectShareofArea.isChecked() and feature.id() not in ids_to_eliminate: #if the percentage-chechbox is chosen
-                            if percentage < self.dlg.spinboxIntersectShareofArea.value():
-                                ids_to_eliminate.append(feature.id()) #eliminate
-                        if area == 0 and feature.id() not in ids_to_eliminate: #also eliminate features with area = 0
-                            ids_to_eliminate.append(feature.id())
-
-                tempLayersplit.startEditing()
-                for feature_id in features_to_delete:
-                    tempLayersplit.deleteFeature(feature_id)
-                tempLayersplit.commitChanges()
-
-                #Eliminate with mode specified by user
-                tempLayersplit.selectByIds(ids_to_eliminate)
-                mode = 0 
-                if self.dlg.comboboxEliminateModes.currentText() == 'Smallest Area':
-                    mode = 1
-                elif self.dlg.comboboxEliminateModes.currentText() == 'Largest Common Boundary':
-                    mode = 2
-                elif self.dlg.comboboxEliminateModes.currentText() == 'Largest Area':
-                    mode = 0
-                tempLayerSplitEliminated = processing.run("qgis:eliminateselectedpolygons", {'INPUT':tempLayersplit,'MODE':mode,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                tempLayerSplitEliminated = processing.run("native:multiparttosingleparts", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                #tempLayerSplitEliminated = processing.run("native:fixgeometries", {'INPUT': tempLayerSplitEliminated,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                tempLayerSplitEliminated, _ = self.make_geometries_valid(tempLayerSplitEliminated)
-                splitLayers.append(tempLayerSplitEliminated)
-            self.dlg.progressBar.setValue(30)
-            self.log_to_qtalsim_tab(f"Progress: 30.00% done", Qgis.Info)
-            #Merge all of the split layers
-            resultMerge = processing.run("native:mergevectorlayers", {'LAYERS':splitLayers,'CRS':intersectedDissolvedLayer.crs(),'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-            #QgsProject.instance().addMapLayer(resultMerge)
-            #Check if 
-            invalid_features = False
-            resultMerge, invalid_features = self.make_geometries_valid(resultMerge)
-            if invalid_features:
-                original_features = {feature.id(): feature for feature in resultMerge.getFeatures()}
-                resultMerge = processing.run("native:fixgeometries", {'INPUT': resultMerge, 'METHOD': 1, 'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None).get('OUTPUT')
-                fixed_features = {feature.id(): feature for feature in resultMerge.getFeatures()}
-                deleted_features = set(original_features.keys()) - set(fixed_features.keys())
-
-            #Dissolve Layer 2 
-            try:
-                resultDissolve = processing.run("native:dissolve", {'INPUT': resultMerge,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
-                self.finalLayer = resultDissolve['OUTPUT']
-            except:
-                resultMerge, _ = self.make_geometries_valid(resultMerge)
-                self.finalLayer = processing.run("native:dissolve", {'INPUT': resultMerge,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']  
-            #QgsProject.instance().addMapLayer(self.finalLayer)
-            self.log_to_qtalsim_tab("Deleting overlapping features...", Qgis.Info)
-            try:
-                self.finalLayerAfterGaps = self.fillGaps(self.finalLayer, self.clippingEZG, 0)
-                self.finalLayerAfterGaps, _ = self.make_geometries_valid(self.finalLayerAfterGaps)
-                self.finalLayerClipped = self.clipLayer(self.finalLayerAfterGaps, ezgDissolved)
-                self.finalLayer, _ = self.editOverlappingFeatures(self.finalLayerClipped)
-            except Exception as e:
-                self.log_to_qtalsim_tab(f"Operation did not work due to too complex features or other issues: {e}", Qgis.Warning)
-            
-            #Delete features without geometry
-            features_to_delete = []
-            for feature in self.finalLayer.getFeatures():
-                # Check if all attribute values are 'NULL'
-                if feature.geometry().isEmpty() or feature.geometry() is None or feature.geometry().area() == 0 or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' and str(feature[self.soilIDNames[0]]).strip().upper() == 'NULL' and str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
-                    features_to_delete.append(feature.id())
-            if len(features_to_delete) > 0:
-                self.log_to_qtalsim_tab(f"{len(features_to_delete)} features are deleted as they are empty polygons. ", Qgis.Info)
-
-            self.finalLayer.startEditing()
-            for feature_id in features_to_delete:
-                self.finalLayer.deleteFeature(feature_id)
-            self.finalLayer.commitChanges()
-
-            self.finalLayer.setName("Talsim Layer")
-            QgsProject.instance().addMapLayer(self.finalLayer) #Add final layer to inspect results
-            
-            #Delete unwanted fields
-            self.finalLayer.startEditing()
-            dissolve_fields_indices = [self.finalLayer.fields().indexFromName(field) for field in dissolve_list]
-            for i in range(self.finalLayer.fields().count() - 1, -1, -1):
-                if i not in dissolve_fields_indices:
-                    self.finalLayer.deleteAttribute(i)
-            self.finalLayer.commitChanges()
-            self.dlg.progressBar.setValue(40)
-            self.log_to_qtalsim_tab(f"Progress: 40.00% done", Qgis.Info)
-
-            '''
-                Create .LNZ
-            '''
-            fields_to_remove = [self.ezgUniqueIdentifier]
-            for field in fields_to_remove:
-                if field in self.selected_landuse_parameters:
-                    self.selected_landuse_parameters.remove(field)
-            try:
-                resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)
-                self.landuseFinal = resultDissolve['OUTPUT']
-            except:
-                self.landuseFinal = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                self.landuseFinal, _ = self.make_geometries_valid(self.landuseFinal)
-                self.landuseFinal = processing.run("native:dissolve", {'INPUT': self.landuseFinal,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                self.landuseFinal = processing.run("native:dissolve", {'INPUT': self.landuseFinal,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-
-            self.landuseFinal.startEditing()
-            dissolve_fields_indices = [self.landuseFinal.fields().indexFromName(field) for field in self.selected_landuse_parameters]
-            for i in range(self.landuseFinal.fields().count() - 1, -1, -1):
-                if i not in dissolve_fields_indices:
-                    self.landuseFinal.deleteAttribute(i)
-            self.landuseFinal.commitChanges()
-            self.landuseFinal.setName("LNZ")
-
-            field_index = self.landuseFinal.fields().indexFromName(self.fieldLanduseID)
-            self.landuseFinal.startEditing()
-            self.landuseFinal.renameAttribute(field_index, 'Id')
-            self.landuseFinal.commitChanges()
-
-            QgsProject.instance().addMapLayer(self.landuseFinal)
-            self.dlg.progressBar.setValue(50)
-            self.log_to_qtalsim_tab(f"Progress: 50.00% done", Qgis.Info)
-
-            '''
-                Create .BOA - SoilTexture
-            '''
-
-            new_fields = QgsFields()
-            
-            #Get the field names of the first soil layer in the final layer
-            for field in self.finalLayer.fields():
-                if field.name().endswith(f"soillayer1"):  #Ends with 'soillayer1', but this will handle all similar layers
-                    #Remove the 'soillayer1' suffix to create the new field name
-                    base_field_name = field.name().rsplit('_soillayer', 1)[0]  #Remove the suffix like '_soillayer1'
-                    if base_field_name != self.soilTypeThickness:
-                        new_fields.append(QgsField(base_field_name, field.type()))
-
-            #Create the final soil texture layer
-            crs = self.finalLayer.crs()
-            self.soilTextureFinal = QgsVectorLayer(f"Polygon?crs={crs}", "BOA", "memory", crs=crs)
-            soil_texture_data_provider = self.soilTextureFinal.dataProvider()
-            soil_texture_data_provider.addAttributes(new_fields)
-            self.soilTextureFinal.updateFields()
-
-            unique_combinations = set()
-            unique_feature_index = {}
-            geometries = {}
-            j = 1
-            for feature in self.finalLayer.getFeatures():
-                for i in range(1, self.number_soilLayers + 1):
-                    combination = tuple(feature[f"{field.name()}_soillayer{i}"] for field in new_fields if field.name() != self.IDSoil) #combination without id (id for each combination of soil layers)
-                    if str(feature[f"{self.nameSoil}_soillayer{i}"]).strip().upper() != 'NULL' and str(feature[f"{self.nameSoil}_soillayer{i}"]).strip().upper() != '':
-                        if combination not in unique_combinations: 
-                            unique_combinations.add(combination)
-                            #Create new feature for each soil layer
-                            new_feature = QgsFeature(self.soilTextureFinal.fields())
-                            for field in new_fields:
-                                if field.name() != self.IDSoil:
-                                    #Construct the field name for this soil layer (e.g., 'soil_layer1_soilid')
-                                    original_field_name = f"{field.name()}_soillayer{i}"
-
-                                    #Add the corresponding value to the new feature if the field exists
-                                    if self.finalLayer.fields().indexOf(original_field_name) != -1:
-                                        new_feature.setAttribute(field.name(), feature[original_field_name])
-                            new_feature.setAttribute(self.IDSoil, j)
-                            j += 1
-                            #Add the new feature (row) to the new layer
-                            soil_texture_data_provider.addFeature(new_feature)
-                            unique_feature_index[combination] = new_feature['ID_Soil'] #new_feature.id()
-                        if combination not in geometries:
-                            geometries[combination] = [feature.geometry()]  #Start with a list containing this feature's geometry
-                        else:
-                            geometries[combination].append(feature.geometry())
-            self.soilTextureFinal.commitChanges()
-            self.soilTextureFinal.startEditing()
-            #Add the geomtries to the layer
-            for combination, geom_list in geometries.items():
-                #Combine geometries for this combination
-                combined_geometry = QgsGeometry.unaryUnion(geom_list)
-                
-                #Find the corresponding feature based on the combination
-                for feature in self.soilTextureFinal.getFeatures():
-                    #Compare with unique_feature_index to find the corresponding feature
-                    if feature['ID_Soil'] == unique_feature_index[combination]:
-                        #Set the combined geometry to the feature
-                        self.soilTextureFinal.startEditing()
-                        feature.setGeometry(combined_geometry)
-                        self.soilTextureFinal.updateFeature(feature)  
-            
-
-            self.soilTextureFinal.commitChanges()  
-            QgsProject.instance().addMapLayer(self.soilTextureFinal)
-            self.dlg.progressBar.setValue(65)
-            self.log_to_qtalsim_tab(f"Progress: 65.00% done", Qgis.Info)
-
-            '''
-                BOD
-            '''
-            bod_fields = QgsFields()
-
-            #Create reference fields to soil textures
-            bod_fields.append(QgsField(f"ID", QVariant.Int))
-            for i in range(1, self.number_soilLayers + 1):
-                bod_fields.append(QgsField(f"soillayer{i}_id_boa", QVariant.Int))  #Reference to the soil_id in the first layer
-                bod_fields.append(QgsField(f"soillayer{i}_{self.soilTypeThickness}", QVariant.Double)) #layer thickness for every soil layer
-            bod_fields.append(QgsField("Description", QVariant.String)) #Add description field only once
-            bod_fields.append(QgsField(self.nameSoil, QVariant.String)) #Add name field only once
-            self.soilTypeFinal = QgsVectorLayer(f"Polygon?crs={crs}", "BOD", "memory", crs=crs)
-            bod_data_provider = self.soilTypeFinal.dataProvider()
-            bod_data_provider.addAttributes(bod_fields)
-            self.soilTypeFinal.updateFields()
-            
-            for feature in self.finalLayer.getFeatures():
-                new_feature = QgsFeature(self.soilTypeFinal.fields())
-                geometry = feature.geometry()
-                new_feature.setGeometry(geometry)
-                
-                descriptionSoilLayers = str()
-                descriptionSoilLayersList = []
-                nameSoilLayers = str()
-                nameSoilLayersList = []
-                
-                for i in range(1, self.number_soilLayers + 1):
-                    if str(feature[f'ID_Soil_soillayer{i}']).strip().upper() != 'NULL':
-                        combination = tuple(feature[f"{field.name()}_soillayer{i}"] for field in new_fields if field.name() != self.IDSoil)
-                        
-                        if combination in unique_feature_index:
-                            #Find the index of the corresponding feature in the new_layer and set the reference
-                            new_feature.setAttribute(f"soillayer{i}_id_boa", unique_feature_index[combination])
-                            new_feature.setAttribute(f"soillayer{i}_{self.soilTypeThickness}", feature[f'{self.soilTypeThickness}_soillayer{i}'])
-                        if str(feature[f'{self.soilDescription}_soillayer{i}']).strip().upper() != 'NULL':
-                            value = feature[f'{self.soilDescription}_soillayer{i}']
-                            if value:
-                                descriptionSoilLayersList.append(str(value))
-                        # Combine Names of all layers
-                        nameSoilLayersList.append(str(feature[f'{self.nameSoil}_soillayer{i}'])) 
-
-                # add combination of all descriptions       
-                if isinstance(descriptionSoilLayersList, (list, tuple)):
-                    descriptionSoilLayers = ', '.join(map(str, descriptionSoilLayersList))
-                else:
-                    descriptionSoilLayers = str(descriptionSoilLayersList)
-
-                # add combination of all names 
-                if isinstance(nameSoilLayersList, (list, tuple)):
-                    nameSoilLayers = ' - '.join(map(str, nameSoilLayersList))
-                else:
-                    nameSoilLayers = str(nameSoilLayersList)
-
-                new_feature.setAttribute(self.soilDescription, descriptionSoilLayers) #take the combination of all soil layer's description
-                new_feature.setAttribute(self.nameSoil, nameSoilLayers)
-                bod_data_provider.addFeature(new_feature)
-
-            bod_field_names = [field.name() for field in bod_fields]
-
-            try:
-                self.soilTypeFinal = processing.run("native:dissolve", {'INPUT': self.soilTypeFinal,'FIELD': bod_field_names, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-            except:
-                self.soilTypeFinal = processing.run("native:multiparttosingleparts", {'INPUT': self.soilTypeFinal,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                self.soilTypeFinal, _ = self.make_geometries_valid(self.soilTypeFinal)
-
-                self.soilTypeFinal = processing.run("native:dissolve", {'INPUT': self.soilTypeFinal,'FIELD': bod_field_names, 'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                self.soilTypeFinal = processing.run("native:dissolve", {'INPUT': self.soilTypeFinal,'FIELD': bod_field_names, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-
-            #Fill ID-column with the (internal) feature-id
-            self.soilTypeFinal.startEditing()
-            #Iterate through each feature in the dissolved layer and assign a new unique ID
-            for feature in self.soilTypeFinal.getFeatures():
-                feature_id = feature.id() 
-                feature.setAttribute("ID", feature_id)  
-                #Update the feature in the layer
-                self.soilTypeFinal.updateFeature(feature)
-            self.soilTypeFinal.commitChanges()
-
-            self.soilTypeFinal.setName("BOD")
-            QgsProject.instance().addMapLayer(self.soilTypeFinal)
-            self.dlg.progressBar.setValue(75)
-            self.log_to_qtalsim_tab(f"Progress: 75.00% done", Qgis.Info)
-
-            '''
-                Create .EFL
-            '''
-            #Join the soil id (BOD) to the EFL-layer
-            self.finalLayer = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-            self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
-            soilTypeFinalSingleParts = processing.run("native:multiparttosingleparts", {'INPUT': self.soilTypeFinal,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-            processing.run("native:createspatialindex", {'INPUT': self.finalLayer})
-            processing.run("native:createspatialindex", {'INPUT': soilTypeFinalSingleParts})
-            
-            try:
-                #Define the parameters for the spatial join
-                params = {
-                    'INPUT': self.finalLayer,  
-                    'JOIN': soilTypeFinalSingleParts,  
-                    'PREDICATE': [0],  
-                    'JOIN_FIELDS': ['ID'],  
-                    'METHOD': 2,  
-                    'DISCARD_NONMATCHING': False,  
-                    'OUTPUT': 'memory:'  
-                }
-
-                #Run the spatial join
-                result = processing.run('native:joinattributesbylocation', params)
-            except:
-                soilTypeFinalSingleParts, _ = self.make_geometries_valid(soilTypeFinalSingleParts)
-                self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
-                #Define the parameters for the spatial join
-                params = {
-                    'INPUT': self.finalLayer,
-                    'JOIN': soilTypeFinalSingleParts,  
-                    'PREDICATE': [0],  
-                    'JOIN_FIELDS': ['ID'],  
-                    'METHOD': 2,  
-                    'DISCARD_NONMATCHING': False,  
-                    'OUTPUT': 'memory:'  
-                }
-
-                #Run the spatial join
-                result = processing.run('native:joinattributesbylocation', params)
-            
-            #Get the resulting layer (joined output)
-            self.finalLayer = result['OUTPUT']
-
-            #Now rename the joined 'ID' column to the desired self.hruSoilTypeId
-            self.finalLayer.startEditing()
-            for field in self.finalLayer.fields():
-                if field.name() == 'ID': 
-                    self.finalLayer.renameAttribute(self.finalLayer.fields().indexOf('ID'), self.hruSoilTypeId)  #Rename it
-            self.finalLayer.commitChanges()
-            
-            #Delete features without geometry
-            features_to_delete = []
-            for feature in self.finalLayer.getFeatures():
-                #Check if all attribute values are 'NULL'
-                if feature.geometry().isEmpty() or feature.geometry() is None or feature.geometry().area() == 0 or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' or str(feature[self.hruSoilTypeId]).strip().upper() == 'NULL' or str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
-                    features_to_delete.append(feature.id())
-            if len(features_to_delete) > 0:
-                self.log_to_qtalsim_tab(f"{len(features_to_delete)} features are deleted as they are empty polygons. ", Qgis.Info)
-
-            self.finalLayer.startEditing()
-            for feature_id in features_to_delete:
-                self.finalLayer.deleteFeature(feature_id)
-            self.finalLayer.commitChanges()
-
-            #Log catchment areas where size of all HRUs != size of catchment area
-            sum_areas = {key: 0 for key in ezgAreas.keys()}
-            for feature in self.finalLayer.getFeatures():
-                area = feature.geometry().area()
-                ezg = feature[self.ezgUniqueIdentifier]
-                sum_areas[ezg] += area
-
-            for key in ezgAreas:
-                if key in sum_areas:
-                    if round(ezgAreas[key], -2) != round(sum_areas[key], -2):
-                        self.log_to_qtalsim_tab(f'Sub-basin with Unique-Identifier {key} has a different area {ezgAreas[key]} than the sum of all features in this sub-basin {sum_areas[key]}.', Qgis.Warning)
-            self.dlg.progressBar.setValue(85)
-            self.log_to_qtalsim_tab(f"Progress: 85.00% done", Qgis.Info)
-            eflFieldList.append(self.hruSoilTypeId)
-
-            eflFieldList = [item for item in eflFieldList if item not in self.soilIDNames]
-            try:
-                #Dissolve the final Layer
-                self.eflLayer = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-            except:
-                #Complex geometries can lead to errors when dissolving - cleaning the geometries might be necessary
-                self.finalLayer = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
-
-                self.eflLayer = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-                self.eflLayer = processing.run("native:dissolve", {'INPUT': self.eflLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
-
-            #Add Fields
-            if self.dlg.comboboxDEMLayer.currentLayer():
-                self.log_to_qtalsim_tab(f"Calculating Slope...", Qgis.Info)
-                self.eflLayer = self.calculateSlopeHRUs(self.eflLayer)    
-            else:
-                self.eflLayer.startEditing()
-                #Add the new field 'slope'
-                self.eflLayer.addAttribute(QgsField(self.slopeFieldName, QVariant.Double))
-                self.eflLayer.commitChanges()
-
-            eflFieldList.append(self.slopeFieldName)
-            eflLayerDP = self.eflLayer.dataProvider()
-            self.eflLayer.startEditing()
-            eflLayerDP.addAttributes([QgsField(self.fieldNameAreaEFL, QVariant.Double)])
-            self.eflLayer.commitChanges()
-            self.eflLayer.updateFields()
-            self.dlg.progressBar.setValue(90)
-            self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
-            #Add data
-            self.eflLayer.startEditing()
-            features_to_delete = []
-            for feature in self.eflLayer.getFeatures():
-                area = feature.geometry().area()
-                ezg = feature[self.ezgUniqueIdentifier]
-                ezgArea = ezgAreas[ezg]
-                percentage = (area/ezgArea)*100
-                feature[self.fieldNameAreaEFL] = percentage
-                if percentage < 0.001: #delete features with area < 0.001%
-                    features_to_delete.append(feature.id())
-                    continue  
-                self.eflLayer.updateFeature(feature)
-                if self.dlg.checkboxIntersectMinSizeArea.isChecked() and area < self.dlg.spinboxIntersectMinSizeArea.value(): # if area of feature < minimum accepted area specified by user
-                    self.log_to_qtalsim_tab(f"Feature {feature.id()} is not deleted, eventhough it's area is below {self.dlg.spinboxIntersectMinSizeArea.value()} m².", Qgis.Warning)
-                if self.dlg.checkboxIntersectShareofArea.isChecked() and percentage < self.dlg.spinboxIntersectShareofArea.value(): #if the percentage-chechbox is chosen
-                    self.log_to_qtalsim_tab(f"Feature {feature.id()} is not deleted, eventhough it's percentage is below {self.dlg.spinboxIntersectShareofArea.value()} %.", Qgis.Warning)
-            
-            for fid in features_to_delete: #delete features with area < 0.001%
-                self.eflLayer.deleteFeature(fid)
-
-            self.eflLayer.commitChanges()
-            self.dlg.progressBar.setValue(95)
-            self.log_to_qtalsim_tab(f"Progress: 95.00% done", Qgis.Info)
-            eflFieldList.append(self.fieldNameAreaEFL) #Area of Elementarfläche
-            self.eflLayer.startEditing()
-            dissolve_fields_indices = [self.eflLayer.fields().indexFromName(field) for field in eflFieldList]
-            for i in range(self.eflLayer.fields().count() - 1, -1, -1):
-                if i not in dissolve_fields_indices:
-                    self.eflLayer.deleteAttribute(i)
-            self.eflLayer.commitChanges()
-
-            #Rename the fieldnames  
-            self.eflLayer.startEditing()
-            field_index = self.eflLayer.fields().indexFromName(self.fieldLanduseID)
-            self.eflLayer.renameAttribute(field_index, self.hruLandUseId)
-            field_index = self.eflLayer.fields().indexFromName(self.ezgUniqueIdentifier)
-            self.eflLayer.renameAttribute(field_index, self.subBasinUI)
-            self.eflLayer.commitChanges()
-
-            #Add the updated eflLayer to the map
-            self.eflLayer.setName("EFL")
-            QgsProject.instance().addMapLayer(self.eflLayer)
-            self.dlg.progressBar.setValue(100)
-            self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
-
-            self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Save).setEnabled(True)
-            #Add checkmark when process is finished
-            current_text = self.dlg.onPerformIntersect.text()
-            if "✓" not in current_text:  #Avoid duplicate checkmarks
-                self.dlg.onPerformIntersect.setText(f"{current_text} ✓")
-                current_text_groupbox = self.dlg.groupboxIntersect.title()
-                self.dlg.groupboxIntersect.setTitle(f"{current_text_groupbox} ✓")
-
-            self.log_to_qtalsim_tab(f"Finished intersection of layers.", Qgis.Info)
-            self.iface.messageBar().pushSuccess(
-                "Intersection was successful", f"You can now save the output layers."
-            )
-
+            mem_layer_data = ezgLayer1.dataProvider()
+            attr = self.ezgLayer.dataProvider().fields().toList()
+            mem_layer_data.addAttributes(attr)
+            ezgLayer1.updateFields()
+            mem_layer_data.addFeatures(feats)
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
-            self.dlg.progressBar.setValue(0)
-            self.iface.messageBar().pushCritical("Intersection failed", str(e))
-        finally:
-            self.end_operation()
+            self.log_to_qtalsim_tab(f"Failed to create a working copy of the sub-basins layer: {e}", Qgis.Critical)
+            raise
+
+        '''
+            Intersection
+        '''
+        intermediateResultIntersect = processing.run("native:intersection", {
+            'INPUT': self.landuseTalsim,
+            'OVERLAY': ezgLayer1,
+            'OUTPUT': 'TEMPORARY_OUTPUT'
+        }, feedback=feedback)['OUTPUT']
+
+        intermediateIntersectSingleparts = processing.run("native:multiparttosingleparts", {
+            'INPUT': intermediateResultIntersect,
+            'OUTPUT': 'TEMPORARY_OUTPUT'
+        }, feedback=feedback)['OUTPUT']
+
+        intersectedLayer = processing.run("native:intersection", {
+            'INPUT': intermediateIntersectSingleparts,
+            'OVERLAY': self.soilTalsim,
+            'OUTPUT': 'TEMPORARY_OUTPUT'
+        }, feedback=feedback)['OUTPUT']
+
+        #Calculate and store area of every catchment area
+        intersectedLayer, _ = self.make_geometries_valid(intersectedLayer)
+        task.setProgress(10)
+        self.log_to_qtalsim_tab(f"Progress: 10.00% done", Qgis.Info)
+        #Get the area of each sub-basin
+        ezgAreas = {}
+        for feature in ezgLayer1.getFeatures():
+            ezgAreas[feature[self.ezgUniqueIdentifier]] = feature.geometry().area()
+
+        #Dissolve intersected layer by sub-basin's, soil's and land use's parameters
+        dissolve_list = []
+        dissolve_list.append(self.ezgUniqueIdentifier)
+        dissolve_list.extend(self.selected_landuse_parameters)
+        dissolve_list.extend(self.soilFieldNames)
+        resultDissolve = processing.run("native:dissolve", {'INPUT': intersectedLayer,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)
+        intersectedDissolvedLayer = resultDissolve['OUTPUT']
+
+        if task.isCanceled():
+            return
+
+        #Intersecting layers can result in further overlaps/gaps --> fill gaps, edit overlaps
+        #group_layer/group_field: a real topology sliver touching a large intentional gap (e.g. a reservoir)
+        #would otherwise union into one "hole" and get merged whole into a single neighbour regardless of
+        #sub-basin - critical here because this runs BEFORE the per-subbasin split, which trusts the
+        #ezgUniqueIdentifier attribute rather than re-checking actual geometry.
+        intersectedDissolvedLayerFilledGaps = self.fillGaps(intersectedDissolvedLayer, self.clippingEZG, 0, progress_cb=task.setProgress, feedback=feedback, group_layer=self.ezgLayer, group_field=self.ezgUniqueIdentifier)
+        ezgDissolved = processing.run("native:dissolve", {'INPUT': self.ezgLayer,'FIELD': [],'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+
+        self.log_to_qtalsim_tab(f"Progress: 15.00% done", Qgis.Info)
+        self.log_to_qtalsim_tab("Deleting overlapping features...", Qgis.Info)
+        try:
+            intersectedDissolvedLayer = self.clipLayer(intersectedDissolvedLayerFilledGaps, ezgDissolved, feedback=feedback) #necessary because also wanted gaps (of sub-basins-layer) are filled when performing 'Fill Gaps'
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"Clipping the filled-gap layer to the sub-basins failed, continuing with un-clipped data: {e}", Qgis.Warning)
+            task.messageBarRequested.emit("Intersection warning", "Clipping step failed and was skipped — results may include un-clipped areas. See log for details.", int(Qgis.Warning))
+
+        intersectedDissolvedLayer, _ = self.editOverlappingFeatures(intersectedDissolvedLayer, progress_cb=task.setProgress, cancel_cb=task.isCanceled, feedback=feedback)
+
+        if task.isCanceled():
+            return
+
+        all_fields = [field.name() for field in intersectedDissolvedLayer.fields()]
+        fields_to_delete_indices = [intersectedDissolvedLayer.fields().indexFromName(field) for field in all_fields if field not in dissolve_list]
+        intersectedDissolvedLayer.startEditing()
+        intersectedDissolvedLayer.dataProvider().deleteAttributes(fields_to_delete_indices)
+        intersectedDissolvedLayer.commitChanges()
+        intersectedDissolvedLayer.updateFields()
+        #Features with no geometry or NULL-values may lead to errors: delete those features
+        features_to_delete = []
+        for feature in intersectedDissolvedLayer.getFeatures():
+            if feature.geometry().isEmpty() or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' and str(feature[self.soilIDNames[0]]).strip().upper() == 'NULL' and str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
+                features_to_delete.append(feature.id())
+
+        intersectedDissolvedLayer.startEditing()
+        for feature_id in features_to_delete:
+            intersectedDissolvedLayer.deleteFeature(feature_id)
+        intersectedDissolvedLayer.commitChanges()
+        #Split the intersected areas and create own layer for each catchment area
+            # --> necessary for eliminating: deleted areas (e.g. area too small) should only take the attributes of features in the same catchment area
+        resultSplit = processing.run("native:splitvectorlayer", {
+                'INPUT': intersectedDissolvedLayer,
+                'FIELD': self.ezgUniqueIdentifier,
+                'PREFIX_FIELD': True,
+                'FILE_TYPE': 0,
+                'OUTPUT': 'TEMPORARY_OUTPUT'
+            }, feedback=feedback)
+        outputDirSplit = resultSplit['OUTPUT']
+        task.setProgress(20)
+        self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)
+        #Logging variables:
+        if 'memory:' in outputDirSplit:  # If using in-memory output
+            count_all_layers = len([layer for layer in QgsProject.instance().mapLayers().values() if layer.name().startswith(self.ezgUniqueIdentifier)])
+        else:  # If using a directory output
+            count_all_layers = len([name for name in os.listdir(outputDirSplit) if os.path.isfile(os.path.join(outputDirSplit, name))])
+        last_logged_progress = 0
+        analysed_features = 0
+
+        #EFL-Dissolve-List
+        eflFieldList = []
+        eflFieldList.append(self.ezgUniqueIdentifier) #ID of catchment area
+        eflFieldList.extend(self.soilIDNames) #ID Soil
+        eflFieldList.append(self.fieldLanduseID) #ID LNZ
+        splitLayers = []
+
+        self.log_to_qtalsim_tab("Eliminating polygons below elimination thresholds...", Qgis.Info)
+
+        if task.isCanceled():
+            return
+
+        mode = 0
+        if eliminate_mode_text == 'Smallest Area':
+            mode = 1
+        elif eliminate_mode_text == 'Largest Common Boundary':
+            mode = 2
+        elif eliminate_mode_text == 'Largest Area':
+            mode = 0
+
+        #Loop over all sub-basins to eliminate polygons
+        for filename in os.listdir(outputDirSplit):
+
+            if task.isCanceled():
+                return
+
+            #Logging the process
+            analysed_features += 1
+            progress = (analysed_features/count_all_layers)*100
+            if progress - last_logged_progress >= 10:
+                self.log_to_qtalsim_tab(f"Progress: {progress:.2f}% done", Qgis.Info)
+                last_logged_progress = progress
+
+            tempLayerSplitEliminated = self._eliminatePolygonsBelowThresholdForFileWithRetry(
+                filename, outputDirSplit, eflFieldList, ezgAreas,
+                min_size_checked, min_size_value, share_checked, share_value, mode, feedback
+            )
+            splitLayers.append(tempLayerSplitEliminated)
+        task.setProgress(30)
+        self.log_to_qtalsim_tab(f"Progress: 30.00% done", Qgis.Info)
+        #Merge all of the split layers
+        resultMerge = processing.run("native:mergevectorlayers", {'LAYERS':splitLayers,'CRS':intersectedDissolvedLayer.crs(),'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+        resultMerge, _ = self.make_geometries_valid(resultMerge)
+
+        #Dissolve Layer 2
+        try:
+            resultDissolve = processing.run("native:dissolve", {'INPUT': resultMerge,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)
+            self.finalLayer = resultDissolve['OUTPUT']
+        except:
+            resultMerge, _ = self.make_geometries_valid(resultMerge)
+            self.finalLayer = processing.run("native:dissolve", {'INPUT': resultMerge,'FIELD': dissolve_list,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+
+        if task.isCanceled():
+            return
+
+        self.log_to_qtalsim_tab("Deleting overlapping features...", Qgis.Info)
+        try:
+            #Dissolve's own union math can produce a fresh degenerate result even from clean input - clean again before fillGaps
+            self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
+            #group_layer/group_field: keep gap-filling within each sub-basin so a gap can't be absorbed by a neighbouring sub-basin's larger polygon
+            self.finalLayerAfterGaps = self.fillGaps(self.finalLayer, self.clippingEZG, 0, progress_cb=task.setProgress, feedback=feedback, group_layer=self.ezgLayer, group_field=self.ezgUniqueIdentifier)
+            self.finalLayerAfterGaps, _ = self.make_geometries_valid(self.finalLayerAfterGaps)
+            self.finalLayerClipped = self.clipLayer(self.finalLayerAfterGaps, ezgDissolved, feedback=feedback)
+            self.finalLayer, _ = self.editOverlappingFeatures(self.finalLayerClipped, progress_cb=task.setProgress, cancel_cb=task.isCanceled, feedback=feedback)
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"Operation did not work due to too complex features or other issues: {e}", Qgis.Warning)
+
+        #Delete features without geometry
+        features_to_delete = []
+        for feature in self.finalLayer.getFeatures():
+            # Check if all attribute values are 'NULL'
+            if feature.geometry().isEmpty() or feature.geometry() is None or feature.geometry().area() == 0 or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' and str(feature[self.soilIDNames[0]]).strip().upper() == 'NULL' and str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
+                features_to_delete.append(feature.id())
+        if len(features_to_delete) > 0:
+            self.log_to_qtalsim_tab(f"{len(features_to_delete)} features are deleted as they are empty polygons. ", Qgis.Info)
+
+        self.finalLayer.startEditing()
+        for feature_id in features_to_delete:
+            self.finalLayer.deleteFeature(feature_id)
+        self.finalLayer.commitChanges()
+
+        self.finalLayer.setName("Talsim Layer")
+
+        #Delete unwanted fields
+        self.finalLayer.startEditing()
+        dissolve_fields_indices = [self.finalLayer.fields().indexFromName(field) for field in dissolve_list]
+        for i in range(self.finalLayer.fields().count() - 1, -1, -1):
+            if i not in dissolve_fields_indices:
+                self.finalLayer.deleteAttribute(i)
+        self.finalLayer.commitChanges()
+        task.setProgress(40)
+        self.log_to_qtalsim_tab(f"Progress: 40.00% done", Qgis.Info)
+
+        '''
+            Create .LNZ
+        '''
+        fields_to_remove = [self.ezgUniqueIdentifier]
+        for field in fields_to_remove:
+            if field in self.selected_landuse_parameters:
+                self.selected_landuse_parameters.remove(field)
+        try:
+            resultDissolve = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)
+            self.landuseFinal = resultDissolve['OUTPUT']
+        except:
+            self.landuseFinal = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+            self.landuseFinal, _ = self.make_geometries_valid(self.landuseFinal)
+            self.landuseFinal = processing.run("native:dissolve", {'INPUT': self.landuseFinal,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+            self.landuseFinal = processing.run("native:dissolve", {'INPUT': self.landuseFinal,'FIELD': self.selected_landuse_parameters,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+
+        self.landuseFinal.startEditing()
+        dissolve_fields_indices = [self.landuseFinal.fields().indexFromName(field) for field in self.selected_landuse_parameters]
+        for i in range(self.landuseFinal.fields().count() - 1, -1, -1):
+            if i not in dissolve_fields_indices:
+                self.landuseFinal.deleteAttribute(i)
+        self.landuseFinal.commitChanges()
+        self.landuseFinal.setName("LNZ")
+
+        field_index = self.landuseFinal.fields().indexFromName(self.fieldLanduseID)
+        self.landuseFinal.startEditing()
+        self.landuseFinal.renameAttribute(field_index, 'Id')
+        self.landuseFinal.commitChanges()
+
+        task.setProgress(50)
+        self.log_to_qtalsim_tab(f"Progress: 50.00% done", Qgis.Info)
+
+        if task.isCanceled():
+            return
+
+        '''
+            Create .BOA - SoilTexture
+        '''
+
+        new_fields = QgsFields()
+
+        #Get the field names of the first soil layer in the final layer
+        for field in self.finalLayer.fields():
+            if field.name().endswith(f"soillayer1"):  #Ends with 'soillayer1', but this will handle all similar layers
+                #Remove the 'soillayer1' suffix to create the new field name
+                base_field_name = field.name().rsplit('_soillayer', 1)[0]  #Remove the suffix like '_soillayer1'
+                if base_field_name != self.soilTypeThickness:
+                    new_fields.append(QgsField(base_field_name, field.type()))
+
+        #Create the final soil texture layer
+        crs = self.finalLayer.crs()
+        self.soilTextureFinal = QgsVectorLayer(f"Polygon?crs={crs}", "BOA", "memory", crs=crs)
+        soil_texture_data_provider = self.soilTextureFinal.dataProvider()
+        soil_texture_data_provider.addAttributes(new_fields)
+        self.soilTextureFinal.updateFields()
+
+        unique_combinations = set()
+        unique_feature_index = {}
+        geometries = {}
+        j = 1
+        for feature in self.finalLayer.getFeatures():
+            if task.isCanceled():
+                return
+            for i in range(1, self.number_soilLayers + 1):
+                combination = tuple(feature[f"{field.name()}_soillayer{i}"] for field in new_fields if field.name() != self.IDSoil) #combination without id (id for each combination of soil layers)
+                if str(feature[f"{self.nameSoil}_soillayer{i}"]).strip().upper() != 'NULL' and str(feature[f"{self.nameSoil}_soillayer{i}"]).strip().upper() != '':
+                    if combination not in unique_combinations:
+                        unique_combinations.add(combination)
+                        #Create new feature for each soil layer
+                        new_feature = QgsFeature(self.soilTextureFinal.fields())
+                        for field in new_fields:
+                            if field.name() != self.IDSoil:
+                                #Construct the field name for this soil layer (e.g., 'soil_layer1_soilid')
+                                original_field_name = f"{field.name()}_soillayer{i}"
+
+                                #Add the corresponding value to the new feature if the field exists
+                                if self.finalLayer.fields().indexOf(original_field_name) != -1:
+                                    new_feature.setAttribute(field.name(), feature[original_field_name])
+                        new_feature.setAttribute(self.IDSoil, j)
+                        j += 1
+                        #Add the new feature (row) to the new layer
+                        soil_texture_data_provider.addFeature(new_feature)
+                        unique_feature_index[combination] = new_feature['ID_Soil'] #new_feature.id()
+                    if combination not in geometries:
+                        geometries[combination] = [feature.geometry()]  #Start with a list containing this feature's geometry
+                    else:
+                        geometries[combination].append(feature.geometry())
+        self.soilTextureFinal.commitChanges()
+        self.soilTextureFinal.startEditing()
+        #Add the geomtries to the layer
+        for combination, geom_list in geometries.items():
+            #Combine geometries for this combination
+            combined_geometry = QgsGeometry.unaryUnion(geom_list)
+
+            #Find the corresponding feature based on the combination
+            for feature in self.soilTextureFinal.getFeatures():
+                #Compare with unique_feature_index to find the corresponding feature
+                if feature['ID_Soil'] == unique_feature_index[combination]:
+                    #Set the combined geometry to the feature
+                    self.soilTextureFinal.startEditing()
+                    feature.setGeometry(combined_geometry)
+                    self.soilTextureFinal.updateFeature(feature)
+
+
+        self.soilTextureFinal.commitChanges()
+        task.setProgress(65)
+        self.log_to_qtalsim_tab(f"Progress: 65.00% done", Qgis.Info)
+
+        if task.isCanceled():
+            return
+
+        '''
+            BOD
+        '''
+        bod_fields = QgsFields()
+
+        #Create reference fields to soil textures
+        bod_fields.append(QgsField(f"ID", QVariant.Int))
+        for i in range(1, self.number_soilLayers + 1):
+            bod_fields.append(QgsField(f"soillayer{i}_id_boa", QVariant.Int))  #Reference to the soil_id in the first layer
+            bod_fields.append(QgsField(f"soillayer{i}_{self.soilTypeThickness}", QVariant.Double)) #layer thickness for every soil layer
+        bod_fields.append(QgsField("Description", QVariant.String)) #Add description field only once
+        bod_fields.append(QgsField(self.nameSoil, QVariant.String)) #Add name field only once
+        self.soilTypeFinal = QgsVectorLayer(f"Polygon?crs={crs}", "BOD", "memory", crs=crs)
+        bod_data_provider = self.soilTypeFinal.dataProvider()
+        bod_data_provider.addAttributes(bod_fields)
+        self.soilTypeFinal.updateFields()
+
+        for feature in self.finalLayer.getFeatures():
+            if task.isCanceled():
+                return
+            new_feature = QgsFeature(self.soilTypeFinal.fields())
+            geometry = feature.geometry()
+            new_feature.setGeometry(geometry)
+
+            descriptionSoilLayers = str()
+            descriptionSoilLayersList = []
+            nameSoilLayers = str()
+            nameSoilLayersList = []
+
+            for i in range(1, self.number_soilLayers + 1):
+                if str(feature[f'ID_Soil_soillayer{i}']).strip().upper() != 'NULL':
+                    combination = tuple(feature[f"{field.name()}_soillayer{i}"] for field in new_fields if field.name() != self.IDSoil)
+
+                    if combination in unique_feature_index:
+                        #Find the index of the corresponding feature in the new_layer and set the reference
+                        new_feature.setAttribute(f"soillayer{i}_id_boa", unique_feature_index[combination])
+                        new_feature.setAttribute(f"soillayer{i}_{self.soilTypeThickness}", feature[f'{self.soilTypeThickness}_soillayer{i}'])
+                    if str(feature[f'{self.soilDescription}_soillayer{i}']).strip().upper() != 'NULL':
+                        value = feature[f'{self.soilDescription}_soillayer{i}']
+                        if value:
+                            descriptionSoilLayersList.append(str(value))
+                    # Combine Names of all layers
+                    nameSoilLayersList.append(str(feature[f'{self.nameSoil}_soillayer{i}']))
+
+            # add combination of all descriptions
+            if isinstance(descriptionSoilLayersList, (list, tuple)):
+                descriptionSoilLayers = ', '.join(map(str, descriptionSoilLayersList))
+            else:
+                descriptionSoilLayers = str(descriptionSoilLayersList)
+
+            # add combination of all names
+            if isinstance(nameSoilLayersList, (list, tuple)):
+                nameSoilLayers = ' - '.join(map(str, nameSoilLayersList))
+            else:
+                nameSoilLayers = str(nameSoilLayersList)
+
+            new_feature.setAttribute(self.soilDescription, descriptionSoilLayers) #take the combination of all soil layer's description
+            new_feature.setAttribute(self.nameSoil, nameSoilLayers)
+            bod_data_provider.addFeature(new_feature)
+
+        bod_field_names = [field.name() for field in bod_fields]
+
+        try:
+            self.soilTypeFinal = processing.run("native:dissolve", {'INPUT': self.soilTypeFinal,'FIELD': bod_field_names, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+        except:
+            self.soilTypeFinal = processing.run("native:multiparttosingleparts", {'INPUT': self.soilTypeFinal,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+            self.soilTypeFinal, _ = self.make_geometries_valid(self.soilTypeFinal)
+
+            self.soilTypeFinal = processing.run("native:dissolve", {'INPUT': self.soilTypeFinal,'FIELD': bod_field_names, 'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+            self.soilTypeFinal = processing.run("native:dissolve", {'INPUT': self.soilTypeFinal,'FIELD': bod_field_names, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+
+        #Fill ID-column with the (internal) feature-id
+        self.soilTypeFinal.startEditing()
+        #Iterate through each feature in the dissolved layer and assign a new unique ID
+        for feature in self.soilTypeFinal.getFeatures():
+            feature_id = feature.id()
+            feature.setAttribute("ID", feature_id)
+            #Update the feature in the layer
+            self.soilTypeFinal.updateFeature(feature)
+        self.soilTypeFinal.commitChanges()
+
+        self.soilTypeFinal.setName("BOD")
+        task.setProgress(75)
+        self.log_to_qtalsim_tab(f"Progress: 75.00% done", Qgis.Info)
+
+        if task.isCanceled():
+            return
+
+        '''
+            Create .EFL
+        '''
+        #Join the soil id (BOD) to the EFL-layer
+        self.finalLayer = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+        self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
+        soilTypeFinalSingleParts = processing.run("native:multiparttosingleparts", {'INPUT': self.soilTypeFinal,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+        processing.run("native:createspatialindex", {'INPUT': self.finalLayer}, feedback=feedback)
+        processing.run("native:createspatialindex", {'INPUT': soilTypeFinalSingleParts}, feedback=feedback)
+
+        try:
+            #Define the parameters for the spatial join
+            params = {
+                'INPUT': self.finalLayer,
+                'JOIN': soilTypeFinalSingleParts,
+                'PREDICATE': [0],
+                'JOIN_FIELDS': ['ID'],
+                'METHOD': 2,
+                'DISCARD_NONMATCHING': False,
+                'OUTPUT': 'memory:'
+            }
+
+            #Run the spatial join
+            result = processing.run('native:joinattributesbylocation', params, feedback=feedback)
+        except:
+            soilTypeFinalSingleParts, _ = self.make_geometries_valid(soilTypeFinalSingleParts)
+            self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
+            #Define the parameters for the spatial join
+            params = {
+                'INPUT': self.finalLayer,
+                'JOIN': soilTypeFinalSingleParts,
+                'PREDICATE': [0],
+                'JOIN_FIELDS': ['ID'],
+                'METHOD': 2,
+                'DISCARD_NONMATCHING': False,
+                'OUTPUT': 'memory:'
+            }
+
+            #Run the spatial join
+            result = processing.run('native:joinattributesbylocation', params, feedback=feedback)
+
+        #Get the resulting layer (joined output)
+        self.finalLayer = result['OUTPUT']
+
+        #Now rename the joined 'ID' column to the desired self.hruSoilTypeId
+        self.finalLayer.startEditing()
+        for field in self.finalLayer.fields():
+            if field.name() == 'ID':
+                self.finalLayer.renameAttribute(self.finalLayer.fields().indexOf('ID'), self.hruSoilTypeId)  #Rename it
+        self.finalLayer.commitChanges()
+
+        #Delete features without geometry
+        features_to_delete = []
+        for feature in self.finalLayer.getFeatures():
+            #Check if all attribute values are 'NULL'
+            if feature.geometry().isEmpty() or feature.geometry() is None or feature.geometry().area() == 0 or (str(feature[self.fieldLanduseID]).strip().upper() == 'NULL' or str(feature[self.hruSoilTypeId]).strip().upper() == 'NULL' or str(feature[self.ezgUniqueIdentifier]).strip().upper() == 'NULL'):
+                features_to_delete.append(feature.id())
+        if len(features_to_delete) > 0:
+            self.log_to_qtalsim_tab(f"{len(features_to_delete)} features are deleted as they are empty polygons. ", Qgis.Info)
+
+        self.finalLayer.startEditing()
+        for feature_id in features_to_delete:
+            self.finalLayer.deleteFeature(feature_id)
+        self.finalLayer.commitChanges()
+
+        #Log catchment areas where size of all HRUs != size of catchment area
+        sum_areas = {key: 0 for key in ezgAreas.keys()}
+        for feature in self.finalLayer.getFeatures():
+            area = feature.geometry().area()
+            ezg = feature[self.ezgUniqueIdentifier]
+            sum_areas[ezg] += area
+
+        for key in ezgAreas:
+            if key in sum_areas:
+                if round(ezgAreas[key], -2) != round(sum_areas[key], -2):
+                    self.log_to_qtalsim_tab(f'Sub-basin with Unique-Identifier {key} has a different area {ezgAreas[key]} than the sum of all features in this sub-basin {sum_areas[key]}.', Qgis.Warning)
+        task.setProgress(85)
+        self.log_to_qtalsim_tab(f"Progress: 85.00% done", Qgis.Info)
+        eflFieldList.append(self.hruSoilTypeId)
+
+        if task.isCanceled():
+            return
+
+        eflFieldList = [item for item in eflFieldList if item not in self.soilIDNames]
+        try:
+            #Dissolve the final Layer
+            self.eflLayer = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+        except:
+            #Complex geometries can lead to errors when dissolving - cleaning the geometries might be necessary
+            self.finalLayer = processing.run("native:multiparttosingleparts", {'INPUT': self.finalLayer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+            self.finalLayer, _ = self.make_geometries_valid(self.finalLayer)
+
+            self.eflLayer = processing.run("native:dissolve", {'INPUT': self.finalLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':True,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+            self.eflLayer = processing.run("native:dissolve", {'INPUT': self.eflLayer,'FIELD': eflFieldList, 'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'}, feedback=feedback)['OUTPUT']
+
+        if task.isCanceled():
+            return
+
+        #Add Fields
+        if dem_layer:
+            self.log_to_qtalsim_tab(f"Calculating Slope...", Qgis.Info)
+            self.eflLayer = self.calculateSlopeHRUs(self.eflLayer, dem_layer=dem_layer, feedback=feedback)
+        else:
+            self.eflLayer.startEditing()
+            #Add the new field 'slope'
+            self.eflLayer.addAttribute(QgsField(self.slopeFieldName, QVariant.Double))
+            self.eflLayer.commitChanges()
+
+        eflFieldList.append(self.slopeFieldName)
+        eflLayerDP = self.eflLayer.dataProvider()
+        self.eflLayer.startEditing()
+        eflLayerDP.addAttributes([QgsField(self.fieldNameAreaEFL, QVariant.Double)])
+        self.eflLayer.commitChanges()
+        self.eflLayer.updateFields()
+        task.setProgress(90)
+        self.log_to_qtalsim_tab(f"Progress: 90.00% done", Qgis.Info)
+        #Add data
+        self.eflLayer.startEditing()
+        features_to_delete = []
+        for feature in self.eflLayer.getFeatures():
+            area = feature.geometry().area()
+            ezg = feature[self.ezgUniqueIdentifier]
+            ezgArea = ezgAreas[ezg]
+            percentage = (area/ezgArea)*100
+            feature[self.fieldNameAreaEFL] = percentage
+            if percentage < 0.001: #delete features with area < 0.001%
+                features_to_delete.append(feature.id())
+                continue
+            self.eflLayer.updateFeature(feature)
+            if min_size_checked and area < min_size_value: # if area of feature < minimum accepted area specified by user
+                self.log_to_qtalsim_tab(f"Feature {feature.id()} is not deleted, eventhough it's area is below {min_size_value} m².", Qgis.Warning)
+            if share_checked and percentage < share_value: #if the percentage-chechbox is chosen
+                self.log_to_qtalsim_tab(f"Feature {feature.id()} is not deleted, eventhough it's percentage is below {share_value} %.", Qgis.Warning)
+
+        for fid in features_to_delete: #delete features with area < 0.001%
+            self.eflLayer.deleteFeature(fid)
+
+        self.eflLayer.commitChanges()
+        task.setProgress(95)
+        self.log_to_qtalsim_tab(f"Progress: 95.00% done", Qgis.Info)
+        eflFieldList.append(self.fieldNameAreaEFL) #Area of Elementarfläche
+        self.eflLayer.startEditing()
+        dissolve_fields_indices = [self.eflLayer.fields().indexFromName(field) for field in eflFieldList]
+        for i in range(self.eflLayer.fields().count() - 1, -1, -1):
+            if i not in dissolve_fields_indices:
+                self.eflLayer.deleteAttribute(i)
+        self.eflLayer.commitChanges()
+
+        #Rename the fieldnames
+        self.eflLayer.startEditing()
+        field_index = self.eflLayer.fields().indexFromName(self.fieldLanduseID)
+        self.eflLayer.renameAttribute(field_index, self.hruLandUseId)
+        field_index = self.eflLayer.fields().indexFromName(self.ezgUniqueIdentifier)
+        self.eflLayer.renameAttribute(field_index, self.subBasinUI)
+        self.eflLayer.commitChanges()
+
+        self.eflLayer.setName("EFL")
+        task.setProgress(100)
+        self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
 
     def selectOutputFolder(self):
         '''
@@ -3366,18 +3731,14 @@ class QTalsim:
         if self.outputFolder:
             self.dlg.outputPath.setText(self.outputFolder)
 
-    def saveASCII(self):
+    def saveASCIIWork(self, filename, task):
         '''
-            Saves the final layers to ASCII-files
+            Writes the final layers to ASCII-files. Runs on SaveOutputsTask's background thread - must
+            not touch self.dlg/self.iface directly, use task.setProgress()/
+            task.messageBarRequested.emit()/task.isCanceled() instead.
         '''
         success = False
         try:
-            #filename, _ = QInputDialog.getText(None, 'Input Dialog', 'Enter filename for ASCII-Files:')
-            filename = self.dlg.textAsciiFileName.text()
-            self.start_operation()
-            self.dlg.progressBar.setRange(0, 100)
-            self.dlg.progressBar.setValue(0)
-            self.dlg.progressBar.setVisible(True)
             #The template file of every output file holds a line that defines the field lengths and spaces between lengths
             def parse_definition_linev1(line):
                 field_lengths = []
@@ -3515,8 +3876,11 @@ class QTalsim:
                 with open(outputPathEfl, 'w', encoding='iso-8859-1', errors='replace') as outputEfl:
                     outputEfl.writelines(completeContentEfl)
 
-                self.dlg.progressBar.setValue(20)
+                task.setProgress(20)
                 self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)
+
+                if task.isCanceled():
+                    return False
 
                 '''
                     BOD
@@ -3580,8 +3944,11 @@ class QTalsim:
                 with open(outputPathBod, 'w', encoding='iso-8859-1', errors='replace') as outputBod:
                     outputBod.writelines(completeContentBod)
 
-                self.dlg.progressBar.setValue(40)
+                task.setProgress(40)
                 self.log_to_qtalsim_tab(f"Progress: 40.00% done", Qgis.Info)
+
+                if task.isCanceled():
+                    return False
 
                 '''
                     BOA
@@ -3630,8 +3997,11 @@ class QTalsim:
                 with open(outputPathBoa, 'w', encoding='iso-8859-1', errors='replace') as outputBoa:
                     outputBoa.writelines(completeContentBoa)
 
-                self.dlg.progressBar.setValue(60)
+                task.setProgress(60)
                 self.log_to_qtalsim_tab(f"Progress: 60.00% done", Qgis.Info)
+
+                if task.isCanceled():
+                    return False
 
                 '''
                     LNZ (template file v2)
@@ -3691,8 +4061,11 @@ class QTalsim:
                 with open(outputPathLnz, 'w', encoding='iso-8859-1', errors='replace') as outputLnz:
                     outputLnz.writelines(completeContentLnz)
 
-                self.dlg.progressBar.setValue(80)
+                task.setProgress(80)
                 self.log_to_qtalsim_tab(f"Progress: 80.00% done", Qgis.Info)
+
+                if task.isCanceled():
+                    return False
 
                 '''
                     JGG
@@ -3740,17 +4113,11 @@ class QTalsim:
                 with open(outputPathLnz, "w", encoding="utf-8") as f:
                     f.writelines(keep_lines)
 
-                self.dlg.progressBar.setValue(100)
+                task.setProgress(100)
                 self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
                 self.log_to_qtalsim_tab(f"ASCII-files were saved to this folder: {self.outputFolder}",Qgis.Info)
-
-                #Add checkmark when process is finished
-                current_text_groupbox = self.dlg.groupboxASCIIExport.title()
-                if "✓" not in current_text_groupbox:  #Avoid duplicate checkmarks
-                    self.dlg.groupboxASCIIExport.setTitle(f"{current_text_groupbox} ✓")
-
-                self.iface.messageBar().pushSuccess(
-                    "ASCII export was successful", f"ASCII files were saved to this folder: {self.outputFolder}"
+                task.messageBarRequested.emit(
+                    "ASCII export was successful", f"ASCII files were saved to this folder: {self.outputFolder}", int(Qgis.Success)
                 )
                 success = True
             else:
@@ -3759,12 +4126,10 @@ class QTalsim:
 
         except Exception as e:
             self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
-            self.dlg.progressBar.setValue(0)
-            self.iface.messageBar().pushCritical("ASCII export failed", str(e))
+            task.setProgress(0)
+            task.messageBarRequested.emit("ASCII export failed", str(e), int(Qgis.Critical))
             success = False
 
-        finally:
-            self.end_operation()
         return success
     
     def selectInputDB(self):
@@ -3780,132 +4145,166 @@ class QTalsim:
         self.safeConnect(self.dlg.inputDBPath.textChanged, self.on_input_db_changed)
         self.on_input_db_changed()
 
-    def DBExport(self):
+    def check_and_delete_existing_data(self, scenario_id):
         '''
-            Function that inserts landuse, soiltexture, soiltype and hydrological response units to existing database.
+            Checks whether the selected scenario already has HRU-related data in the DB and, if so,
+            asks the user (via a modal QMessageBox) whether to delete it. Must run on the main thread -
+            called from saveFiles() before the SaveOutputsTask is created, not from DBExportWork().
+        '''
+        if scenario_id is None:
+            QMessageBox.warning(None, "No Scenario Selected", "Please select a scenario before continuing.")
+            return False
+
+        conn = sqlite3.connect(self.file_path_db)
+        try:
+            cur = conn.cursor()
+
+            #Tables and queries with Scenario filtering
+            table_queries = {
+                "SoilType": "SELECT COUNT(*) FROM SoilType WHERE ScenarioId = ?",
+                "SoilTexture": "SELECT COUNT(*) FROM SoilTexture WHERE ScenarioId = ?",
+                "Landuse": "SELECT COUNT(*) FROM Landuse WHERE ScenarioId = ?",
+                "HydrologicalResponseUnit": """
+                    SELECT COUNT(*)
+                    FROM HydrologicalResponseUnit hru
+                    JOIN SystemElement se ON hru.SystemElementId = se.Id
+                    WHERE se.ScenarioId = ?
+                """,
+                "PatternNumberValue": """
+                    SELECT COUNT(*)
+                    FROM PatternNumberValue pn
+                    JOIN Pattern p ON pn.PatternId = p.Id
+                    WHERE p.ScenarioId = ?
+                """,
+                "Pattern": "SELECT COUNT(*) FROM Pattern WHERE ScenarioId = ?"
+            }
+
+            tables_with_data = []
+
+            for table, query in table_queries.items():
+                cur.execute(query, (scenario_id,))
+                count = cur.fetchone()[0]
+                if count > 0:
+                    tables_with_data.append(table)
+
+            if not tables_with_data:
+                return True
+
+            #Ask user for confirmation to delete table entries
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setWindowTitle("Existing Data Found")
+            msg.setText("There are existing entries in the following tables for the selected scenario:\n\n" +
+                        "\n".join(tables_with_data) +
+                        "\n\nYou can only continue if all entries are deleted.")
+            msg.setInformativeText("Would you like to delete all entries in these tables?")
+            msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            msg.setDefaultButton(QMessageBox.StandardButton.No)
+            response = msg.exec_()
+
+            if response == QMessageBox.StandardButton.No:
+                return False
+
+            # tables hardcoded, as dynamic coding results in security issues
+            DELETE_QUERIES = {
+                "SoilType": "DELETE FROM SoilType WHERE ScenarioId = ?",
+                "SoilTexture": "DELETE FROM SoilTexture WHERE ScenarioId = ?",
+                "Landuse": "DELETE FROM Landuse WHERE ScenarioId = ?",
+                "Pattern": "DELETE FROM Pattern WHERE ScenarioId = ?"
+            }
+
+            COUNT_QUERIES = {
+                "SoilType": "SELECT COUNT(*) FROM SoilType",
+                "SoilTexture": "SELECT COUNT(*) FROM SoilTexture",
+                "Landuse": "SELECT COUNT(*) FROM Landuse",
+                "HydrologicalResponseUnit": "SELECT COUNT(*) FROM HydrologicalResponseUnit",
+                "PatternNumberValue": "SELECT COUNT(*) FROM PatternNumberValue",
+                "Pattern": "SELECT COUNT(*) FROM Pattern"
+            }
+            #Delete entries with the matching scenario_id
+            for table in tables_with_data:
+                if table == "HydrologicalResponseUnit":
+                    #Delete HRUs by joining with SystemElement
+                    cur.execute("""
+                        DELETE FROM HydrologicalResponseUnit
+                        WHERE SystemElementId IN (
+                            SELECT Id FROM SystemElement WHERE ScenarioId = ?
+                        )
+                    """, (scenario_id,))
+                elif table == "PatternNumberValue":
+                    #Delete PatternNumberValue by joining with Pattern
+                    cur.execute("""
+                        DELETE FROM PatternNumberValue
+                        WHERE PatternId IN (
+                            SELECT Id FROM Pattern WHERE ScenarioId = ?
+                        )
+                    """, (scenario_id,))
+
+                elif table in DELETE_QUERIES:
+                    cur.execute(
+                        DELETE_QUERIES[table],
+                        (scenario_id,)
+                    )
+
+                #Check if the table is now empty
+                cur.execute(COUNT_QUERIES[table])
+                remaining = cur.fetchone()[0]
+                #If the table is empty, reset AUTOINCREMENT counter
+                if remaining == 0:
+                    cur.execute("DELETE FROM sqlite_sequence WHERE name = ?", (table,))
+
+            conn.commit()
+
+            QMessageBox.information(None, "Data Deleted", "All data for the selected scenario has been deleted.")
+            return True
+        finally:
+            conn.close()
+
+    def check_subbasins(self):
+        '''
+            Checks that the sub-basins in self.eflLayer match those already in the DB. Must run on the
+            main thread - called from saveFiles() before the SaveOutputsTask is created.
+        '''
+        #Get unique UI sub-basins from layer
+        subbasins = set()
+        for feature in self.eflLayer.getFeatures():
+            subbasins.add(feature[self.subBasinUI])
+        #Get sub-basins from the database
+        conn = sqlite3.connect(self.file_path_db)
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT DISTINCT ElementTypeCharacter || ElementIdentifier FROM SystemElement WHERE ElementType = 2")
+            db_subbasins = set([row[0] for row in cur.fetchall()])
+        finally:
+            conn.close()
+
+        #Check if there are differences in the sub-basins of layer and DB
+        if subbasins == db_subbasins:
+            return True
+        else:
+            missing_in_layer = db_subbasins - subbasins
+            missing_in_db = subbasins - db_subbasins
+
+            if missing_in_layer:
+                self.log_to_qtalsim_tab(f"The following sub-basins are in the database but missing in the layer: {', '.join(missing_in_layer)}", Qgis.Critical)
+            if missing_in_db:
+                self.log_to_qtalsim_tab(f"The following sub-basins are in the layer but missing in the database: {', '.join(missing_in_db)}. Therefore, the HRUs cannot be inserted in DB.", Qgis.Critical)
+            return False
+
+    def DBExportWork(self, scenario_id, task):
+        '''
+            Bulk-inserts landuse, soiltexture, soiltype and hydrological response units into the Talsim
+            DB. Runs on SaveOutputsTask's background thread - the pre-flight checks (existing-data /
+            sub-basin-mismatch, which need modal QMessageBox prompts) already ran on the main thread in
+            saveFiles() before this was called. Must not touch self.dlg/self.iface directly - use
+            task.setProgress()/task.messageBarRequested.emit()/task.isCanceled() instead.
         '''
         success = False
         try:
-            self.start_operation()
-            if not self.file_path_db:
-                self.log_to_qtalsim_tab("Please select a Talsim Database first.", Qgis.Warning)
-                QMessageBox.warning(None, "No Database Selected", "Please select a Talsim Database before continuing.")
-                return False
-
-            def check_and_delete_existing_data(scenario_id):
-                if scenario_id is None:
-                    QMessageBox.warning(None, "No Scenario Selected", "Please select a scenario before continuing.")
-                    return False
-
-                conn = sqlite3.connect(self.file_path_db)
-                try:
-                    cur = conn.cursor()
-
-                    #Tables and queries with Scenario filtering
-                    table_queries = {
-                        "SoilType": "SELECT COUNT(*) FROM SoilType WHERE ScenarioId = ?",
-                        "SoilTexture": "SELECT COUNT(*) FROM SoilTexture WHERE ScenarioId = ?",
-                        "Landuse": "SELECT COUNT(*) FROM Landuse WHERE ScenarioId = ?",
-                        "HydrologicalResponseUnit": """
-                            SELECT COUNT(*)
-                            FROM HydrologicalResponseUnit hru
-                            JOIN SystemElement se ON hru.SystemElementId = se.Id
-                            WHERE se.ScenarioId = ?
-                        """,
-                        "PatternNumberValue": """
-                            SELECT COUNT(*)
-                            FROM PatternNumberValue pn
-                            JOIN Pattern p ON pn.PatternId = p.Id
-                            WHERE p.ScenarioId = ?
-                        """,
-                        "Pattern": "SELECT COUNT(*) FROM Pattern WHERE ScenarioId = ?"
-                    }
-
-                    tables_with_data = []
-
-                    for table, query in table_queries.items():
-                        cur.execute(query, (scenario_id,))
-                        count = cur.fetchone()[0]
-                        if count > 0:
-                            tables_with_data.append(table)
-
-                    if not tables_with_data:
-                        return True
-
-                    #Ask user for confirmation to delete table entries
-                    msg = QMessageBox()
-                    msg.setIcon(QMessageBox.Warning)
-                    msg.setWindowTitle("Existing Data Found")
-                    msg.setText("There are existing entries in the following tables for the selected scenario:\n\n" +
-                                "\n".join(tables_with_data) +
-                                "\n\nYou can only continue if all entries are deleted.")
-                    msg.setInformativeText("Would you like to delete all entries in these tables?")
-                    msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-                    msg.setDefaultButton(QMessageBox.StandardButton.No)
-                    response = msg.exec_()
-
-                    if response == QMessageBox.StandardButton.No:
-                        return False
-
-                    # tables hardcoded, as dynamic coding results in security issues
-                    DELETE_QUERIES = {
-                        "SoilType": "DELETE FROM SoilType WHERE ScenarioId = ?",
-                        "SoilTexture": "DELETE FROM SoilTexture WHERE ScenarioId = ?",
-                        "Landuse": "DELETE FROM Landuse WHERE ScenarioId = ?",
-                        "Pattern": "DELETE FROM Pattern WHERE ScenarioId = ?"
-                    }
-
-                    COUNT_QUERIES = {
-                        "SoilType": "SELECT COUNT(*) FROM SoilType",
-                        "SoilTexture": "SELECT COUNT(*) FROM SoilTexture",
-                        "Landuse": "SELECT COUNT(*) FROM Landuse",
-                        "HydrologicalResponseUnit": "SELECT COUNT(*) FROM HydrologicalResponseUnit",
-                        "PatternNumberValue": "SELECT COUNT(*) FROM PatternNumberValue",
-                        "Pattern": "SELECT COUNT(*) FROM Pattern"
-                    }
-                    #Delete entries with the matching scenario_id
-                    for table in tables_with_data:
-                        if table == "HydrologicalResponseUnit":
-                            #Delete HRUs by joining with SystemElement
-                            cur.execute("""
-                                DELETE FROM HydrologicalResponseUnit
-                                WHERE SystemElementId IN (
-                                    SELECT Id FROM SystemElement WHERE ScenarioId = ?
-                                )
-                            """, (scenario_id,))
-                        elif table == "PatternNumberValue":
-                            #Delete PatternNumberValue by joining with Pattern
-                            cur.execute("""
-                                DELETE FROM PatternNumberValue
-                                WHERE PatternId IN (
-                                    SELECT Id FROM Pattern WHERE ScenarioId = ?
-                                )
-                            """, (scenario_id,))
-
-                        elif table in DELETE_QUERIES:
-                            cur.execute(
-                                DELETE_QUERIES[table],
-                                (scenario_id,)
-                            )
-
-                        #Check if the table is now empty
-                        cur.execute(COUNT_QUERIES[table])
-                        remaining = cur.fetchone()[0]
-                        #If the table is empty, reset AUTOINCREMENT counter
-                        if remaining == 0:
-                            cur.execute("DELETE FROM sqlite_sequence WHERE name = ?", (table,))
-
-                    conn.commit()
-
-                    QMessageBox.information(None, "Data Deleted", "All data for the selected scenario has been deleted.")
-                    return True
-                finally:
-                    conn.close()
-
             def safe_cast(value, to_type):
                 #Safely cast value to a given type (int or float), returning None if invalid.
                 if value is None or (isinstance(value, QVariant) and value.isNull()):
-                    return None 
+                    return None
                 try:
                     return to_type(value)
                 except (ValueError, TypeError):
@@ -3914,46 +4313,6 @@ class QTalsim:
             def get_feature_value(feature, field_name, to_type=str):
                 #Returns the safely cast feature value if field exists, otherwise None.
                 return safe_cast(feature[field_name], to_type) if field_name in feature.fields().names() else None
-
-            def check_subbasins():
-                #Get unique UI sub-basins from layer
-                subbasins = set()
-                for feature in self.eflLayer.getFeatures():
-                    subbasins.add(feature[self.subBasinUI])
-                #Get sub-basins from the database
-                conn = sqlite3.connect(self.file_path_db)
-                try:
-                    cur = conn.cursor()
-                    cur.execute("SELECT DISTINCT ElementTypeCharacter || ElementIdentifier FROM SystemElement WHERE ElementType = 2")
-                    db_subbasins = set([row[0] for row in cur.fetchall()])
-                finally:
-                    conn.close()
-
-                #Check if there are differences in the sub-basins of layer and DB
-                if subbasins == db_subbasins:
-                    return True
-                else:
-                    missing_in_layer = db_subbasins - subbasins
-                    missing_in_db = subbasins - db_subbasins
-
-                    if missing_in_layer:
-                        self.log_to_qtalsim_tab(f"The following sub-basins are in the database but missing in the layer: {', '.join(missing_in_layer)}", Qgis.Critical)
-                    if missing_in_db:
-                        self.log_to_qtalsim_tab(f"The following sub-basins are in the layer but missing in the database: {', '.join(missing_in_db)}. Therefore, the HRUs cannot be inserted in DB.", Qgis.Critical)
-                    return False
-
-            #Get selected Scenario ID from the combobox
-            scenario_id = self.dlg.comboboxScenarios.currentData()
-            
-            data_check_ok = check_and_delete_existing_data(scenario_id) #Check if there is data in the relevant tables
-            if not data_check_ok:
-                self.log_to_qtalsim_tab("DB export aborted: existing-data check failed or was cancelled by the user.", Qgis.Warning)
-                return False
-
-            subbasins_check_ok = check_subbasins()
-            if not subbasins_check_ok:
-                QMessageBox.warning(None, "Sub-basin Mismatch", "The sub-basins in the current layer do not match those in the database. HRUs cannot be inserted. See the QTalsim log panel for details.")
-                return False
 
             #Connect to DB
             conn = sqlite3.connect(self.file_path_db)
@@ -4002,6 +4361,9 @@ class QTalsim:
                 conn.close()
             self.log_to_qtalsim_tab(f"Progress: 20.00% done", Qgis.Info)
 
+            if task.isCanceled():
+                return False
+
             '''
                 SoilTexture
             '''
@@ -4044,6 +4406,9 @@ class QTalsim:
                 conn.close()
             self.log_to_qtalsim_tab(f"Finished inserting soil data into Talsim DB", Qgis.Info)
             self.log_to_qtalsim_tab(f"Progress: 40.00% done", Qgis.Info)
+
+            if task.isCanceled():
+                return False
 
             '''
                 LNZ
@@ -4091,6 +4456,9 @@ class QTalsim:
                 conn.close()
             self.log_to_qtalsim_tab(f"Finished inserting land use data into Talsim DB", Qgis.Info)
             self.log_to_qtalsim_tab(f"Progress: 60.00% done", Qgis.Info)
+
+            if task.isCanceled():
+                return False
 
             '''
                 Insert land use patterns to DB
@@ -4219,6 +4587,9 @@ class QTalsim:
                 conn.close()
             self.log_to_qtalsim_tab(f"Progress: 80.00% done", Qgis.Info)
 
+            if task.isCanceled():
+                return False
+
             '''
                 EFL
             '''
@@ -4274,90 +4645,213 @@ class QTalsim:
 
             self.log_to_qtalsim_tab(f"Progress: 100.00% done", Qgis.Info)
             self.log_to_qtalsim_tab(f"Finished inserting HRUs into Talsim DB", Qgis.Info)
-
-            current_text_groupbox = self.dlg.groupboxDBExport.title()
-            if "✓" not in current_text_groupbox:  #Avoid duplicate checkmarks
-                self.dlg.groupboxDBExport.setTitle(f"{current_text_groupbox} ✓")
             self.log_to_qtalsim_tab(f"All Data was exported to the Talsim Database: {self.file_path_db}", Qgis.Info)
-            self.iface.messageBar().pushSuccess(
-                "Database export was successful", f"All data was exported to the Talsim Database: {self.file_path_db}"
+            task.messageBarRequested.emit(
+                "Database export was successful", f"All data was exported to the Talsim Database: {self.file_path_db}", int(Qgis.Success)
             )
             success = True
 
         except Exception as e:
             self.log_to_qtalsim_tab(f"Error: {e}", Qgis.Critical)
-            self.iface.messageBar().pushCritical("Database export failed", str(e))
+            task.messageBarRequested.emit("Database export failed", str(e), int(Qgis.Critical))
             success = False
 
-        finally:
-            self.end_operation()
         return success
+
+    class SaveOutputsTask(QgsTask):
+        '''
+            Runs the Save-step bulk work (DB export, ASCII export, GeoPackage export) on a background
+            thread so QGIS's UI stays responsive. The modal pre-flight checks (existing-data / sub-basin
+            mismatch, GeoPackage name prompt) already ran on the main thread in saveFiles() before this
+            task was created. onSaveOutputsFinished() is called back on the main thread once this task
+            completes, is canceled, or errors.
+        '''
+        messageBarRequested = pyqtSignal(str, str, int)
+
+        def __init__(self, qtalsim, geopackage_name, db_export_requested, ascii_export_requested, ascii_filename, scenario_id):
+            #Flag.Hidden keeps this out of QGIS's own background-task widget/status bar, so the only
+            #cancel affordance the user sees is our own Cancel button - having both was confusing.
+            super().__init__("Saving HRU outputs", QgsTask.Flag.CanCancel | QgsTask.Flag.Hidden)
+            self.qtalsim = qtalsim
+            self.geopackage_name = geopackage_name
+            self.db_export_requested = db_export_requested
+            self.ascii_export_requested = ascii_export_requested
+            self.ascii_filename = ascii_filename
+            self.scenario_id = scenario_id
+            self.db_export_ok = True
+            self.ascii_export_ok = True
+            self.error = None
+
+        def run(self):
+            try:
+                if self.db_export_requested:
+                    self.db_export_ok = self.qtalsim.DBExportWork(self.scenario_id, self)
+                if self.isCanceled():
+                    return False
+
+                if self.ascii_export_requested:
+                    self.ascii_export_ok = self.qtalsim.saveASCIIWork(self.ascii_filename, self)
+                if self.isCanceled():
+                    return False
+
+                self.qtalsim.saveGeoPackageWork(self.geopackage_name, self)
+            except Exception as e:
+                self.error = e
+                return False
+            return not self.isCanceled()
+
+        def finished(self, result):
+            self.qtalsim.onSaveOutputsFinished(self, result)
 
     def saveFiles(self):
         '''
-            Saves all layers to files.
+            Saves all layers to files. Runs the bulk work as a background SaveOutputsTask so QGIS stays
+            responsive; see onSaveOutputsFinished() for the completion/error/cancel handling.
         '''
-        try:
-            geopackage_name, ok = QInputDialog.getText(None, "GeoPackage Name", "Enter the name of the GeoPackage:")
-            if not ok or not geopackage_name.strip():
-                self.log_to_qtalsim_tab("GeoPackage export cancelled by user.", Qgis.Info)
+        if self._saveTask is not None and self._saveTask.status() not in (QgsTask.TaskStatus.Complete, QgsTask.TaskStatus.Terminated):
+            self.log_to_qtalsim_tab("A save operation is already running.", Qgis.Warning)
+            return
+
+        geopackage_name, ok = QInputDialog.getText(None, "GeoPackage Name", "Enter the name of the GeoPackage:")
+        if not ok or not geopackage_name.strip():
+            self.log_to_qtalsim_tab("GeoPackage export cancelled by user.", Qgis.Info)
+            return
+
+        #Capture checkbox/text values and run the modal pre-flight checks on the main thread -
+        #DBExportWork() must not show QMessageBox prompts from the worker thread.
+        db_export_requested = self.dlg.groupboxDBExport.isChecked()
+        ascii_export_requested = self.dlg.groupboxASCIIExport.isChecked()
+        ascii_filename = self.dlg.textAsciiFileName.text()
+        scenario_id = self.dlg.comboboxScenarios.currentData()
+
+        if db_export_requested:
+            if not self.file_path_db:
+                self.log_to_qtalsim_tab("Please select a Talsim Database first.", Qgis.Warning)
+                QMessageBox.warning(None, "No Database Selected", "Please select a Talsim Database before continuing.")
+                return
+            if not self.check_and_delete_existing_data(scenario_id):
+                self.log_to_qtalsim_tab("DB export aborted: existing-data check failed or was cancelled by the user.", Qgis.Warning)
+                return
+            if not self.check_subbasins():
+                QMessageBox.warning(None, "Sub-basin Mismatch", "The sub-basins in the current layer do not match those in the database. HRUs cannot be inserted. See the QTalsim log panel for details.")
                 return
 
-            self.start_operation()
+        self.start_operation()
+        self.dlg.progressBar.setRange(0, 100)
+        self.dlg.progressBar.setValue(0)
+        self.dlg.progressBar.setVisible(True)
+        self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Save).setEnabled(False)
+        self.dlg.onCancelOperation.setVisible(True)
+        self.dlg.onCancelOperation.setEnabled(True)
 
-            db_export_ok = True
-            ascii_export_ok = True
-            if self.dlg.groupboxDBExport.isChecked():
-                db_export_ok = self.DBExport()
-            if self.dlg.groupboxASCIIExport.isChecked():
-                ascii_export_ok = self.saveASCII()
+        self._saveTask = self.SaveOutputsTask(self, geopackage_name, db_export_requested, ascii_export_requested, ascii_filename, scenario_id)
+        self._saveTask.messageBarRequested.connect(self.onSaveMessageBarRequested, Qt.ConnectionType.QueuedConnection)
+        QgsApplication.taskManager().addTask(self._saveTask)
 
-            #Save Geopackage
-            self.geopackage_path = os.path.join(self.outputFolder, f"{geopackage_name}.gpkg")
-            self.log_to_qtalsim_tab(f"Saving the layers to {self.outputFolder}.", Qgis.Info)
-            def create_gpkg_save_layer(layer, gpkg_path, layer_name):
-                params = {
-                    'INPUT': layer,
-                    'OUTPUT': gpkg_path,
-                    'LAYER_NAME': layer_name,
-                    'OVERWRITE': True,
-                }
-                processing.run("native:savefeatures", params)
-                
-            def add_layers_to_gpkg(layer, gpkg_path, layer_name):    
-                params = {'INPUT': layer,
-                        'OPTIONS': f'-update -nln {layer_name} -nlt MULTIPOLYGON', #added -nlt MULTIPOLYGON
-                        'OUTPUT': gpkg_path}
-                processing.run("gdal:convertformat", params)
-            
-            gpkg_path = self.geopackage_path
-            if os.path.exists(gpkg_path): 
-                try:
-                    os.remove(gpkg_path)
-                except Exception as e:
-                    self.log_to_qtalsim_tab(f"Failed to delete existing GeoPackage: {e}",Qgis.Critical)
-            create_gpkg_save_layer(self.eflLayer, gpkg_path,'hru') 
-            add_layers_to_gpkg(self.landuseFinal, gpkg_path, 'landuse')
-            add_layers_to_gpkg(self.soilTextureFinal, gpkg_path, 'soiltexture') 
-            add_layers_to_gpkg(self.soilTypeFinal, gpkg_path, 'soiltype')
-            self.log_to_qtalsim_tab(f"File was saved to this folder: {self.outputFolder}", Qgis.Info)
+    def onSaveMessageBarRequested(self, title, message, level):
+        '''
+            Relays a messageBar push requested by SaveOutputsTask from its worker thread to the main thread.
+        '''
+        level = Qgis.MessageLevel(level)
+        if level == Qgis.Critical:
+            self.iface.messageBar().pushCritical(title, message)
+        elif level == Qgis.Warning:
+            self.iface.messageBar().pushWarning(title, message)
+        elif level == Qgis.Success:
+            self.iface.messageBar().pushSuccess(title, message)
+        else:
+            self.iface.messageBar().pushInfo(title, message)
 
-            if db_export_ok and ascii_export_ok:
-                self.iface.messageBar().pushSuccess(
-                    "HRU Calculation was successful", f"Files were saved to this folder: {self.outputFolder}"
-                )
-            else:
-                self.iface.messageBar().pushWarning(
-                    "HRU Calculation completed with errors",
-                    "GeoPackage was saved, but Database and/or ASCII export reported an error. Check the QTalsim log panel for details."
-                )
+    def onSaveOutputsFinished(self, task, result):
+        '''
+            Called on the main thread once SaveOutputsTask completes, is canceled, or errors.
+        '''
+        self.end_operation()
+        self.dlg.finalButtonBox.button(QDialogButtonBox.StandardButton.Save).setEnabled(True)
+        self.dlg.onCancelOperation.setVisible(False)
+        self.dlg.onCancelOperation.setEnabled(False)
+        self._saveTask = None
 
-        except Exception as e:
-            self.log_to_qtalsim_tab(f"Error: {e}", Qgis.Critical)
-            self.iface.messageBar().pushCritical("HRU Calculation failed", str(e))
+        if task.isCanceled():
+            self.log_to_qtalsim_tab("Save was canceled by the user.", Qgis.Warning)
+            self.dlg.progressBar.setValue(0)
+            return
 
-        finally:
-            self.end_operation()
+        if not result or task.error is not None:
+            message = str(task.error) if task.error is not None else "Unknown error"
+            self.log_to_qtalsim_tab(message, Qgis.Critical)
+            self.dlg.progressBar.setValue(0)
+            self.iface.messageBar().pushCritical("HRU Calculation failed", message)
+            return
+
+        #Add checkmarks for the exports that were requested and succeeded
+        if task.db_export_requested and task.db_export_ok:
+            current_text_groupbox = self.dlg.groupboxDBExport.title()
+            if "✓" not in current_text_groupbox:
+                self.dlg.groupboxDBExport.setTitle(f"{current_text_groupbox} ✓")
+        if task.ascii_export_requested and task.ascii_export_ok:
+            current_text_groupbox = self.dlg.groupboxASCIIExport.title()
+            if "✓" not in current_text_groupbox:
+                self.dlg.groupboxASCIIExport.setTitle(f"{current_text_groupbox} ✓")
+
+        if task.db_export_ok and task.ascii_export_ok:
+            self.iface.messageBar().pushSuccess(
+                "HRU Calculation was successful", f"Files were saved to this folder: {self.outputFolder}"
+            )
+        else:
+            self.iface.messageBar().pushWarning(
+                "HRU Calculation completed with errors",
+                "GeoPackage was saved, but Database and/or ASCII export reported an error. Check the QTalsim log panel for details."
+            )
+
+    def saveGeoPackageWork(self, geopackage_name, task):
+        '''
+            Writes the GeoPackage output. Runs on SaveOutputsTask's background thread - must not touch
+            self.dlg/self.iface directly, use task.setProgress()/task.messageBarRequested.emit()/
+            task.isCanceled() instead. If canceled partway, onSaveOutputsFinished() does not clean up
+            here since processing.run("native:savefeatures"/"gdal:convertformat") calls are effectively
+            atomic per layer; a cancel is only observed between layers.
+        '''
+        self.geopackage_path = os.path.join(self.outputFolder, f"{geopackage_name}.gpkg")
+        self.log_to_qtalsim_tab(f"Saving the layers to {self.outputFolder}.", Qgis.Info)
+
+        feedback = self.TaskFeedback(task.isCanceled, self.log_to_qtalsim_tab)
+
+        def create_gpkg_save_layer(layer, gpkg_path, layer_name):
+            params = {
+                'INPUT': layer,
+                'OUTPUT': gpkg_path,
+                'LAYER_NAME': layer_name,
+                'OVERWRITE': True,
+            }
+            processing.run("native:savefeatures", params, feedback=feedback)
+
+        def add_layers_to_gpkg(layer, gpkg_path, layer_name):
+            params = {'INPUT': layer,
+                    'OPTIONS': f'-update -nln {layer_name} -nlt MULTIPOLYGON', #added -nlt MULTIPOLYGON
+                    'OUTPUT': gpkg_path}
+            processing.run("gdal:convertformat", params, feedback=feedback)
+
+        if task.isCanceled():
+            return
+
+        gpkg_path = self.geopackage_path
+        if os.path.exists(gpkg_path):
+            try:
+                os.remove(gpkg_path)
+            except Exception as e:
+                self.log_to_qtalsim_tab(f"Failed to delete existing GeoPackage: {e}",Qgis.Critical)
+        create_gpkg_save_layer(self.eflLayer, gpkg_path,'hru')
+        if task.isCanceled():
+            return
+        add_layers_to_gpkg(self.landuseFinal, gpkg_path, 'landuse')
+        if task.isCanceled():
+            return
+        add_layers_to_gpkg(self.soilTextureFinal, gpkg_path, 'soiltexture')
+        if task.isCanceled():
+            return
+        add_layers_to_gpkg(self.soilTypeFinal, gpkg_path, 'soiltype')
+        self.log_to_qtalsim_tab(f"File was saved to this folder: {self.outputFolder}", Qgis.Info)
 
 
     def connectButtontoFunction(self, button, function):
@@ -4617,7 +5111,10 @@ class QTalsim:
         
         #Intersect
         #self.dlg.groupboxIntersect.setVisible(False)
-        self.connectButtontoFunction(self.dlg.onPerformIntersect, self.performIntersect) 
+        self.connectButtontoFunction(self.dlg.onPerformIntersect, self.performIntersect)
+        self.connectButtontoFunction(self.dlg.onCancelOperation, self.onCancelOperationClicked)
+        self.dlg.onCancelOperation.setVisible(False)
+        self.dlg.onCancelOperation.setEnabled(False)
 
         #QgsProject.instance().layersAdded.connect(self.layersAddedHandler)
         #QgsProject.instance().layersRemoved.connect(self.layersAddedHandler)
