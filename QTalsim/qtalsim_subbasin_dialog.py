@@ -207,6 +207,21 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         try:
             self.start_operation()
             self.log_to_qtalsim_tab(f"Processing the sub-basins layer.", Qgis.Info)
+
+            invalid_ids = [feature.id() for feature in self.subBasinLayer.getFeatures()
+                        if not feature.geometry().isGeosValid()]
+            if invalid_ids:
+                message = (
+                    f"The sub-basins layer contains {len(invalid_ids)} feature(s) with invalid "
+                    f"geometry (feature ID(s): {', '.join(map(str, invalid_ids))}).\n\n"
+                    "Please fix these geometries first, e.g. via QGIS' "
+                    "Vector \u25b8 Geometry Tools \u25b8 Fix Geometries "
+                    "(or Vector \u25b8 Geometry Tools \u25b8 Check Validity to locate them precisely), "
+                    "then reload the layer and try again."
+                )
+                self.log_to_qtalsim_tab(message, Qgis.Critical)
+                QMessageBox.critical(None, "Invalid Geometries in Sub-basins Layer", message)
+                return
             #Select DEM Layer
             if self.DEMLayer is None:
                 selected_layer_name = self.comboboxDEMLayer.currentText()
@@ -504,7 +519,22 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             if self.outputFolder is None:
                 self.log_to_qtalsim_tab("Please select an output folder.", Qgis.Critical)
                 return
-                
+            
+            invalid_ids = [feature.id() for feature in self.subBasinLayer.getFeatures()
+            if not feature.geometry().isGeosValid()]
+            if invalid_ids:
+                message = (
+                    f"The sub-basins layer contains {len(invalid_ids)} feature(s) with invalid "
+                    f"geometry (feature ID(s): {', '.join(map(str, invalid_ids))}).\n\n"
+                    "Please fix these geometries first, e.g. via QGIS' "
+                    "Vector \u25b8 Geometry Tools \u25b8 Fix Geometries "
+                    "(or Vector \u25b8 Geometry Tools \u25b8 Check Validity to locate them precisely), "
+                    "then reload the layer and try again."
+                )
+                self.log_to_qtalsim_tab(message, Qgis.Critical)
+                QMessageBox.critical(None, "Invalid Geometries in Sub-basins Layer", message)
+                return  
+              
             selected_layer_name = self.comboboxDEMLayer.currentText()
             if selected_layer_name != self.noLayerSelected:
                 self.DEMLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]

@@ -188,7 +188,8 @@ class QTalsim:
         add_to_toolbar=True,
         status_tip=None,
         whats_this=None,
-        parent=None):
+        parent=None,
+        submenu=None):
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -245,16 +246,15 @@ class QTalsim:
         if whats_this is not None:
             action.setWhatsThis(whats_this)
 
-        if add_to_toolbar:
-            # Adds plugin icon to Plugins toolbar
-            self.dropdownMenu.addAction(action)
+        if submenu is not None:
+            submenu.addAction(action)
+        else:
+            if add_to_toolbar:
+                self.dropdownMenu.addAction(action)
+            if add_to_menu:
+                self.plugin_menu.addAction(action)
 
-            #self.iface.addToolBarIcon(action)
-
-        if add_to_menu:
-            self.plugin_menu.addAction(action)
-
-        self.actions.append(action)
+            self.actions.append(action)
 
         return action
 
@@ -284,12 +284,18 @@ class QTalsim:
         
         # Add actions
         icon_path = ':/plugins/qtalsim/icon.png'
-        self.add_action(icon_path, text=self.tr(u'I) ISRIC Soil Type Converter'), callback=self.open_soil_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        self.add_action(icon_path, text=self.tr(u'I) Sub-basin preprocessing'), callback=self.open_sub_basin_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        self.add_action(icon_path, text=self.tr(u'I) Land use mapping'), callback=self.open_landuse_window, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        self.add_action(icon_path, text=self.tr(u'II) HRU calculation'), callback=self.run, parent=self.iface.mainWindow(), add_to_toolbar=True)
-        self.add_action(icon_path, text=self.tr(u'III) Connect to Talsim DB'), callback=self.open_sql_connect_dock, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        if not hasattr(self, 'preprocessingMenu'):
+            self.preprocessingMenu = QMenu(self.tr(u' i) Pre-Processing'), self.iface.mainWindow())
+            self.preprocessingMenu.setIcon(QIcon(icon_path))
+            self.dropdownMenu.addMenu(self.preprocessingMenu)   #Toolbar-Dropdown
+            self.plugin_menu.addMenu(self.preprocessingMenu)    #Menüband
 
+        self.add_action(icon_path, text=self.tr(u'ISRIC Soil Type Converter'), callback=self.open_soil_window, parent=self.iface.mainWindow(), submenu=self.preprocessingMenu)
+        self.add_action(icon_path, text=self.tr(u'Sub-basin preprocessing'), callback=self.open_sub_basin_window, parent=self.iface.mainWindow(), submenu=self.preprocessingMenu)
+        self.add_action(icon_path, text=self.tr(u'Land use mapping'), callback=self.open_landuse_window, parent=self.iface.mainWindow(), submenu=self.preprocessingMenu)
+
+        self.add_action(icon_path, text=self.tr(u'ii) HRU calculation'), callback=self.run, parent=self.iface.mainWindow(), add_to_toolbar=True)
+        self.add_action(icon_path, text=self.tr(u'iii) Connect to Talsim DB'), callback=self.open_sql_connect_dock, parent=self.iface.mainWindow(), add_to_toolbar=True)
         self.first_start = True
         self.initialize_parameters()
 
@@ -4264,6 +4270,13 @@ class QTalsim:
         '''
             Checks that the sub-basins in self.eflLayer match those already in the DB. Must run on the
             main thread - called from saveFiles() before the SaveOutputsTask is created.
+
+            missing_in_db (layer/HRUs reference a sub-basin that doesn't exist in the DB yet) is always
+            fatal: DBExportWork() looks up SystemElementId by sub-basin UI and would crash on a miss, so
+            there's no valid SystemElementId to insert those HRUs against.
+            missing_in_layer (a sub-basin exists in the DB but has no HRUs in the current layer) is not
+            fatal by itself - those sub-basins simply won't get any HRU rows. The user is asked whether
+            to continue anyway instead of the export being blocked outright.
         '''
         #Get unique UI sub-basins from layer
         subbasins = set()
@@ -4281,15 +4294,27 @@ class QTalsim:
         #Check if there are differences in the sub-basins of layer and DB
         if subbasins == db_subbasins:
             return True
-        else:
-            missing_in_layer = db_subbasins - subbasins
-            missing_in_db = subbasins - db_subbasins
 
-            if missing_in_layer:
-                self.log_to_qtalsim_tab(f"The following sub-basins are in the database but missing in the layer: {', '.join(missing_in_layer)}", Qgis.Critical)
-            if missing_in_db:
-                self.log_to_qtalsim_tab(f"The following sub-basins are in the layer but missing in the database: {', '.join(missing_in_db)}. Therefore, the HRUs cannot be inserted in DB.", Qgis.Critical)
+        missing_in_layer = db_subbasins - subbasins
+        missing_in_db = subbasins - db_subbasins
+
+        if missing_in_db:
+            self.log_to_qtalsim_tab(f"The following sub-basins are in the layer but missing in the database: {', '.join(missing_in_db)}. Therefore, the HRUs cannot be inserted in DB.", Qgis.Critical)
+            QMessageBox.warning(None, "Sub-basin Mismatch", "The sub-basins in the current layer do not match those in the database. HRUs cannot be inserted. See the QTalsim log panel for details.")
             return False
+
+        #Only missing_in_layer at this point - not fatal, ask the user whether to continue.
+        self.log_to_qtalsim_tab(f"The following sub-basins are in the database but missing in the layer: {', '.join(missing_in_layer)}", Qgis.Warning)
+        response = QMessageBox.question(
+            None,
+            "Sub-basins Missing in Layer",
+            "The following sub-basins exist in the database but have no HRUs in the current layer:\n\n" +
+            "\n".join(sorted(missing_in_layer)) +
+            "\n\nThese sub-basins will not receive any HRUs. Continue anyway?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        return response == QMessageBox.StandardButton.Yes
 
     def DBExportWork(self, scenario_id, task):
         '''
@@ -4384,7 +4409,7 @@ class QTalsim:
                     cur.execute("""
                         INSERT INTO SoilTexture (
                             Id, BulkDensityClass, Category, FieldCapacity, KfValue, MaxCapillarySuction,
-                            MaxInfiltration, Name, ScenarioId, TotalPoreVolume, WiltingPoint
+                            MaxInfiltration, Name, Texture Preset, ScenarioId, TotalPoreVolume, WiltingPoint
                         )
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
@@ -4396,6 +4421,7 @@ class QTalsim:
                         get_feature_value(feature, "MaxCapillarySuction", float),
                         get_feature_value(feature, "MaxInfiltration", float),
                         get_feature_value(feature, self.nameSoil, str),
+                        get_feature_value(feature, self.nameSoil, str), 
                         scenario_id,  #Use the latest ScenarioId
                         get_feature_value(feature, "TotalPoreVolume", float),
                         get_feature_value(feature, "WiltingPoint", float)
@@ -4733,7 +4759,7 @@ class QTalsim:
                 self.log_to_qtalsim_tab("DB export aborted: existing-data check failed or was cancelled by the user.", Qgis.Warning)
                 return
             if not self.check_subbasins():
-                QMessageBox.warning(None, "Sub-basin Mismatch", "The sub-basins in the current layer do not match those in the database. HRUs cannot be inserted. See the QTalsim log panel for details.")
+                self.log_to_qtalsim_tab("DB export aborted: sub-basin check failed or was cancelled by the user.", Qgis.Warning)
                 return
 
         self.start_operation()
