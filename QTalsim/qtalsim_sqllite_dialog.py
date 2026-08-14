@@ -146,7 +146,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             Prompt for user to select DB and then connect to DB and select Scenarios
         '''
         options = QFileDialog.Options()
-        options |= QFileDialog.ReadOnly
+        options |= QFileDialog.Option.ReadOnly
         self.file_path_db = None
         try:
             self.file_path_db, _ = QFileDialog.getOpenFileName(self, "Select Talsim Database", "", "Databases (*.db);;All Files (*)", options=options)
@@ -854,7 +854,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                 if len(outflow_strings) > 20:
                     outflow_summary += " ..."
                 msg = QMessageBox()
-                msg.setIcon(QMessageBox.Warning)
+                msg.setIcon(QMessageBox.Icon.Warning)
                 msg.setWindowTitle("Existing Data Found")
                 msg.setText(f"There are existing outflows for the following elements in scenario {self.scenarioId}:\n\n" +
                             outflow_summary +
@@ -862,7 +862,7 @@ class SQLConnectDialog(QtWidgets.QDialog, FORM_CLASS):
                 msg.setInformativeText(f"Would you like to delete all outflows and reload the outflows from layer {self.externalSystemLogicLayer.name()}?")
                 msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
                 msg.setDefaultButton(QMessageBox.StandardButton.No)
-                response = msg.exec_()
+                response = msg.exec()
                 if response == QMessageBox.StandardButton.No:
                     self.log_to_qtalsim_tab("Operation cancelled by user.", Qgis.Info)
                     return

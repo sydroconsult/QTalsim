@@ -247,7 +247,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             #Message box to inform user that the duplicate sub-basin-id must be deleted
             if duplicatesSet:
                 msg = QMessageBox()
-                msg.setIcon(QMessageBox.Warning)
+                msg.setIcon(QMessageBox.Icon.Warning)
                 msg.setWindowTitle("Existing Data Found")
                 msg.setText(
                     f"Duplicate Sub-basin IDs in column '{self.subbasinUIField}' found:\n"
@@ -257,7 +257,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 msg.setInformativeText(f"Do you still want to continue?")
                 msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
                 msg.setDefaultButton(QMessageBox.StandardButton.No)
-                response = msg.exec_()
+                response = msg.exec()
                 if response == QMessageBox.StandardButton.No:
                     self.log_to_qtalsim_tab("Process cancelled by user due to duplicate Sub-basin IDs.", Qgis.Warning)
                     return

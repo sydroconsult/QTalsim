@@ -280,7 +280,7 @@ class QTalsim:
             self.toolbar.addWidget(self.toolButton)
             self.dropdownMenu = QMenu(self.iface.mainWindow())
             self.toolButton.setMenu(self.dropdownMenu)
-            self.toolButton.setPopupMode(QToolButton.InstantPopup)
+            self.toolButton.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
             icon_path = ':/plugins/qtalsim/icon.png'
             self.toolButton.setIcon(QIcon(icon_path))
         
@@ -408,7 +408,7 @@ class QTalsim:
         QTalsim Functions
     '''
     def start_operation(self):
-        QApplication.setOverrideCursor(Qt.WaitCursor)  # Set cursor to busy
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)  # Set cursor to busy
 
     def end_operation(self):
         QApplication.restoreOverrideCursor()  # Restore the default cursor
@@ -2446,7 +2446,7 @@ class QTalsim:
                 elif fieldType[row].strip() == 'float':
                     type = QVariant.Double
                 elif fieldType[row].strip() == 'int':
-                    type = QVariant.Type.Int
+                    type = QVariant.Int
                 else:
                     type = QVariant.String
                 new_fields.append(QgsField(str(new_field), type)) #Store talsim parameters in a variable
@@ -4171,7 +4171,7 @@ class QTalsim:
             Function to select the Talsim DB. 
         ''' 
         options = QFileDialog.Options()
-        options |= QFileDialog.ReadOnly
+        options |= QFileDialog.Option.ReadOnly
         self.file_path_db, _ = QFileDialog.getOpenFileName(self.dlg, "Select Talsim Database", "", "Databases (*.db);;All Files (*)", options=options)
         if self.file_path_db:
             self.dlg.inputDBPath.setText(self.file_path_db)
@@ -4226,7 +4226,7 @@ class QTalsim:
 
             #Ask user for confirmation to delete table entries
             msg = QMessageBox()
-            msg.setIcon(QMessageBox.Warning)
+            msg.setIcon(QMessageBox.Icon.Warning)
             msg.setWindowTitle("Existing Data Found")
             msg.setText("There are existing entries in the following tables for the selected scenario:\n\n" +
                         "\n".join(tables_with_data) +
@@ -4234,7 +4234,7 @@ class QTalsim:
             msg.setInformativeText("Would you like to delete all entries in these tables?")
             msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             msg.setDefaultButton(QMessageBox.StandardButton.No)
-            response = msg.exec_()
+            response = msg.exec()
 
             if response == QMessageBox.StandardButton.No:
                 return False
@@ -5148,8 +5148,8 @@ class QTalsim:
         self.connectButtontoFunction(self.dlg.onConfirmSoilMapping, self.confirmSoilMapping)
         self.connectButtontoFunction(self.dlg.onSoilTypeDelete, self.deleteSoilTypes)
         self.connectButtontoFunction(self.dlg.onOverlappingSoils, self.checkOverlappingSoil)
-        self.dlg.tableSoilTypeDelete.setSelectionBehavior(QAbstractItemView.SelectItems)
-        self.dlg.tableSoilTypeDelete.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.dlg.tableSoilTypeDelete.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        self.dlg.tableSoilTypeDelete.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
         self.connectButtontoFunction(self.dlg.onDeleteOverlappingSoilFeatures, self.deleteOverlappingSoilFeatures)
         self.connectButtontoFunction(self.dlg.onCheckGapsSoil, self.checkGapsSoil)
         self.dlg.comboboxModeEliminateSoil.clear()
@@ -5209,7 +5209,7 @@ class QTalsim:
 
             self.sqlConnect = SQLConnectDialog(self.iface.mainWindow(), self)
             self.sqlConnectDock.setWidget(self.sqlConnect)
-            self.iface.mainWindow().addDockWidget(Qt.RightDockWidgetArea, self.sqlConnectDock)
+            self.iface.mainWindow().addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.sqlConnectDock)
         else:
             self.sqlConnect.initialize_parameters()
         self.sqlConnectDock.raise_()
@@ -5225,7 +5225,7 @@ class QTalsim:
         if not hasattr(self, 'subBasinWindow') or self.subBasinWindow is None:
             self.subBasinWindow = QMainWindow()
             self.subBasinWindow.setWindowTitle("Sub-basin preprocessing")
-            self.subBasinWindow.setAttribute(Qt.WA_DeleteOnClose)
+            self.subBasinWindow.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
             self.subBasinDialog = SubBasinPreprocessingDialog(self.subBasinWindow, self)
             self.subBasinWindow.setCentralWidget(self.subBasinDialog)
         else:
@@ -5241,7 +5241,7 @@ class QTalsim:
         if not hasattr(self, 'soilWindow') or self.soilWindow is None:
             self.soilWindow = QMainWindow()
             self.soilWindow.setWindowTitle("ISRIC Soil Type Converter")
-            self.soilWindow.setAttribute(Qt.WA_DeleteOnClose)
+            self.soilWindow.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
             self.soilDialog = SoilPreprocessingDialog(
                 self.iface,
                 self
@@ -5260,7 +5260,7 @@ class QTalsim:
         if not hasattr(self, 'landuseWindow') or self.landuseWindow is None:
             self.landuseWindow = QMainWindow()
             self.landuseWindow.setWindowTitle("Land use mapping")
-            self.landuseWindow.setAttribute(Qt.WA_DeleteOnClose)
+            self.landuseWindow.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
             self.landuseDialog = LanduseAssignmentDialog(self.iface.mainWindow(), self)
             self.landuseWindow.setCentralWidget(self.landuseDialog)
         else:
@@ -5316,7 +5316,7 @@ class CustomEventFilter(QObject):
         self.default_message = default_message  #Default message for clicks outside group boxes
 
     def eventFilter(self, source, event):
-        if event.type() == QEvent.MouseButtonPress:
+        if event.type() == QEvent.Type.MouseButtonPress:
             for group_box, message in self.group_boxes.items():
                 if source == group_box or group_box.isAncestorOf(source):
                     # Trigger the specific message for this group box

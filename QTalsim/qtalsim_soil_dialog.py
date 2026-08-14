@@ -378,7 +378,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         dialog = QgsProjectionSelectionDialog()
         
         #Display the dialog and check if the user pressed OK
-        if dialog.exec_() == QDialog.DialogCode.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             #Get the selected CRS
             self.destinationCRS = dialog.crs()
             self.dstSRS = self.destinationCRS.authid() 
