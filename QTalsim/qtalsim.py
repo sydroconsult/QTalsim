@@ -154,6 +154,8 @@ class QTalsim:
         self.landuseFinal = None
         self.soilTextureFinal = None
         self.soilTypeFinal = None
+        self.dfsoilParametersTalsim = None
+        self.texture_preset_requested = False
         self.outputFolder = None
 
         self.file_path_db = None
@@ -1700,6 +1702,8 @@ class QTalsim:
                         if f"{layer_isric_mapping[i-1]}_{soilTexturesIsricNames[row]}" in fieldsSoil:
                             combo_box.setCurrentText(f"{layer_isric_mapping[i-1]}_{soilTexturesIsricNames[row]}") #Set the corresponding field name as current text of the combo box
 
+            self.apply_texture_preset_lock()
+
             self.dlg.progressBar.setValue(40)
             self.dlg.onCreateSoilLayer.setVisible(True)
 
@@ -1710,6 +1714,30 @@ class QTalsim:
         finally:
             self.end_operation()
 
+    def apply_texture_preset_lock(self):
+        '''
+            When checkboxTexturePreset is checked, WiltingPoint/FieldCapacity/TotalPoreVolume/KfValue/
+            MaxInfiltration are resolved by Talsim from the TexturePreset code (soil name) instead of
+            manual entry, so their combo boxes in tableSoilMapping are disabled and reset. No-op until
+            fillSoilTable() has populated self.dfsoilParametersTalsim/tableSoilMapping at least once.
+        '''
+        if self.dfsoilParametersTalsim is None:
+            return
+
+        locked_params = {"WiltingPoint", "FieldCapacity", "TotalPoreVolume", "KfValue", "MaxInfiltration"}
+        is_locked = self.dlg.checkboxTexturePreset.isChecked()
+        soilTextures = self.dfsoilParametersTalsim.loc[:, 'SoilTexture']
+
+        for row, name in enumerate(soilTextures):
+            if name not in locked_params:
+                continue
+            for col in range(1, self.dlg.tableSoilMapping.columnCount()):
+                combo = self.dlg.tableSoilMapping.cellWidget(row, col)
+                if combo is None:
+                    continue
+                if is_locked:
+                    combo.setCurrentText('Parameter not available')
+                combo.setEnabled(not is_locked)
 
     def confirmSoilMapping(self):
         '''
@@ -4409,9 +4437,9 @@ class QTalsim:
                     cur.execute("""
                         INSERT INTO SoilTexture (
                             Id, BulkDensityClass, Category, FieldCapacity, KfValue, MaxCapillarySuction,
-                            MaxInfiltration, Name, Texture Preset, ScenarioId, TotalPoreVolume, WiltingPoint
+                            MaxInfiltration, Name, TexturePreset, ScenarioId, TotalPoreVolume, WiltingPoint
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         get_feature_value(feature, "ID_Soil", int),
                         get_feature_value(feature, "BulkDensityClass", int),
@@ -4421,7 +4449,7 @@ class QTalsim:
                         get_feature_value(feature, "MaxCapillarySuction", float),
                         get_feature_value(feature, "MaxInfiltration", float),
                         get_feature_value(feature, self.nameSoil, str),
-                        get_feature_value(feature, self.nameSoil, str), 
+                        get_feature_value(feature, self.nameSoil, str) if self.texture_preset_requested else None,
                         scenario_id,  #Use the latest ScenarioId
                         get_feature_value(feature, "TotalPoreVolume", float),
                         get_feature_value(feature, "WiltingPoint", float)
@@ -4749,6 +4777,14 @@ class QTalsim:
         ascii_export_requested = self.dlg.groupboxASCIIExport.isChecked()
         ascii_filename = self.dlg.textAsciiFileName.text()
         scenario_id = self.dlg.comboboxScenarios.currentData()
+        self.texture_preset_requested = self.dlg.checkboxTexturePreset.isChecked()
+
+        if ascii_export_requested and self.texture_preset_requested:
+            self.log_to_qtalsim_tab(
+                "TexturePreset has no equivalent in the Talsim 4 ASCII (.BOA) format - WiltingPoint, "
+                "Field Capacity, Total Pore Volume, Hydraulic Conductivity and Max Infiltration will be "
+                "written empty for soils using TexturePreset.", Qgis.Warning
+            )
 
         if db_export_requested:
             if not self.file_path_db:
@@ -5085,7 +5121,8 @@ class QTalsim:
             QgsMapLayerProxyModel.PolygonLayer
         )
         self.dlg.comboboxSoilLayer.setExceptedLayerList(except_list)
-        
+        self.safeConnect(self.dlg.checkboxTexturePreset.toggled, self.apply_texture_preset_lock)
+
         #Land use layer
         self.dlg.comboboxLanduseLayer.setFilters(
             QgsMapLayerProxyModel.PolygonLayer

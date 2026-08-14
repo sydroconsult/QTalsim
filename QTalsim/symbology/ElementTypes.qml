@@ -170,7 +170,7 @@
             <Option type="QString" name="color" value="29,235,177,255" />
             <Option type="QString" name="fixedAspectRatio" value="0" />
             <Option type="QString" name="horizontal_anchor_point" value="1" />
-            <Option type="QString" name="name" value="C:\Users\loren\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\SubBasin.svg" />
+            <Option type="QString" name="name" value="C:\Users\lorenztreitler.SL\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\SubBasin.svg" />
             <Option type="QString" name="offset" value="0,0" />
             <Option type="QString" name="offset_map_unit_scale" value="3x:0,0,0,0,0,0" />
             <Option type="QString" name="offset_unit" value="MM" />
@@ -225,7 +225,7 @@
             <Option type="QString" name="color" value="198,230,84,255" />
             <Option type="QString" name="fixedAspectRatio" value="0" />
             <Option type="QString" name="horizontal_anchor_point" value="1" />
-            <Option type="QString" name="name" value="C:\Users\loren\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\PointSource.svg" />
+            <Option type="QString" name="name" value="C:\Users\lorenztreitler.SL\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\PointSource.svg" />
             <Option type="QString" name="offset" value="0,0" />
             <Option type="QString" name="offset_map_unit_scale" value="3x:0,0,0,0,0,0" />
             <Option type="QString" name="offset_unit" value="MM" />
@@ -280,7 +280,7 @@
             <Option type="QString" name="color" value="219,127,47,255" />
             <Option type="QString" name="fixedAspectRatio" value="0" />
             <Option type="QString" name="horizontal_anchor_point" value="1" />
-            <Option type="QString" name="name" value="C:\Users\loren\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\Groundwater.svg" />
+            <Option type="QString" name="name" value="C:\Users\lorenztreitler.SL\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\Groundwater.svg" />
             <Option type="QString" name="offset" value="0,0" />
             <Option type="QString" name="offset_map_unit_scale" value="3x:0,0,0,0,0,0" />
             <Option type="QString" name="offset_unit" value="MM" />
@@ -335,7 +335,7 @@
             <Option type="QString" name="color" value="111,172,222,255" />
             <Option type="QString" name="fixedAspectRatio" value="0" />
             <Option type="QString" name="horizontal_anchor_point" value="1" />
-            <Option type="QString" name="name" value="C:\Users\loren\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\TransportReach.svg" />
+            <Option type="QString" name="name" value="C:\Users\lorenztreitler.SL\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\TransportReach.svg" />
             <Option type="QString" name="offset" value="0,0" />
             <Option type="QString" name="offset_map_unit_scale" value="3x:0,0,0,0,0,0" />
             <Option type="QString" name="offset_unit" value="MM" />
@@ -390,7 +390,7 @@
             <Option type="QString" name="color" value="197,22,203,255" />
             <Option type="QString" name="fixedAspectRatio" value="0" />
             <Option type="QString" name="horizontal_anchor_point" value="1" />
-            <Option type="QString" name="name" value="C:\Users\loren\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\Storage.svg" />
+            <Option type="QString" name="name" value="C:\Users\lorenztreitler.SL\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\Storage.svg" />
             <Option type="QString" name="offset" value="0,0" />
             <Option type="QString" name="offset_map_unit_scale" value="3x:0,0,0,0,0,0" />
             <Option type="QString" name="offset_unit" value="MM" />
@@ -445,7 +445,7 @@
             <Option type="QString" name="color" value="117,86,227,255" />
             <Option type="QString" name="fixedAspectRatio" value="0" />
             <Option type="QString" name="horizontal_anchor_point" value="1" />
-            <Option type="QString" name="name" value="C:\Users\loren\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\Consumer.svg" />
+            <Option type="QString" name="name" value="C:\Users\lorenztreitler.SL\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\Consumer.svg" />
             <Option type="QString" name="offset" value="0,0" />
             <Option type="QString" name="offset_map_unit_scale" value="3x:0,0,0,0,0,0" />
             <Option type="QString" name="offset_unit" value="MM" />
@@ -500,7 +500,7 @@
             <Option type="QString" name="color" value="57,219,52,255" />
             <Option type="QString" name="fixedAspectRatio" value="0" />
             <Option type="QString" name="horizontal_anchor_point" value="1" />
-            <Option type="QString" name="name" value="C:\Users\loren\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\Diversion.svg" />
+            <Option type="QString" name="name" value="C:\Users\lorenztreitler.SL\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\Diversion.svg" />
             <Option type="QString" name="offset" value="0,0" />
             <Option type="QString" name="offset_map_unit_scale" value="3x:0,0,0,0,0,0" />
             <Option type="QString" name="offset_unit" value="MM" />
@@ -555,7 +555,7 @@
             <Option type="QString" name="color" value="208,44,91,255" />
             <Option type="QString" name="fixedAspectRatio" value="0" />
             <Option type="QString" name="horizontal_anchor_point" value="1" />
-            <Option type="QString" name="name" value="C:\Users\loren\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\SystemOutlet.svg" />
+            <Option type="QString" name="name" value="C:\Users\lorenztreitler.SL\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\SystemOutlet.svg" />
             <Option type="QString" name="offset" value="0,0" />
             <Option type="QString" name="offset_map_unit_scale" value="3x:0,0,0,0,0,0" />
             <Option type="QString" name="offset_unit" value="MM" />
@@ -610,7 +610,7 @@
             <Option type="QString" name="color" value="231,113,72,255" />
             <Option type="QString" name="fixedAspectRatio" value="0" />
             <Option type="QString" name="horizontal_anchor_point" value="1" />
-            <Option type="QString" name="name" value="C:\Users\loren\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\SystemOutlet.svg" />
+            <Option type="QString" name="name" value="C:\Users\lorenztreitler.SL\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\SystemOutlet.svg" />
             <Option type="QString" name="offset" value="0,0" />
             <Option type="QString" name="offset_map_unit_scale" value="3x:0,0,0,0,0,0" />
             <Option type="QString" name="offset_unit" value="MM" />
@@ -667,7 +667,7 @@
             <Option type="QString" name="color" value="190,207,80,255" />
             <Option type="QString" name="fixedAspectRatio" value="0" />
             <Option type="QString" name="horizontal_anchor_point" value="1" />
-            <Option type="QString" name="name" value="C:\Users\loren\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\SystemOutlet.svg" />
+            <Option type="QString" name="name" value="C:\Users\lorenztreitler.SL\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\qtalsim\symbology\SystemOutlet.svg" />
             <Option type="QString" name="offset" value="0,0" />
             <Option type="QString" name="offset_map_unit_scale" value="3x:0,0,0,0,0,0" />
             <Option type="QString" name="offset_unit" value="MM" />
