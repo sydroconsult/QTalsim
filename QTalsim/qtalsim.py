@@ -4332,12 +4332,19 @@ class QTalsim:
             return False
 
         #Only missing_in_layer at this point - not fatal, ask the user whether to continue.
-        self.log_to_qtalsim_tab(f"The following sub-basins are in the database but missing in the layer: {', '.join(missing_in_layer)}", Qgis.Warning)
+        missing_in_layer_sorted = sorted(missing_in_layer)
+        self.log_to_qtalsim_tab(f"The following sub-basins are in the database but missing in the layer: {', '.join(missing_in_layer_sorted)}", Qgis.Warning)
+        max_shown = 20
+        if len(missing_in_layer_sorted) > max_shown:
+            missing_display = ', '.join(missing_in_layer_sorted[:max_shown]) + \
+                f", ... and {len(missing_in_layer_sorted) - max_shown} more (see QTalsim log panel for the full list)"
+        else:
+            missing_display = ', '.join(missing_in_layer_sorted)
         response = QMessageBox.question(
             None,
             "Sub-basins Missing in Layer",
             "The following sub-basins exist in the database but have no HRUs in the current layer:\n\n" +
-            "\n".join(sorted(missing_in_layer)) +
+            missing_display +
             "\n\nThese sub-basins will not receive any HRUs. Continue anyway?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
