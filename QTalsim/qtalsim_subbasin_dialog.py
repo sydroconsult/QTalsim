@@ -291,10 +291,15 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 zip_url = gisa_zip_base_url + zip_filename + "?download=1"
                 zip_path = os.path.join(zips_folder, zip_filename)
 
+                if not zip_url.startswith("https://zenodo.org/"):
+                    #Defensive check, not expected to trigger: gisa_zip_base_url is a fixed
+                    #constant and zip_filename is built purely from computed lat/lon labels.
+                    raise RuntimeError(f"Refusing to download from unexpected URL: {zip_url}")
+
                 try:
                     if not os.path.exists(zip_path):
                         self.log_to_qtalsim_tab(f"Downloading GISA-10m longitude band {zip_filename} (up to ~250 MB, cached for later use)...", Qgis.Info)
-                        urllib.request.urlretrieve(zip_url, zip_path)
+                        urllib.request.urlretrieve(zip_url, zip_path)  # nosec B310 - URL scheme/host validated above, gisa_zip_base_url is a fixed https:// constant
                     else:
                         self.log_to_qtalsim_tab(f"Using previously downloaded GISA-10m band {zip_filename}.", Qgis.Info)
 
