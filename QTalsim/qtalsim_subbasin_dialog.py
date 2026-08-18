@@ -3,6 +3,7 @@ from qgis.PyQt import uic, QtWidgets
 from qgis.PyQt.QtWidgets import  QFileDialog, QDialogButtonBox, QMessageBox
 from qgis.core import QgsProject, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsMapLayer, QgsWkbTypes, QgsRasterLayer, QgsVectorLayer, QgsRasterBandStats, QgsField, QgsVectorFileWriter, edit, Qgis, QgsProcessingFeedback, QgsProcessingException, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRaster, QgsGeometry, QgsPointXY
 from qgis.PyQt.QtCore import pyqtSignal, QVariant
+from osgeo import gdal
 import processing
 import webbrowser
 import gc #Garbage collection
@@ -11,6 +12,9 @@ import sys
 import shutil
 import sqlite3
 import math
+import urllib.request
+import zipfile
+import numpy as np
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'qtalsim_subbasin.ui'))
@@ -59,8 +63,9 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         #Connect Buttons to Functions 
         self.connectButtontoFunction(self.onLongestFlowPath, self.performLFP) #Calculate LongestFlowPath
-        self.connectButtontoFunction(self.onRun, self.runSubBasinPreprocessing) 
-        self.connectButtontoFunction(self.onOutputFolder, self.selectOutputFolder) 
+        self.connectButtontoFunction(self.onRun, self.runSubBasinPreprocessing)
+        self.connectButtontoFunction(self.onOutputFolder, self.selectOutputFolder)
+        self.connectButtontoFunction(self.onDownloadGisa, self.downloadGisaImperviousness)
         self.connectButtontoFunction(self.finalButtonBox.button(QDialogButtonBox.StandardButton.Help), self.openDocumentation)
         self.log_to_qtalsim_tab(
             "This feature processes a sub-basins layer. It calculates the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin, and the longest flow path for each sub-basin. "
@@ -180,9 +185,10 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             If the imperviousness layer is a vector layer, fill the field-combobox with the fields of this layer.
         '''
         selected_layer_name = self.comboboxImperviousness.currentText() #Get the selected layer name
-            
-        if selected_layer_name is not None and selected_layer_name != self.noLayerSelected: #imperviousness is optional
-            self.imperviousnessLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+        layers = QgsProject.instance().mapLayersByName(selected_layer_name) if selected_layer_name else []
+
+        if selected_layer_name is not None and selected_layer_name != self.noLayerSelected and layers: #imperviousness is optional
+            self.imperviousnessLayer = layers[0]
             if self.imperviousnessLayer.type() == QgsMapLayer.RasterLayer: #check if raster
                 self.comboboxImperviousnessField.setVisible(False)
                 self.labelImperviousnessField.setVisible(False)
@@ -195,6 +201,199 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         else:
             self.comboboxImperviousnessField.setVisible(False)
             self.labelImperviousnessField.setVisible(False)
+
+    def downloadGisaImperviousness(self):
+        '''
+            Downloads GISA-10m impervious surface area data (10 m, static single-epoch
+            binary impervious mask, Zenodo record 6991620: "Mapping 10-m global
+            impervious surface area (GISA-10m) using multi-source geospatial data"),
+            clipped to the extent of the selected sub-basin layer, scales it to a
+            0/100 impervious-share raster and adds it to the project so it can be
+            picked in comboboxImperviousness like any other imperviousness layer.
+
+            Note: an earlier version of this function downloaded from Zenodo record
+            14848113 ("GISA-new", a 30 m multi-temporal 1972-2021 change-detection
+            product with a different classification methodology) instead of GISA-10m.
+            Both happen to produce a similarly-scaled 0-100 raster, so the mistake was
+            not obvious from the output alone, but it silently used a different, coarser
+            dataset than the one actually cited/intended for this project - do not
+            reintroduce that record ID here.
+        '''
+        gisa_zip_base_url = "https://zenodo.org/records/6991620/files/"
+        tile_size = 5  # degrees; GISA-10m's native tile grid
+
+        try:
+            self.start_operation()
+
+            if self.subBasinLayer is None:
+                QMessageBox.critical(self, "No Sub-Basin Layer", "Please select a sub-basin layer before downloading GISA data.")
+                return
+
+            if not self.outputFolder:
+                QMessageBox.critical(self, "No Output Folder", "Please select an output folder before downloading GISA data.")
+                return
+
+            #Bounding box of the sub-basin layer in WGS84 (GISA tiles are stored in EPSG:4326)
+            wgs84 = QgsCoordinateReferenceSystem('EPSG:4326')
+            transform = QgsCoordinateTransform(self.subBasinLayer.crs(), wgs84, QgsProject.instance())
+            extent_wgs84 = transform.transformBoundingBox(self.subBasinLayer.extent())
+            min_lon, min_lat = extent_wgs84.xMinimum(), extent_wgs84.yMinimum()
+            max_lon, max_lat = extent_wgs84.xMaximum(), extent_wgs84.yMaximum()
+
+            #Determine the 5x5 degree GISA-10m tiles (upper-left corner coordinates, on the
+            #standard grid) that intersect the sub-basin extent.
+            candidate_tops = range(tile_size * (math.floor(min_lat / tile_size) - 1), tile_size * (math.ceil(max_lat / tile_size) + 1) + 1, tile_size)
+            candidate_lefts = range(tile_size * (math.floor(min_lon / tile_size) - 1), tile_size * (math.ceil(max_lon / tile_size) + 1) + 1, tile_size)
+            tops = [t for t in candidate_tops if t > min_lat and t - tile_size < max_lat]
+            lefts = [l for l in candidate_lefts if l <= max_lon and l + tile_size > min_lon]
+            tiles = [(top, left) for top in tops for left in lefts]
+
+            if not tiles:
+                self.log_to_qtalsim_tab("Could not determine any GISA tiles for the sub-basin extent.", Qgis.Critical)
+                return
+
+            def lat_label(top):
+                #GISA-10m tile naming convention: the tile's upper (northern) edge,
+                #hemisphere-suffixed by which hemisphere the tile body lies in (so the
+                #tile spanning 0..-5 is "0S", not "0N").
+                return f"{int(top)}N" if top > 0 else f"{abs(int(top))}S"
+
+            def lon_label(left):
+                #Same convention for the tile's left (western) edge.
+                return f"{abs(int(left))}{'E' if left >= 0 else 'W'}"
+
+            gisa_folder = os.path.join(self.outputFolder, 'gisa_imperviousness')
+            if not os.path.exists(gisa_folder):
+                os.mkdir(gisa_folder)
+            tiles_folder = os.path.join(gisa_folder, 'tiles')
+            if not os.path.exists(tiles_folder):
+                os.mkdir(tiles_folder)
+            zips_folder = os.path.join(gisa_folder, 'zips')
+            if not os.path.exists(zips_folder):
+                os.mkdir(zips_folder)
+
+            #GISA-10m is published as one ZIP per 5-degree longitude band (covering all
+            #latitudes), each containing the individual 5x5-degree GeoTIFF tiles for that
+            #band. Download only the longitude bands intersecting the extent, then extract
+            #just the needed lat/lon tiles from them. Tiles/zips already present from a
+            #previous run are reused as-is.
+            tile_filenames = {(top, left): f"GISA-10m_{lat_label(top)}_{lon_label(left)}.tif" for top, left in tiles}
+            needed_lons = sorted(set(left for _, left in tiles))
+
+            for left in needed_lons:
+                band_label = lon_label(left)
+                band_tile_names = {name for (_, l), name in tile_filenames.items() if l == left}
+                still_missing = {name for name in band_tile_names if not os.path.exists(os.path.join(tiles_folder, name))}
+                if not still_missing:
+                    continue
+
+                zip_filename = f"GISA-10m_v01_{band_label}.zip"
+                zip_url = gisa_zip_base_url + zip_filename + "?download=1"
+                zip_path = os.path.join(zips_folder, zip_filename)
+
+                try:
+                    if not os.path.exists(zip_path):
+                        self.log_to_qtalsim_tab(f"Downloading GISA-10m longitude band {zip_filename} (up to ~250 MB, cached for later use)...", Qgis.Info)
+                        urllib.request.urlretrieve(zip_url, zip_path)
+                    else:
+                        self.log_to_qtalsim_tab(f"Using previously downloaded GISA-10m band {zip_filename}.", Qgis.Info)
+
+                    with zipfile.ZipFile(zip_path) as zf:
+                        for member in zf.infolist():
+                            member_name = os.path.basename(member.filename)
+                            if member_name in still_missing:
+                                target_path = os.path.join(tiles_folder, member_name)
+                                with zf.open(member) as src, open(target_path, 'wb') as dst:
+                                    shutil.copyfileobj(src, dst)
+                except Exception as e:
+                    self.log_to_qtalsim_tab(f"Could not download/extract GISA-10m band {zip_filename}: {e}", Qgis.Warning)
+
+            #Clip each needed tile to the sub-basin extent locally (the tiles were already
+            #downloaded in full above).
+            clip_paths = []
+            for (top, left), filename in tile_filenames.items():
+                tile_path = os.path.join(tiles_folder, filename)
+                if not os.path.exists(tile_path):
+                    self.log_to_qtalsim_tab(f"Tile {filename} was not found in its GISA-10m band archive, skipping.", Qgis.Warning)
+                    continue
+
+                clip_min_lon = max(min_lon, left)
+                clip_max_lon = min(max_lon, left + tile_size)
+                clip_min_lat = max(min_lat, top - tile_size)
+                clip_max_lat = min(max_lat, top)
+
+                clip_path = os.path.join(gisa_folder, f"clip_{filename}")
+                try:
+                    ds = gdal.Translate(
+                        clip_path, tile_path,
+                        format='GTiff',
+                        projWin=(clip_min_lon, clip_max_lat, clip_max_lon, clip_min_lat),
+                        projWinSRS=wgs84.authid(),
+                        creationOptions=["COMPRESS=DEFLATE"]
+                    )
+                    if ds is None:
+                        raise RuntimeError("gdal.Translate returned no dataset")
+                    ds = None
+                    clip_paths.append(clip_path)
+                except Exception as e:
+                    self.log_to_qtalsim_tab(f"Could not clip GISA-10m tile {filename}: {e}", Qgis.Warning)
+
+            if not clip_paths:
+                self.log_to_qtalsim_tab("No GISA-10m data could be downloaded for the sub-basin extent.", Qgis.Critical)
+                return
+
+            #Mosaic the tile clips if the extent spans more than one tile
+            if len(clip_paths) > 1:
+                mosaic_path = os.path.join(gisa_folder, "gisa_mosaic.tif")
+                ds = gdal.Warp(mosaic_path, clip_paths, format='GTiff')
+                ds = None
+            else:
+                mosaic_path = clip_paths[0]
+
+            #GISA-10m pixels are already a binary 0/1 impervious mask; scale to 0/100 so
+            #the field reads directly as a percentage, consistent with a vector imperviousness field.
+            src_ds = gdal.Open(mosaic_path)
+            band = src_ds.GetRasterBand(1)
+            values = band.ReadAsArray()
+            scaled = np.where(values > 0, 100, 0).astype(np.uint8)
+
+            scaled_path = os.path.join(gisa_folder, "gisa_imperviousness.tif")
+            driver = gdal.GetDriverByName('GTiff')
+            out_ds = driver.Create(scaled_path, src_ds.RasterXSize, src_ds.RasterYSize, 1, gdal.GDT_Byte, options=["COMPRESS=DEFLATE"])
+            out_ds.SetGeoTransform(src_ds.GetGeoTransform())
+            out_ds.SetProjection(src_ds.GetProjection())
+            out_ds.GetRasterBand(1).WriteArray(scaled)
+            out_ds = None
+            src_ds = None
+
+            #Reproject to the sub-basin layer's CRS so zonal statistics can use it directly
+            final_path = os.path.join(gisa_folder, "gisa_imperviousness_proj.tif")
+            ds = gdal.Warp(final_path, scaled_path, dstSRS=self.subBasinLayer.crs().authid(), resampleAlg='near')
+            ds = None
+
+            gisa_layer = QgsRasterLayer(final_path, "GISA-10m Imperviousness")
+            if not gisa_layer.isValid():
+                self.log_to_qtalsim_tab("The downloaded GISA-10m raster could not be loaded as a layer.", Qgis.Critical)
+                return
+
+            QgsProject.instance().addMapLayer(gisa_layer)
+            #Only add the new layer to the imperviousness combobox (not a full
+            #fillLayerComboboxes(), which would reset the sub-basin/DEM/water-network
+            #comboboxes to "No Layer selected" and lose the user's other selections there).
+            self.comboboxImperviousness.addItem(gisa_layer.name())
+            self.comboboxImperviousness.setCurrentText(gisa_layer.name())
+
+            self.mainPlugin.iface.messageBar().pushMessage(
+                "Operation finished: Downloading GISA-10m imperviousness data",
+                f"GISA-10m imperviousness raster was saved here: {final_path}",
+                level=Qgis.Success,
+                duration=10
+            )
+            self.log_to_qtalsim_tab(f"Finished downloading and processing GISA-10m imperviousness data, saved here: {final_path}", Qgis.Info)
+        except Exception as e:
+            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+        finally:
+            self.end_operation()
 
     def runSubBasinPreprocessing(self):
         '''
@@ -813,7 +1012,18 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             try:
                 processing.run("whitebox_workflows:fill_depressions_wang_and_liu", {'dem':self.dem_burn_output,'fix_flats':True,'flat_increment':None,'output':dem_burn_fill_output})
             except Exception as e:
-                self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+                if "PermissionError" in str(e) or "locked" in str(e).lower() or "WinError 32" in str(e):
+                    message = (
+                        f"Could not write '{dem_burn_fill_output}' because it is currently locked by another "
+                        "process - most likely it is still loaded as a layer in QGIS from a previous run "
+                        "(GDAL then keeps a file handle open on it). Please remove that layer from the QGIS "
+                        "project (or close the file if it is open elsewhere) and try again, or choose a "
+                        "different output folder."
+                    )
+                    QMessageBox.critical(self, "Output File Locked", message)
+                    self.log_to_qtalsim_tab(message, Qgis.Critical)
+                else:
+                    self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
                 return
         
         dem_burn_fill_layer = QgsRasterLayer(dem_burn_fill_output,'DEMBurnFill')
