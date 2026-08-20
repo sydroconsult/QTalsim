@@ -242,7 +242,7 @@
          <item>
           <widget class="QPushButton" name="onDownloadGisa">
            <property name="toolTip">
-            <string>Downloads GISA-new impervious surface area data (30m, status 2021) clipped to the selected sub-basin layer's extent and adds it as a selectable raster layer above.</string>
+            <string>Downloads GISA-10m impervious surface area data clipped to the selected sub-basin layer's extent and adds it as a selectable raster layer above.</string>
            </property>
            <property name="text">
             <string>Download GISA</string>
