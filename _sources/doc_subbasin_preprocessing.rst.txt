@@ -35,11 +35,12 @@ Select Layers
 
    -  Select the field that contains the names of the sub-basins.
    -  Select the DEM layer (raster layer) and the water network layer (line layer). The water network layer is only necessary for calculating LFP. 
-   -  Optional: Select either a raster or vector layer containing impervious areas 
-   
+   -  Optional: Select either a raster or vector layer containing impervious areas, or download one directly within the plugin
+
       -  Values should be expressed as percentages
       -  `Example data set raster <https://sdi.eea.europa.eu/catalogue/srv/eng/catalog.search#/metadata/3bf542bd-eebd-4d73-b53c-a0243f2ed862>`__
       -  `Example data set vector layer <https://gdz.bkg.bund.de/index.php/default/digitales-landbedeckungsmodell-deutschland-stand-2021-lbm-de.html>`__ (column 'SIE_AKT')
+      -  Alternatively, click "Download GISA" to fetch a ready-to-use raster for the sub-basin layer's extent from `GISA-10m <https://doi.org/10.5281/zenodo.6991620>`__, a global 10 m impervious surface dataset.
 
 Calculation of LongestFlowPath
 ------------------------------
