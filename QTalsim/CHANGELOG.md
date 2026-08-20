@@ -1,5 +1,30 @@
 # Changelog
 
+## \[2.0.0] - 2026-08-20
+
+* Fixes
+
+  * HRU Calculation
+    * Improved error handling, feedback and progress reporting during HRU calculation.
+    * Fixed make_geometries_valid() dropping valid soil/land use area from mixed GeometryCollections.
+    * Fixed area leaking across sub-basin boundaries when filling gaps.
+    * Sorted and truncated the missing-sub-basins warning dialog for large lists.
+
+  * Sub-basin preprocessing
+    * Fixed geometry-validity handling for sub-basins and improved error messages when sub-basins are missing from the input layer.
+
+* Enhancements
+
+  * Plugin
+    * Migrated the plugin for QGIS 4 / Qt6 compatibility, while keeping QGIS 3 / Qt5 support.
+
+  * HRU Calculation
+    * HRU calculation and file export now run as a background task with a Cancel button, so QGIS no longer freezes during long operations.
+    * Added a "Fill TexturePreset" option to resolve soil texture parameters from the soil name (Talsim 5 export) instead of manual mapping.
+
+  * Sub-basin preprocessing
+    * Added the possibility to download GISA-10m impervious surface area data directly within the plugin.
+
 ## \[1.9.1] - 2026-07-10
 
 * Fixes

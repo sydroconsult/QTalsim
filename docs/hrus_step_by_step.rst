@@ -2,6 +2,10 @@ Step by Step
 ------------
 .. _step-by-step:
 
+      Long-running steps (e.g. eliminating polygons, intersecting layers,
+      saving the output files) now run in the background and no longer
+      freeze QGIS. While a background step is running, a 'Cancel' button
+      appears next to the progress bar and can be used to abort it.
 
 Select Sub-basin Layer
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -74,6 +78,13 @@ Select & Edit Soil Layer
          with values from their corresponding fields. If there is a
          datatype mismatch between the soil layer’s field and the
          parameter, a warning is logged.
+
+         Optionally, you can check 'Fill TexturePreset' before confirming
+         the soil mapping. When enabled, the parameters WiltingPoint,
+         FieldCapacity, TotalPoreVolume, KfValue and MaxInfiltration are no
+         longer taken from manual field mapping; instead they are resolved
+         by Talsim from the TexturePreset code, which is set to the soil
+         name (NameSoil). This only applies to the Talsim 5 (SQLite) export.
 
          ==============================     ===========     ===========     ===========================
          Parameter                          Unit            Type            Restriction

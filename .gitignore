@@ -3,6 +3,7 @@ __pycache__/
 .DS_Store
 compile.bat
 .pytest_cache/
+.claude/
 test-plugin.yaml
 test/testdata
 prepare_for_push.bat

@@ -9,6 +9,10 @@ Install Plugin
    system's QGIS Python environment and run:
    ``python -m pip install pandas numpy requests``
 
+   **Supported QGIS versions:** QTalsim supports QGIS 3.34 and later,
+   including QGIS 4.x (Qt6). Both the QGIS 3 (Qt5) and QGIS 4 (Qt6)
+   branches are supported by the same plugin release.
+
    If the plugin is not installed yet, you must do this by following
    these steps:
 
