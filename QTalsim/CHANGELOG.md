@@ -1,5 +1,14 @@
 # Changelog
 
+## \[2.0.1] - 2026-09-04
+
+* Fixes
+
+  * Plugin
+    * Completed the QGIS 4 / Qt6 compatibility migration; the plugin now loads
+      and runs on QGIS 4 (Qt6) as well as QGIS 3 (Qt5). Minimum supported QGIS
+      version is now 3.40.
+
 ## \[2.0.0] - 2026-08-20
 
 * Fixes

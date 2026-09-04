@@ -2,7 +2,7 @@ import os
 from qgis.PyQt import uic, QtWidgets
 import pandas as pd
 from qgis.core import QgsVectorLayer, QgsProject, Qgis, QgsField, QgsVectorFileWriter, QgsRasterLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsGeometry
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 from qgis.PyQt.QtWidgets import QFileDialog, QInputDialog, QDialogButtonBox
 import processing
 import webbrowser
@@ -150,7 +150,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         if self.inputFolder:
             self.inputPath.setText(self.inputFolder)
 
-            self.log_to_qtalsim_tab(f"Selected input folder: {self.inputFolder}", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Selected input folder: {self.inputFolder}", Qgis.MessageLevel.Info)
 
     def selectOutputFile(self):
         '''
@@ -213,14 +213,14 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             if not clipping_layer_name == "Select Clipping Layer":
                 clipped_layer = self.clipLanduseLayer(self.merged_layer)
             else:
-                self.log_to_qtalsim_tab("No Clipping Layer selected. Using the full extent of the input ATKIS layer.", Qgis.Warning)
+                self.log_to_qtalsim_tab("No Clipping Layer selected. Using the full extent of the input ATKIS layer.", Qgis.MessageLevel.Warning)
             if clipped_layer:
                 self.landuseLayer = clipped_layer
             else:
                 self.landuseLayer = self.merged_layer
 
         except Exception as e:
-            self.log_to_qtalsim_tab("Error during merging and clipping: " + str(e), Qgis.Critical)
+            self.log_to_qtalsim_tab("Error during merging and clipping: " + str(e), Qgis.MessageLevel.Critical)
 
     def clipLanduseLayer(self, layer_to_clip):
         '''
@@ -229,7 +229,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         clipping_layer_name = self.comboboxClippingLayer.currentText()
         if clipping_layer_name == "Select Clipping Layer":
             clipping_layer = None
-            self.log_to_qtalsim_tab("No clipping layer selected.", Qgis.Critical)
+            self.log_to_qtalsim_tab("No clipping layer selected.", Qgis.MessageLevel.Critical)
         else:
             clipping_layer = QgsProject.instance().mapLayersByName(clipping_layer_name)[0] #Get the clipping layer
 
@@ -267,7 +267,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
         try: 
             self.start_operation()
-            self.log_to_qtalsim_tab("Starting ESA World Cover download and processing", Qgis.Info)
+            self.log_to_qtalsim_tab("Starting ESA World Cover download and processing", Qgis.MessageLevel.Info)
             esa_folder = os.path.join(self.outputFolder, "ESA")
             os.makedirs(esa_folder, exist_ok=True)
 
@@ -389,7 +389,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                     downloaded_files
                 )
 
-                self.log_to_qtalsim_tab("Download finished. Clipping raster layer...", Qgis.Info)
+                self.log_to_qtalsim_tab("Download finished. Clipping raster layer...", Qgis.MessageLevel.Info)
                 # Clip Layer
                 self.esaWorldCoverLayer = QgsRasterLayer(vrt_path, "ESA WorldCover")
                 self.comboboxClippingLayer.setCurrentText(self.clippinglayerESA.name())
@@ -397,7 +397,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 
                 if clipping_layer_name == "Select Clipping Layer":
                     clipping_layer = None
-                    self.log_to_qtalsim_tab("No clipping layer selected.", Qgis.Critical)
+                    self.log_to_qtalsim_tab("No clipping layer selected.", Qgis.MessageLevel.Critical)
                 else:
                     self.source_crs = self.clippinglayerESA.crs()
                     target_crs = QgsCoordinateReferenceSystem("EPSG:4326")
@@ -437,7 +437,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 layer = QgsRasterLayer(clipped_raster, "")
 
                 if not layer.isValid():
-                    self.log_to_qtalsim_tab("Clipping failed due to invalid geometries. Attempting to fix geometries...", Qgis.Warning)
+                    self.log_to_qtalsim_tab("Clipping failed due to invalid geometries. Attempting to fix geometries...", Qgis.MessageLevel.Warning)
                     has_multipart = False
                     for feature in clipping_layer_4326.getFeatures():
                         geom = feature.geometry()
@@ -480,9 +480,9 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                             "OUTPUT": clipped_raster
                         }
                     )
-                    self.log_to_qtalsim_tab("Clipping after fixing geometries of clipping layer successful.", Qgis.Info)
+                    self.log_to_qtalsim_tab("Clipping after fixing geometries of clipping layer successful.", Qgis.MessageLevel.Info)
                 else:
-                    self.log_to_qtalsim_tab("Clipping successful.", Qgis.Info)
+                    self.log_to_qtalsim_tab("Clipping successful.", Qgis.MessageLevel.Info)
                 # load result
                 clipped_layer = QgsRasterLayer(
                     result["OUTPUT"],
@@ -490,7 +490,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 )
                 if self.checkboxResample.isChecked():
                     res = int(self.spinboxResample.value())
-                    self.log_to_qtalsim_tab(f"Resampling raster to {res}m resolution...", Qgis.Info)
+                    self.log_to_qtalsim_tab(f"Resampling raster to {res}m resolution...", Qgis.MessageLevel.Info)
 
                     # check if crs is metric
                     target_crs = clipping_layer.crs()
@@ -541,7 +541,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                     "No WorldCover tiles could be downloaded."
                 )
         except Exception as e:
-            self.log_to_qtalsim_tab(f"Error downloading ESA World Cover: {e}", Qgis.Critical)
+            self.log_to_qtalsim_tab(f"Error downloading ESA World Cover: {e}", Qgis.MessageLevel.Critical)
         finally:
             self.end_operation()
 
@@ -551,7 +551,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
         try:
             self.start_operation()
-            self.log_to_qtalsim_tab("Starting land use mapping", Qgis.Info)
+            self.log_to_qtalsim_tab("Starting land use mapping", Qgis.MessageLevel.Info)
             self.landuseLayer = None
 
             #If user selects ATKIS land use as input
@@ -569,7 +569,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 if not clipping_layer_name == "Select Clipping Layer":
                     self.landuseLayer = self.clipLanduseLayer(self.lbmLayer)
                 elif clipping_layer_name == "Select Clipping Layer":
-                    self.log_to_qtalsim_tab("No Clipping Layer selected. Using the full extent of the input LBM layer.", Qgis.Warning)
+                    self.log_to_qtalsim_tab("No Clipping Layer selected. Using the full extent of the input LBM layer.", Qgis.MessageLevel.Warning)
                     self.landuseLayer = self.lbmLayer
                 self.landbedeckungToTalsimMapping()
             
@@ -583,10 +583,10 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 
 
             self.exportGeopackage()
-            self.log_to_qtalsim_tab("Land use mapping finished", Qgis.Info)
+            self.log_to_qtalsim_tab("Land use mapping finished", Qgis.MessageLevel.Info)
 
         except Exception as e:
-            self.log_to_qtalsim_tab("Error during land use mapping: " + str(e), Qgis.Critical)
+            self.log_to_qtalsim_tab("Error during land use mapping: " + str(e), Qgis.MessageLevel.Critical)
 
         finally:
             self.end_operation()
@@ -609,7 +609,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             mapping[key] = talsim_landuse
         
         if 'OBJART_NEU' not in [f.name() for f in self.landuseLayer.fields()]:
-            self.landuseLayer.dataProvider().addAttributes([QgsField('OBJART_NEU', QVariant.String)])
+            self.landuseLayer.dataProvider().addAttributes([QgsField('OBJART_NEU', QMetaType.Type.QString)])
             self.landuseLayer.updateFields()
 
         self.landuseLayer.startEditing()
@@ -649,7 +649,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             #Features without corresponding code in the csv are assigned to the land use of the feature
             if not matched:
                 feature["OBJART_NEU"] = code_landbedeckung
-                self.log_to_qtalsim_tab(f"Could not find a match for {code_landbedeckung}", Qgis.Warning)
+                self.log_to_qtalsim_tab(f"Could not find a match for {code_landbedeckung}", Qgis.MessageLevel.Warning)
 
             self.landuseLayer.updateFeature(feature)
             
@@ -663,13 +663,13 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         try:
             self.start_operation()
             if not self.esaWorldCoverLayerRaster:
-                self.log_to_qtalsim_tab("ESA World Cover layer not found. Please download and select the ESA World Cover layer first.", Qgis.Critical)
+                self.log_to_qtalsim_tab("ESA World Cover layer not found. Please download and select the ESA World Cover layer first.", Qgis.MessageLevel.Critical)
                 return
 
             esa_folder = os.path.join(self.outputFolder, "ESA")
             os.makedirs(esa_folder, exist_ok=True)
 
-            self.log_to_qtalsim_tab("Polygonizing ESA World Cover raster layer...", Qgis.Info)
+            self.log_to_qtalsim_tab("Polygonizing ESA World Cover raster layer...", Qgis.MessageLevel.Info)
             
             #polygonize raster layer 
             poly_result = processing.run(
@@ -686,8 +686,8 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             poly_layer = poly_result["OUTPUT"]
             #if isinstance(poly_layer, str):
             poly_layer = QgsVectorLayer(poly_layer, "ESA polygons", "ogr")
-            self.log_to_qtalsim_tab("Polygonized vector layer created",Qgis.Info)
-            self.log_to_qtalsim_tab(f"Dissolving layer...", Qgis.Info)
+            self.log_to_qtalsim_tab("Polygonized vector layer created",Qgis.MessageLevel.Info)
+            self.log_to_qtalsim_tab(f"Dissolving layer...", Qgis.MessageLevel.Info)
             
             poly_layer, _ = self.make_geometries_valid(poly_layer)
 
@@ -701,7 +701,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 "WorldCover_dissolved.gpkg"
             )
             
-            self.log_to_qtalsim_tab("Dissolving ESA World Cover vector layer...", Qgis.Info)
+            self.log_to_qtalsim_tab("Dissolving ESA World Cover vector layer...", Qgis.MessageLevel.Info)
 
             dissolve_result = processing.run(
                 "native:dissolve",
@@ -718,7 +718,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                 "ogr"
             )
 
-            self.log_to_qtalsim_tab("Mapping ESA World Cover to Talsim land use...", Qgis.Info)
+            self.log_to_qtalsim_tab("Mapping ESA World Cover to Talsim land use...", Qgis.MessageLevel.Info)
             # Add ESA Name and Talsim Landuse to the layer based on the class code using the csv file with the mapping
             current_path = os.path.dirname(os.path.abspath(__file__))
             csv_path = os.path.join(
@@ -735,8 +735,8 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             provider = self.landuseLayer.dataProvider()
 
             provider.addAttributes([
-                QgsField("esa_name", QVariant.String),
-                QgsField("OBJART_NEU", QVariant.String)
+                QgsField("esa_name", QMetaType.Type.QString),
+                QgsField("OBJART_NEU", QMetaType.Type.QString)
             ])
 
             self.landuseLayer.updateFields()
@@ -777,9 +777,9 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
 
             QgsProject.instance().addMapLayer(self.landuseLayer)
 
-            self.log_to_qtalsim_tab("ESA World Cover mapping completed.", Qgis.Info)
+            self.log_to_qtalsim_tab("ESA World Cover mapping completed.", Qgis.MessageLevel.Info)
         except Exception as e:
-            self.log_to_qtalsim_tab("Error during ESA World Cover mapping: " + str(e), Qgis.Critical)
+            self.log_to_qtalsim_tab("Error during ESA World Cover mapping: " + str(e), Qgis.MessageLevel.Critical)
         finally:
             self.end_operation()
 
@@ -824,7 +824,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         })['OUTPUT']
 
         if 'OBJART_NEU' not in [f.name() for f in self.landuseLayer.fields()]:
-            self.landuseLayer.dataProvider().addAttributes([QgsField('OBJART_NEU', QVariant.String)])
+            self.landuseLayer.dataProvider().addAttributes([QgsField('OBJART_NEU', QMetaType.Type.QString)])
             self.landuseLayer.updateFields()
         
         self.landuseLayer.startEditing()
@@ -870,7 +870,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
                         if code_val == 'leer':
                             feature["OBJART_NEU"] = landuse
                             matched = True
-                            self.log_to_qtalsim_tab(f"Could not find the code {feature_code} and assigned ATKIS land use {objart_txt} with code {feature_code} to Talsim land use {landuse}.", Qgis.Warning)
+                            self.log_to_qtalsim_tab(f"Could not find the code {feature_code} and assigned ATKIS land use {objart_txt} with code {feature_code} to Talsim land use {landuse}.", Qgis.MessageLevel.Warning)
                             break
                         else:
                             continue
@@ -884,12 +884,12 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             #If not matched, optionally leave as is or assign fallback
             if not matched:
                 feature["OBJART_NEU"] = objart_txt
-                self.log_to_qtalsim_tab(f"Could not find a match for {objart_txt}", Qgis.Warning)
+                self.log_to_qtalsim_tab(f"Could not find a match for {objart_txt}", Qgis.MessageLevel.Warning)
 
             self.landuseLayer.updateFeature(feature)
         
         self.landuseLayer.commitChanges()
-        self.log_to_qtalsim_tab("ATKIS land use mapping completed", Qgis.Info)
+        self.log_to_qtalsim_tab("ATKIS land use mapping completed", Qgis.MessageLevel.Info)
     
     def exportGeopackage(self):
         '''
@@ -901,7 +901,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         options.fileEncoding = "UTF-8"
         layer_name_in_gpkg = "Landuse"
         options.layerName = layer_name_in_gpkg  #Name of the layer inside the GeoPackage
-        options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteFile
+        options.actionOnExistingFile = QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteFile
 
         result, error_message = QgsVectorFileWriter.writeAsVectorFormatV2(
             self.landuseLayer,
@@ -910,8 +910,8 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             options
         )
 
-        if result == QgsVectorFileWriter.NoError:
-            self.log_to_qtalsim_tab(f"Exported to {self.gpkgOutputPath}", Qgis.Info)
+        if result == QgsVectorFileWriter.WriterError.NoError:
+            self.log_to_qtalsim_tab(f"Exported to {self.gpkgOutputPath}", Qgis.MessageLevel.Info)
 
         exported_layer = QgsVectorLayer(f"{self.gpkgOutputPath}|layername={layer_name_in_gpkg}", layer_name_in_gpkg, "ogr")
         if exported_layer.isValid():
@@ -938,7 +938,7 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
         options.driverName = "GPKG"
         options.fileEncoding = "UTF-8"
         options.layerName = layer_name_dissolved
-        options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer  # Add as new layer
+        options.actionOnExistingFile = QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteLayer  # Add as new layer
 
         result, error_message = QgsVectorFileWriter.writeAsVectorFormatV2(
             landuseLayerDissolved,
@@ -947,13 +947,13 @@ class LanduseAssignmentDialog(QtWidgets.QDialog, FORM_CLASS):
             options
         )
 
-        if result == QgsVectorFileWriter.NoError:
+        if result == QgsVectorFileWriter.WriterError.NoError:
             uri = f"{self.gpkgOutputPath}|layername={layer_name_dissolved}"
             dissolved_layer = QgsVectorLayer(uri, layer_name_dissolved, "ogr")
 
             if dissolved_layer.isValid():
                 QgsProject.instance().addMapLayer(dissolved_layer)
 
-                self.log_to_qtalsim_tab(f"Exported dissolved layer with layer name {layer_name_dissolved} to {self.gpkgOutputPath}", Qgis.Info)       
+                self.log_to_qtalsim_tab(f"Exported dissolved layer with layer name {layer_name_dissolved} to {self.gpkgOutputPath}", Qgis.MessageLevel.Info)       
 
         

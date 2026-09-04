@@ -2,7 +2,7 @@ import os
 from qgis.PyQt import uic, QtWidgets
 from qgis.PyQt.QtWidgets import  QFileDialog, QDialogButtonBox, QMessageBox
 from qgis.core import QgsProject, QgsLayerTreeGroup, QgsLayerTreeLayer, QgsMapLayer, QgsWkbTypes, QgsRasterLayer, QgsVectorLayer, QgsRasterBandStats, QgsField, QgsVectorFileWriter, edit, Qgis, QgsProcessingFeedback, QgsProcessingException, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRaster, QgsGeometry, QgsPointXY
-from qgis.PyQt.QtCore import pyqtSignal, QVariant
+from qgis.PyQt.QtCore import pyqtSignal, QMetaType
 from osgeo import gdal
 import processing
 import webbrowser
@@ -71,7 +71,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             "This feature processes a sub-basins layer. It calculates the highest and lowest points within the sub-basins, the area and average impermeable area (optional) per sub-basin, and the longest flow path for each sub-basin. "
             "Please ensure that WhiteboxTools is installed and properly configured. "
             "For detailed instructions, click the Help button.", 
-            Qgis.Info
+            Qgis.MessageLevel.Info
         )        
         #Fill Comboboxes
         self.comboboxUISubBasin.clear()
@@ -105,9 +105,9 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 layers.extend(self.getAllLineLayers(child))
             elif isinstance(child, QgsLayerTreeLayer):
                 layer = child.layer()
-                if layer and layer.type() == QgsMapLayer.VectorLayer:
+                if layer and layer.type() == QgsMapLayer.LayerType.VectorLayer:
                     # If the child is a layer, add it to the list
-                    if layer.geometryType() == QgsWkbTypes.LineGeometry:
+                    if layer.geometryType() == QgsWkbTypes.GeometryType.LineGeometry:
                         layers.append(layer)
         return layers
     
@@ -189,10 +189,10 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         if selected_layer_name is not None and selected_layer_name != self.noLayerSelected and layers: #imperviousness is optional
             self.imperviousnessLayer = layers[0]
-            if self.imperviousnessLayer.type() == QgsMapLayer.RasterLayer: #check if raster
+            if self.imperviousnessLayer.type() == QgsMapLayer.LayerType.RasterLayer: #check if raster
                 self.comboboxImperviousnessField.setVisible(False)
                 self.labelImperviousnessField.setVisible(False)
-            elif self.imperviousnessLayer.type() == QgsMapLayer.VectorLayer:
+            elif self.imperviousnessLayer.type() == QgsMapLayer.LayerType.VectorLayer:
                 self.comboboxImperviousnessField.setVisible(True)
                 self.labelImperviousnessField.setVisible(True)
                 self.comboboxImperviousnessField.clear()
@@ -249,7 +249,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             tiles = [(top, left) for top in tops for left in lefts]
 
             if not tiles:
-                self.log_to_qtalsim_tab("Could not determine any GISA tiles for the sub-basin extent.", Qgis.Critical)
+                self.log_to_qtalsim_tab("Could not determine any GISA tiles for the sub-basin extent.", Qgis.MessageLevel.Critical)
                 return
 
             def lat_label(top):
@@ -298,10 +298,10 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 try:
                     if not os.path.exists(zip_path):
-                        self.log_to_qtalsim_tab(f"Downloading GISA-10m longitude band {zip_filename} (up to ~250 MB, cached for later use)...", Qgis.Info)
+                        self.log_to_qtalsim_tab(f"Downloading GISA-10m longitude band {zip_filename} (up to ~250 MB, cached for later use)...", Qgis.MessageLevel.Info)
                         urllib.request.urlretrieve(zip_url, zip_path)  # nosec B310 - URL scheme/host validated above, gisa_zip_base_url is a fixed https:// constant
                     else:
-                        self.log_to_qtalsim_tab(f"Using previously downloaded GISA-10m band {zip_filename}.", Qgis.Info)
+                        self.log_to_qtalsim_tab(f"Using previously downloaded GISA-10m band {zip_filename}.", Qgis.MessageLevel.Info)
 
                     with zipfile.ZipFile(zip_path) as zf:
                         for member in zf.infolist():
@@ -311,7 +311,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                                 with zf.open(member) as src, open(target_path, 'wb') as dst:
                                     shutil.copyfileobj(src, dst)
                 except Exception as e:
-                    self.log_to_qtalsim_tab(f"Could not download/extract GISA-10m band {zip_filename}: {e}", Qgis.Warning)
+                    self.log_to_qtalsim_tab(f"Could not download/extract GISA-10m band {zip_filename}: {e}", Qgis.MessageLevel.Warning)
 
             #Clip each needed tile to the sub-basin extent locally (the tiles were already
             #downloaded in full above).
@@ -319,7 +319,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             for (top, left), filename in tile_filenames.items():
                 tile_path = os.path.join(tiles_folder, filename)
                 if not os.path.exists(tile_path):
-                    self.log_to_qtalsim_tab(f"Tile {filename} was not found in its GISA-10m band archive, skipping.", Qgis.Warning)
+                    self.log_to_qtalsim_tab(f"Tile {filename} was not found in its GISA-10m band archive, skipping.", Qgis.MessageLevel.Warning)
                     continue
 
                 clip_min_lon = max(min_lon, left)
@@ -341,10 +341,10 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     ds = None
                     clip_paths.append(clip_path)
                 except Exception as e:
-                    self.log_to_qtalsim_tab(f"Could not clip GISA-10m tile {filename}: {e}", Qgis.Warning)
+                    self.log_to_qtalsim_tab(f"Could not clip GISA-10m tile {filename}: {e}", Qgis.MessageLevel.Warning)
 
             if not clip_paths:
-                self.log_to_qtalsim_tab("No GISA-10m data could be downloaded for the sub-basin extent.", Qgis.Critical)
+                self.log_to_qtalsim_tab("No GISA-10m data could be downloaded for the sub-basin extent.", Qgis.MessageLevel.Critical)
                 return
 
             #Mosaic the tile clips if the extent spans more than one tile
@@ -378,7 +378,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
             gisa_layer = QgsRasterLayer(final_path, "GISA-10m Imperviousness")
             if not gisa_layer.isValid():
-                self.log_to_qtalsim_tab("The downloaded GISA-10m raster could not be loaded as a layer.", Qgis.Critical)
+                self.log_to_qtalsim_tab("The downloaded GISA-10m raster could not be loaded as a layer.", Qgis.MessageLevel.Critical)
                 return
 
             QgsProject.instance().addMapLayer(gisa_layer)
@@ -391,12 +391,12 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.mainPlugin.iface.messageBar().pushMessage(
                 "Operation finished: Downloading GISA-10m imperviousness data",
                 f"GISA-10m imperviousness raster was saved here: {final_path}",
-                level=Qgis.Success,
+                level=Qgis.MessageLevel.Success,
                 duration=10
             )
-            self.log_to_qtalsim_tab(f"Finished downloading and processing GISA-10m imperviousness data, saved here: {final_path}", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Finished downloading and processing GISA-10m imperviousness data, saved here: {final_path}", Qgis.MessageLevel.Info)
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.MessageLevel.Critical)
         finally:
             self.end_operation()
 
@@ -410,7 +410,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
         try:
             self.start_operation()
-            self.log_to_qtalsim_tab(f"Processing the sub-basins layer.", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Processing the sub-basins layer.", Qgis.MessageLevel.Info)
 
             invalid_ids = [feature.id() for feature in self.subBasinLayer.getFeatures()
                         if not feature.geometry().isGeosValid()]
@@ -423,7 +423,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     "(or Vector \u25b8 Geometry Tools \u25b8 Check Validity to locate them precisely), "
                     "then reload the layer and try again."
                 )
-                self.log_to_qtalsim_tab(message, Qgis.Critical)
+                self.log_to_qtalsim_tab(message, Qgis.MessageLevel.Critical)
                 QMessageBox.critical(None, "Invalid Geometries in Sub-basins Layer", message)
                 return
             #Select DEM Layer
@@ -432,7 +432,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 if selected_layer_name != self.noLayerSelected:
                     self.DEMLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
                 else:
-                    self.log_to_qtalsim_tab("Please select a DEM layer to process the sub-basins.", Qgis.Critical)
+                    self.log_to_qtalsim_tab("Please select a DEM layer to process the sub-basins.", Qgis.MessageLevel.Critical)
             
             #Get the sub-basin UI field
             if not self.subbasinUIField:
@@ -463,11 +463,11 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 msg.setDefaultButton(QMessageBox.StandardButton.No)
                 response = msg.exec()
                 if response == QMessageBox.StandardButton.No:
-                    self.log_to_qtalsim_tab("Process cancelled by user due to duplicate Sub-basin IDs.", Qgis.Warning)
+                    self.log_to_qtalsim_tab("Process cancelled by user due to duplicate Sub-basin IDs.", Qgis.MessageLevel.Warning)
                     return
                 if response == QMessageBox.StandardButton.Yes:
-                    self.log_to_qtalsim_tab("Continuing despite duplicate Sub-basin IDs.", Qgis.Warning)
-            self.log_to_qtalsim_tab(f"Calculating the max- and min-height and area of each sub-basin...", Qgis.Info)
+                    self.log_to_qtalsim_tab("Continuing despite duplicate Sub-basin IDs.", Qgis.MessageLevel.Warning)
+            self.log_to_qtalsim_tab(f"Calculating the max- and min-height and area of each sub-basin...", Qgis.MessageLevel.Info)
             self.calculateHeightandAreaSubBasins()
             
             #Convert the subbasinUIField to string (needed for join to LFP)
@@ -478,7 +478,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
       
             #Add a new string field
             new_field_name = f"{original_field_name}_temp"
-            self.subBasinLayerProcessed.dataProvider().addAttributes([QgsField(new_field_name, QVariant.String)])
+            self.subBasinLayerProcessed.dataProvider().addAttributes([QgsField(new_field_name, QMetaType.Type.QString)])
             self.subBasinLayerProcessed.updateFields()
 
             #Get the new field index
@@ -508,12 +508,12 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             selected_layer_name = self.comboboxImperviousness.currentText() #Get the selected layer name
             
             if selected_layer_name is not None and selected_layer_name != self.noLayerSelected: #imperviousness is optional
-                self.log_to_qtalsim_tab(f"Calculating mean imperviousness for each sub-basin...", Qgis.Info)
+                self.log_to_qtalsim_tab(f"Calculating mean imperviousness for each sub-basin...", Qgis.MessageLevel.Info)
                 self.imperviousnessLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
                 self.subBasinLayerProcessed = self.calculateImperviousness(self.subBasinLayerProcessed, self.imperviousnessLayer)
             else: #add the field with null-values
                 if self.imperviousFieldName not in [field.name() for field in self.subBasinLayerProcessed.fields()]:
-                    imp_field = QgsField(self.imperviousFieldName, QVariant.Double)
+                    imp_field = QgsField(self.imperviousFieldName, QMetaType.Type.Double)
                     self.subBasinLayerProcessed.dataProvider().addAttributes([imp_field])
                     self.subBasinLayerProcessed.updateFields()            
 
@@ -530,7 +530,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 #Join the LFP length to sub-basin layer
                 self.subBasinLayerProcessed = processing.run("native:joinattributestable", {'INPUT': self.subBasinLayerProcessed,'FIELD': self.subbasinUIField,'INPUT_2': self.lfpFinalLayer,'FIELD_2':'BASINID','FIELDS_TO_COPY':[self.lengthFieldName, "Rotation"],'METHOD':1,'DISCARD_NONMATCHING':False,'PREFIX':'','OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
             
-            self.log_to_qtalsim_tab(f"Exporting the layer...", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Exporting the layer...", Qgis.MessageLevel.Info)
             self.geopackage_path = os.path.join(self.outputFolder, f"Sub_basins_processed.gpkg") #Output-path
 
             #Check if feature starts with A and delete feature if it does not
@@ -543,21 +543,21 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
             self.subBasinLayerProcessed.commitChanges()
             if deleted_feature_ui:
-                self.log_to_qtalsim_tab(f"Deleted following features because they do not start with A: {deleted_feature_ui}", Qgis.Info)
+                self.log_to_qtalsim_tab(f"Deleted following features because they do not start with A: {deleted_feature_ui}", Qgis.MessageLevel.Info)
 
             if self.groupboxDBExport.isChecked():
                 if self.textDBName.text() is not None:
                     self.dbName = self.textDBName.text()
                     self.DBExport()
                 else:
-                    self.log_to_qtalsim_tab("Please enter a database name.", Qgis.Critical)
+                    self.log_to_qtalsim_tab("Please enter a database name.", Qgis.MessageLevel.Critical)
 
             if self.groupboxASCIIExport.isChecked():
                 if self.textAsciiFileName.text() is not None:
                     self.asciiFilename = self.textAsciiFileName.text()
                     self.asciiExport()
                 else:
-                    self.log_to_qtalsim_tab("Please enter a filename for the ASCII-export.", Qgis.Critical)
+                    self.log_to_qtalsim_tab("Please enter a filename for the ASCII-export.", Qgis.MessageLevel.Critical)
             
 
             #Export sub-basins-layer to geopackage
@@ -568,13 +568,13 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 'OVERWRITE': True,
             }
             processing.run("native:savefeatures", params)
-            self.log_to_qtalsim_tab(f"Processed sub-basins layer was saved to: {self.geopackage_path}", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Processed sub-basins layer was saved to: {self.geopackage_path}", Qgis.MessageLevel.Info)
 
             finalSubBasinsLayer = QgsVectorLayer(f"{self.geopackage_path}|layername=Sub-basins Processed", "Sub-basins Processed", "ogr")
             QgsProject.instance().addMapLayer(finalSubBasinsLayer)
 
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.MessageLevel.Critical)
 
         finally:
             self.end_operation()
@@ -584,13 +584,13 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             Calculates the min/max height and the area for every sub-basin
         '''
         if self.subBasinLayer == None:
-            self.log_to_qtalsim_tab("Please select a sub-basin layer to process the sub-basins..", Qgis.Critical)
+            self.log_to_qtalsim_tab("Please select a sub-basin layer to process the sub-basins..", Qgis.MessageLevel.Critical)
         #Get the max and min height for every sub-basin by using the input DEM-layer
         self.subBasinLayerProcessed = processing.run("native:zonalstatisticsfb", {'INPUT':self.subBasinLayer,'INPUT_RASTER':self.DEMLayer,'RASTER_BAND':1,'COLUMN_PREFIX':'Height_','STATISTICS':[5,6],'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']            
 
         #Add field to store area
         if self.areaFieldName not in [field.name() for field in self.subBasinLayerProcessed.fields()]:
-            area_field = QgsField(self.areaFieldName, QVariant.Double)
+            area_field = QgsField(self.areaFieldName, QMetaType.Type.Double)
             self.subBasinLayerProcessed.dataProvider().addAttributes([area_field])
             self.subBasinLayerProcessed.updateFields()
         
@@ -630,7 +630,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
             Calculates average impervious area per sub-basin.
         '''
-        if imperviousness_layer.type() == QgsMapLayer.VectorLayer:
+        if imperviousness_layer.type() == QgsMapLayer.LayerType.VectorLayer:
             fieldNameImperviousness = self.comboboxImperviousnessField.currentText()
             intersection_result = processing.run(
                 "native:intersection",
@@ -647,8 +647,8 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             intersection_layer.startEditing()
             if "weighted_imp" not in [f.name() for f in intersection_layer.fields()]:
                 intersection_layer.dataProvider().addAttributes([
-                    QgsField("weighted_imp", QVariant.Double),
-                    QgsField("area_m2", QVariant.Double)
+                    QgsField("weighted_imp", QMetaType.Type.Double),
+                    QgsField("area_m2", QMetaType.Type.Double)
                 ])
                 intersection_layer.updateFields()
 
@@ -681,7 +681,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             #Calculate mean imperviousness and join to sub-basins
             aggregate_layer.startEditing()
             if self.imperviousFieldName not in [f.name() for f in aggregate_layer.fields()]:
-                aggregate_layer.dataProvider().addAttributes([QgsField(self.imperviousFieldName, QVariant.Double)])
+                aggregate_layer.dataProvider().addAttributes([QgsField(self.imperviousFieldName, QMetaType.Type.Double)])
                 aggregate_layer.updateFields()
 
             for feature in aggregate_layer.getFeatures():
@@ -707,7 +707,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 }
             )
             self.subBasinLayerProcessed = joinResult['OUTPUT']
-        elif imperviousness_layer.type() == QgsMapLayer.RasterLayer:
+        elif imperviousness_layer.type() == QgsMapLayer.LayerType.RasterLayer:
             self.subBasinLayerProcessed = processing.run("native:zonalstatisticsfb", {'INPUT': sub_basins_layer,'INPUT_RASTER': imperviousness_layer,'RASTER_BAND':1,'COLUMN_PREFIX':'Imp_','STATISTICS':[2],'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']            
 
         return self.subBasinLayerProcessed
@@ -718,10 +718,10 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
         try:
             self.start_operation()
-            self.log_to_qtalsim_tab(f"Calculating the longest flowpath for each sub-basin.", Qgis.Info) 
+            self.log_to_qtalsim_tab(f"Calculating the longest flowpath for each sub-basin.", Qgis.MessageLevel.Info) 
 
             if self.outputFolder is None:
-                self.log_to_qtalsim_tab("Please select an output folder.", Qgis.Critical)
+                self.log_to_qtalsim_tab("Please select an output folder.", Qgis.MessageLevel.Critical)
                 return
             
             invalid_ids = [feature.id() for feature in self.subBasinLayer.getFeatures()
@@ -735,7 +735,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     "(or Vector \u25b8 Geometry Tools \u25b8 Check Validity to locate them precisely), "
                     "then reload the layer and try again."
                 )
-                self.log_to_qtalsim_tab(message, Qgis.Critical)
+                self.log_to_qtalsim_tab(message, Qgis.MessageLevel.Critical)
                 QMessageBox.critical(None, "Invalid Geometries in Sub-basins Layer", message)
                 return  
               
@@ -743,17 +743,17 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             if selected_layer_name != self.noLayerSelected:
                 self.DEMLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
             else:
-                self.log_to_qtalsim_tab("Please select a DEM layer to process the sub-basins.", Qgis.Critical)
+                self.log_to_qtalsim_tab("Please select a DEM layer to process the sub-basins.", Qgis.MessageLevel.Critical)
 
             #Water Network Layer
             selected_layer_name = self.comboboxWaterNetwork.currentText()
             if selected_layer_name != self.noLayerSelected:
                 self.waterNetworkLayer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
             else:
-                self.log_to_qtalsim_tab("Please select a water-network layer to calculate LFP.", Qgis.Critical)
+                self.log_to_qtalsim_tab("Please select a water-network layer to calculate LFP.", Qgis.MessageLevel.Critical)
             
             if self.subBasinLayer == None:
-                self.log_to_qtalsim_tab("Please select a sub-basin layer to process the sub-basins..", Qgis.Critical)
+                self.log_to_qtalsim_tab("Please select a sub-basin layer to process the sub-basins..", Qgis.MessageLevel.Critical)
              
             #Check if the layers are in same CRS
             target_crs = self.subBasinLayer.crs()
@@ -767,7 +767,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                         'OUTPUT': 'TEMPORARY_OUTPUT'
                     }
                 )['OUTPUT']
-                self.log_to_qtalsim_tab(f"Reprojected water network layer to match sub-basin layer CRS.", Qgis.Warning)
+                self.log_to_qtalsim_tab(f"Reprojected water network layer to match sub-basin layer CRS.", Qgis.MessageLevel.Warning)
 
             # Reproject DEM layer if necessary
             if self.DEMLayer.crs() != self.subBasinLayer.crs():
@@ -784,7 +784,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 self.log_to_qtalsim_tab(
                     "The DEM CRS differs from the sub-basin CRS. Please reproject the DEM before running the model.",
-                    Qgis.Critical,
+                    Qgis.MessageLevel.Critical,
                 )
                 return
             #UI Sub-basin
@@ -828,7 +828,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                         if os.path.exists(path):
                             os.remove(path)
                 except Exception as e:
-                    self.log_to_qtalsim_tab(f"Error removing {path}: {e}", Qgis.Info)
+                    self.log_to_qtalsim_tab(f"Error removing {path}: {e}", Qgis.MessageLevel.Info)
 
             # Delete the file
             if os.path.exists(self.dem_burn_output):
@@ -841,13 +841,13 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             try:   
                 self.calculateRotation()
             except Exception as e:
-                self.log_to_qtalsim_tab(f"Error calculating rotation: {e}. Continuing without calculating rotation.", Qgis.Warning)
+                self.log_to_qtalsim_tab(f"Error calculating rotation: {e}. Continuing without calculating rotation.", Qgis.MessageLevel.Warning)
             finally:
                 self.lfpFinalLayer.commitChanges()
 
-            self.log_to_qtalsim_tab(f"Finished the calculation of the longest flowpaths. Please check the longest flowpaths and edit the geometries, if necessary. The lengths will be recalculated when saving the sub-basins-layer (Button: Run).", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Finished the calculation of the longest flowpaths. Please check the longest flowpaths and edit the geometries, if necessary. The lengths will be recalculated when saving the sub-basins-layer (Button: Run).", Qgis.MessageLevel.Info)
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.MessageLevel.Critical)
         finally:
             self.end_operation()
 
@@ -857,7 +857,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
 
         def sample_elevation(point):
-            ident = self.DEMLayer.dataProvider().identify(point, QgsRaster.IdentifyFormatValue)
+            ident = self.DEMLayer.dataProvider().identify(point, QgsRaster.IdentifyFormat.IdentifyFormatValue)
             if ident.isValid():
                 return ident.results()[1]
             return None
@@ -865,7 +865,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.lfpFinalLayer.startEditing()
 
         if 'Rotation' not in [f.name() for f in self.lfpFinalLayer.fields()]:
-            self.lfpFinalLayer.dataProvider().addAttributes([QgsField('Rotation', QVariant.Double)])
+            self.lfpFinalLayer.dataProvider().addAttributes([QgsField('Rotation', QMetaType.Type.Double)])
             self.lfpFinalLayer.updateFields()
 
         rotation_field_index = self.lfpFinalLayer.fields().indexFromName('Rotation')
@@ -918,7 +918,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 Burns and fills the DEM
         '''
 
-        self.log_to_qtalsim_tab(f"Burning and filling the DEM...", Qgis.Info)
+        self.log_to_qtalsim_tab(f"Burning and filling the DEM...", Qgis.MessageLevel.Info)
         '''
         #Necessary for small gaps?
         result = processing.run("qgis:deleteholes", {
@@ -928,7 +928,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         sub_basins_layer = result['OUTPUT']
         '''
         QgsProject.instance().addMapLayer(sub_basins_layer)
-        self.log_to_qtalsim_tab(f"Clipping the DEM to the sub-basins...", Qgis.Info)
+        self.log_to_qtalsim_tab(f"Clipping the DEM to the sub-basins...", Qgis.MessageLevel.Info)
 
         result = processing.run("gdal:cliprasterbymasklayer", {'INPUT':dem_layer,'MASK':sub_basins_layer,'SOURCE_CRS':None,'TARGET_CRS':None,'TARGET_EXTENT':None,'NODATA':None,'ALPHA_BAND':False,'CROP_TO_CUTLINE':True,'KEEP_RESOLUTION':False,'SET_RESOLUTION':False,'X_RESOLUTION':None,'Y_RESOLUTION':None,'MULTITHREADING':False,'OPTIONS':'','DATA_TYPE':0,'EXTRA':'','OUTPUT':'TEMPORARY_OUTPUT'}, feedback=self.no_feedback)
         dem_layer = QgsRasterLayer(result['OUTPUT'], 'Clipped DEM')
@@ -942,7 +942,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         self.extent = f"{self.dem_extent.xMinimum()},{self.dem_extent.xMaximum()},{self.dem_extent.yMinimum()},{self.dem_extent.yMaximum()}"
 
         #Rasterize Water Network
-        self.log_to_qtalsim_tab(f"Rasterizing water network...", Qgis.Info)
+        self.log_to_qtalsim_tab(f"Rasterizing water network...", Qgis.MessageLevel.Info)
         water_network_layer = processing.run("native:fixgeometries", {
             'INPUT': water_network_layer,
             'METHOD': 1,
@@ -957,7 +957,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
         #Standardize Raster Layer
         band = 1
-        stats = dem_layer.dataProvider().bandStatistics(band, QgsRasterBandStats.All)
+        stats = dem_layer.dataProvider().bandStatistics(band, QgsRasterBandStats.Stats.All)
         min_value_dem = stats.minimumValue
         max_value_dem = stats.maximumValue
         dem_std_output = os.path.join(output_path, f'DEMStd1.tif')
@@ -968,7 +968,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         QgsProject.instance().addMapLayer(dem_std_layer)
 
         #Burn Gewässernetz into standardized DEM
-        self.log_to_qtalsim_tab(f"Burning water network into standardized DEM...", Qgis.Info)
+        self.log_to_qtalsim_tab(f"Burning water network into standardized DEM...", Qgis.MessageLevel.Info)
         dem_std_burn_output = os.path.join(output_path, f'DEMStdBurn1.tif')
         os.makedirs(os.path.dirname(dem_std_burn_output), exist_ok=True)
         processing.run("native:rastercalc", {'LAYERS':[dem_std_layer, water_network_rasterized],'EXPRESSION':f'"{dem_std_layer.name()}@1" - "{water_network_rasterized.name()}@1"','EXTENT':self.extent,'CELL_SIZE':None,'CRS':None,'OUTPUT':dem_std_burn_output}, feedback=self.no_feedback)
@@ -1026,9 +1026,9 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                         "different output folder."
                     )
                     QMessageBox.critical(self, "Output File Locked", message)
-                    self.log_to_qtalsim_tab(message, Qgis.Critical)
+                    self.log_to_qtalsim_tab(message, Qgis.MessageLevel.Critical)
                 else:
-                    self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+                    self.log_to_qtalsim_tab(f"{e}", Qgis.MessageLevel.Critical)
                 return
         
         dem_burn_fill_layer = QgsRasterLayer(dem_burn_fill_output,'DEMBurnFill')
@@ -1110,7 +1110,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 try:
                     processing.run("whitebox_workflows:longest_flowpath", {'dem':dem_burnfill_clip_layer,'basins': sub_basin_raster_layer,'output':lfp_output}, feedback=self.no_feedback)
                 except Exception as e:
-                    self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+                    self.log_to_qtalsim_tab(f"{e}", Qgis.MessageLevel.Critical)
                     return
             #new_layer = QgsVectorLayer(lfp_output,'LFP')
 
@@ -1120,7 +1120,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
             #Check if the 'BASINID' (= self.basinIDField) field exists, if not, create it
             if not new_layer.fields().indexOf(self.basinIDField) >= 0:
-                basin_field = QgsField(self.basinIDField, QVariant.String)
+                basin_field = QgsField(self.basinIDField, QMetaType.Type.QString)
                 new_layer.dataProvider().addAttributes([basin_field])
                 new_layer.updateFields()
 
@@ -1139,7 +1139,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             Takes the LFP of every sub-basin and merges these lines to one layer
         '''
         # Check and filter layers by geometry type
-        expected_geom_type = QgsWkbTypes.LineGeometry  # Set the expected geometry type (e.g., LineGeometry)
+        expected_geom_type = QgsWkbTypes.GeometryType.LineGeometry  # Set the expected geometry type (e.g., LineGeometry)
         filtered_lfpOutputs = []
 
         for layer in lfpOutputs:
@@ -1148,7 +1148,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 filtered_lfpOutputs.append(layer)
 
         if len(filtered_lfpOutputs) < 1:
-            self.log_to_qtalsim_tab("Not enough layers with the expected geometry type to merge.", Qgis.Warning)
+            self.log_to_qtalsim_tab("Not enough layers with the expected geometry type to merge.", Qgis.MessageLevel.Warning)
             return
         else:
             # Merge the filtered layers
@@ -1164,7 +1164,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             lfpLayerTotal.updateFields()
             
         # Add a new field for storing the lengths
-        length_field = QgsField('length2', QVariant.Double)
+        length_field = QgsField('length2', QMetaType.Type.Double)
         lfpLayerTotal.dataProvider().addAttributes([length_field])
         lfpLayerTotal.updateFields()
 
@@ -1219,7 +1219,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         os.makedirs(os.path.dirname(lfp_output_final), exist_ok=True)
         QgsVectorFileWriter.writeAsVectorFormat(self.lfpFinalLayer, lfp_output_final, "UTF-8", self.lfpFinalLayer.crs(), "GPKG")
 
-        self.log_to_qtalsim_tab(f"LongestFlowPath-layer was saved to: {self.outputFolder}", Qgis.Info)
+        self.log_to_qtalsim_tab(f"LongestFlowPath-layer was saved to: {self.outputFolder}", Qgis.MessageLevel.Info)
 
         # Add the layer to the QGIS project
         self.lfpFinalLayer = QgsVectorLayer(lfp_output_final, 'LFP Final', 'ogr')
@@ -1230,7 +1230,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         try:
             self.subbasinUIField = self.comboboxUISubBasin.currentText()
             if self.textScenarioName.text() is None:
-                self.log_to_qtalsim_tab("Please specify a scenario name.", Qgis.Critical)
+                self.log_to_qtalsim_tab("Please specify a scenario name.", Qgis.MessageLevel.Critical)
             else:
                 self.scenarioName = self.textScenarioName.text()
 
@@ -1238,7 +1238,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.nameField = self.comboboxNameField.currentText()
             else:
                 self.nameField = None
-            self.log_to_qtalsim_tab(f"Name-field: {self.nameField}", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Name-field: {self.nameField}", Qgis.MessageLevel.Info)
 
             self.DBPath = os.path.join(self.outputFolder, self.dbName + ".db")
             current_path = os.path.dirname(os.path.abspath(__file__))
@@ -1342,7 +1342,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             conn.commit()
             conn.close()
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.MessageLevel.Critical)
             
     def asciiExport(self):
         '''
@@ -1418,7 +1418,7 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 return value_str[:length].rjust(length)
 
             if self.asciiFilename:
-                self.log_to_qtalsim_tab("Exporting ASCII-files.", Qgis.Info)
+                self.log_to_qtalsim_tab("Exporting ASCII-files.", Qgis.MessageLevel.Info)
 
                 current_path = os.path.dirname(os.path.abspath(__file__))
                 ezgPath = os.path.join(current_path, "talsim_parameter", "template.EZG")
@@ -1481,14 +1481,14 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     outputEzg.writelines(completeContentEzg)
 
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.MessageLevel.Critical)
 
 #To be improved:
 class NoFeedback(QgsProcessingFeedback):
     def reportError(self, error, fatalError=False):
         pass  # Override to do nothing
 
-    def pushFormattedMessage(self, info, level=Qgis.Info):
+    def pushFormattedMessage(self, info, level=Qgis.MessageLevel.Info):
         pass  # Override to do nothing
 
     def pushInfo(self, info):

@@ -24,7 +24,7 @@ Edit features of Talsim DB
 
       The SystemElement, Sub-basins, and TransportReach layers can be edited by the user. All edits, inserts, and deletions made by the user are saved to the connected Talsim DB. As shown in the screenshot below, the user must select the layer to be edited in the layer group and then click the 'Toggle Editing' button to start the editing mode for this layer.
 
-      Using the editing options of QGIS, the user is now able to make any changes to the geometries (find further information `here <https://docs.qgis.org/3.34/en/docs/user_manual/working_with_vector/editing_geometry_attributes.html>`__) and to the attributes of these three 	layers. 	
+      Using the editing options of QGIS, the user is now able to make any changes to the geometries (find further information `here <https://docs.qgis.org/3.40/en/docs/user_manual/working_with_vector/editing_geometry_attributes.html>`__) and to the attributes of these three 	layers. 	
 	
 	|Edit Sub-basins|
 	

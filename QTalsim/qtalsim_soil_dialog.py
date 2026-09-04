@@ -2,7 +2,7 @@
 import os
 from qgis.PyQt import uic, QtWidgets
 from qgis.PyQt.QtWidgets import  QFileDialog, QDialog, QDialogButtonBox,QMessageBox
-from qgis.PyQt.QtCore import QVariant, QTimer
+from qgis.PyQt.QtCore import QMetaType, QTimer
 from qgis.core import QgsProject, Qgis, QgsCoordinateReferenceSystem, QgsRasterLayer, QgsVectorLayer, QgsField, edit, QgsLayerTreeLayer, QgsCategorizedSymbolRenderer, QgsVectorFileWriter,QgsWkbTypes, QgsGeometry, QgsFeature, QgsDataSourceUri, QgsFeatureRequest
 from qgis.gui import QgsProjectionSelectionDialog
 from osgeo import gdal, osr, ogr
@@ -270,17 +270,17 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             if not geom.isGeosValid():
                 fixed_geom = geom.makeValid()
                 #Check if the fixed geometry is valid and of the correct type
-                if fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
+                if fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.Type.MultiPolygon:
                     feature.setGeometry(fixed_geom)
                     layer.updateFeature(feature)
                 else:
                     #Attempt to fix the geometry to be a MultiPolygon
-                    if fixed_geom.wkbType() == QgsWkbTypes.Polygon:
+                    if fixed_geom.wkbType() == QgsWkbTypes.Type.Polygon:
                         fixed_geom = QgsGeometry.fromMultiPolygonXY([fixed_geom.asPolygon()])
-                    elif fixed_geom.wkbType() == QgsWkbTypes.LineString or fixed_geom.wkbType() == QgsWkbTypes.MultiLineString:
+                    elif fixed_geom.wkbType() == QgsWkbTypes.Type.LineString or fixed_geom.wkbType() == QgsWkbTypes.Type.MultiLineString:
                         fixed_geom = QgsGeometry.fromPolygonXY([fixed_geom.asPolyline()])
                     #Set the fixed geometry if it's valid
-                    if fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.MultiPolygon:
+                    if fixed_geom.isGeosValid() and fixed_geom.wkbType() == QgsWkbTypes.Type.MultiPolygon:
                         feature.setGeometry(fixed_geom)
                         layer.updateFeature(feature)
                     else:
@@ -341,12 +341,12 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 
                 if reply == QMessageBox.StandardButton.Yes:
                     self.log_to_qtalsim_tab("Proceeding with the existing data for further processing. "
-                                            "Please select a CRS and start the process by clicking 'Calculate Soil Types'.", Qgis.Info)
+                                            "Please select a CRS and start the process by clicking 'Calculate Soil Types'.", Qgis.MessageLevel.Info)
                     self.onDownloadData.setVisible(False)
                     self.onCalculateSoilTypes.setEnabled(True) #enable calculation of soil types
 
                 else: #If user does not want to keep the data, data is deleted
-                    self.log_to_qtalsim_tab("User chose not to use the existing data.", Qgis.Info)
+                    self.log_to_qtalsim_tab("User chose not to use the existing data.", Qgis.MessageLevel.Info)
                     self.onDownloadData.setVisible(True)
                     try:
                         #Specify the paths to delete
@@ -363,12 +363,12 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                                 deleted_items.append(item)
 
                         if deleted_items:
-                            self.log_to_qtalsim_tab(f"Successfully deleted the following items: {', '.join(deleted_items)}", Qgis.Info)
+                            self.log_to_qtalsim_tab(f"Successfully deleted the following items: {', '.join(deleted_items)}", Qgis.MessageLevel.Info)
                         else:
-                            self.log_to_qtalsim_tab("No items were deleted. Nothing matched the expected data.", Qgis.Warning)
+                            self.log_to_qtalsim_tab("No items were deleted. Nothing matched the expected data.", Qgis.MessageLevel.Warning)
 
                     except Exception as e:
-                        self.log_to_qtalsim_tab(f"Failed to delete some or all items in the folder. Error: {str(e)}", Qgis.Critical)
+                        self.log_to_qtalsim_tab(f"Failed to delete some or all items in the folder. Error: {str(e)}", Qgis.MessageLevel.Critical)
 
     def selectCrs(self): 
         '''
@@ -384,12 +384,12 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.dstSRS = self.destinationCRS.authid() 
 
             #Log the selected CRS as EPSG code or WKT
-            self.log_to_qtalsim_tab(f"Selected destination CRS: {self.destinationCRS.authid()}", Qgis.Info)  #e.g., 'EPSG:4326'
+            self.log_to_qtalsim_tab(f"Selected destination CRS: {self.destinationCRS.authid()}", Qgis.MessageLevel.Info)  #e.g., 'EPSG:4326'
             self.outputCRS.setText(f"{self.destinationCRS.authid()}")
             #self.log_to_qtalsim_tab(f"Selected destination CRS WKT: {self.destinationCRS.toWkt()}", Qgis.Info)  #Full WKT representation
             
         else:
-            self.log_to_qtalsim_tab("No destination CRS selected.", Qgis.Warning)
+            self.log_to_qtalsim_tab("No destination CRS selected.", Qgis.MessageLevel.Warning)
             return None
     
     def downloadData(self):
@@ -403,9 +403,9 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             selected_layer_name = self.comboboxExtentLayer.currentText()
             if selected_layer_name != self.noLayerSelected:
                 self.layerBoundingBox = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
-                self.log_to_qtalsim_tab(f"Selected layer {self.layerBoundingBox.name()} as input layer.", Qgis.Info)
+                self.log_to_qtalsim_tab(f"Selected layer {self.layerBoundingBox.name()} as input layer.", Qgis.MessageLevel.Info)
             else:
-                self.log_to_qtalsim_tab("Please select a layer.", Qgis.Critical)
+                self.log_to_qtalsim_tab("Please select a layer.", Qgis.MessageLevel.Critical)
 
             if not self.outputFolder:
                 QMessageBox.critical(self, "No Output Folder", "Please select an output folder before downloading data.")
@@ -555,7 +555,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             #Save files
             for name, loc in datasets.items():
                 try:
-                    self.log_to_qtalsim_tab(f"Processing... {name}", Qgis.Info)
+                    self.log_to_qtalsim_tab(f"Processing... {name}", Qgis.MessageLevel.Info)
                     
                     file_orig = os.path.join(path_out, name + '.tif')
                     file_proj = os.path.join(self.path_proj, name + '.tif')
@@ -563,13 +563,13 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     ds = gdal.Translate(file_orig, sg_url + loc, **kwargs)
                     if not self.checkboxResample.isChecked() or res == res_download:
                         ds = gdal.Warp(file_proj, ds, dstSRS=self.dstSRS) #, resampleAlg='average'
-                        self.log_to_qtalsim_tab(f"Saved {name} with original resolution of {res_download} meters.", Qgis.Info)
+                        self.log_to_qtalsim_tab(f"Saved {name} with original resolution of {res_download} meters.", Qgis.MessageLevel.Info)
                     else:
                         ds = gdal.Warp(file_proj, ds, dstSRS=self.dstSRS, xRes=res, yRes=res, resampleAlg='average') #, srcNodata=-9999, dstNodata=-9999
-                        self.log_to_qtalsim_tab(f"Saved {name} resampled to {res} meters.", Qgis.Info)
+                        self.log_to_qtalsim_tab(f"Saved {name} resampled to {res} meters.", Qgis.MessageLevel.Info)
                     ds = None
                 except Exception as e:
-                    self.log_to_qtalsim_tab(f"Error processing {name}: {str(e)}", Qgis.Critical)
+                    self.log_to_qtalsim_tab(f"Error processing {name}: {str(e)}", Qgis.MessageLevel.Critical)
                     continue
             
             self.onCalculateSoilTypes.setEnabled(True) #enable calculation of soil types
@@ -577,13 +577,13 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.iface.messageBar().pushMessage(
                 "Operation finished: Downloading ISRIC soil data",
                 f"Soil raster data was saved here: {path_out}",
-                level=Qgis.Success,
+                level=Qgis.MessageLevel.Success,
                 duration=10
             )
 
-            self.log_to_qtalsim_tab(f"Finished downloading and processing ISRIC soil data and saved the data here: {path_out}", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Finished downloading and processing ISRIC soil data and saved the data here: {path_out}", Qgis.MessageLevel.Info)
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.MessageLevel.Critical)
 
         finally:
             self.end_operation()
@@ -607,7 +607,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
 
             #Check which files exist
             if os.path.exists(file_path) and os.path.exists(file_path_bdod):
-                self.log_to_qtalsim_tab(f"The files {file_name_soiltypes} and {file_name_bdod} exist. Using these files to continue the conversion.", Qgis.Info)
+                self.log_to_qtalsim_tab(f"The files {file_name_soiltypes} and {file_name_bdod} exist. Using these files to continue the conversion.", Qgis.MessageLevel.Info)
                 
                 #Soil-Types
                 #provider_metadata = QgsProviderRegistry.instance().providerMetadata('ogr')
@@ -643,7 +643,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                         self.bdod_layers_to_combine.append(vector_layer)
 
             elif os.path.exists(file_path): #bdod does not exist
-                self.log_to_qtalsim_tab(f"The file {file_name_soiltypes} exists. Using this file to continue the conversion.", Qgis.Info)
+                self.log_to_qtalsim_tab(f"The file {file_name_soiltypes} exists. Using this file to continue the conversion.", Qgis.MessageLevel.Info)
                 
                 #provider_metadata = QgsProviderRegistry.instance().providerMetadata('ogr')
 
@@ -652,7 +652,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 sublayers = gpkg_layer.dataProvider().subLayers()
 
                 layer_names = [s.split('!!::!!')[1] for s in sublayers]  #Extract layer names
-                self.log_to_qtalsim_tab(f"Found layers: {', '.join(layer_names)}", Qgis.Info)
+                self.log_to_qtalsim_tab(f"Found layers: {', '.join(layer_names)}", Qgis.MessageLevel.Info)
                 #self.log_to_qtalsim_tab(f"Raw sublayer metadata: {sublayers}", Qgis.Info)
 
                 #Check which layers exist in soil_types.gpkg
@@ -668,7 +668,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                         self.soilTypeLayers.append(vector_layer)
                 if "Soil Types Combined" in layer_names:
                     self.combinedSoilTypeLayer = QgsVectorLayer(f"{file_path}|layername={name}", name, "ogr")
-            self.log_to_qtalsim_tab("Calculating soil types from clay, silt and sand share...", Qgis.Info)
+            self.log_to_qtalsim_tab("Calculating soil types from clay, silt and sand share...", Qgis.MessageLevel.Info)
             root = QgsProject.instance().layerTreeRoot()
 
             #Create layer group to store all layers
@@ -679,7 +679,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.soilMapping()
 
         except Exception as e:
-            self.log_to_qtalsim_tab(f"{e}", Qgis.Critical)
+            self.log_to_qtalsim_tab(f"{e}", Qgis.MessageLevel.Critical)
         
         finally:
             self.end_operation()
@@ -748,7 +748,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.layer_data[layer] = stacked_array
 
                 else:
-                    self.log_to_qtalsim_tab(f"Missing data for layer {layer}, skipping.", Qgis.Info)
+                    self.log_to_qtalsim_tab(f"Missing data for layer {layer}, skipping.", Qgis.MessageLevel.Info)
 
         #Convert bulk density layer from cg/cm³ to kg/dm³ by dividing by 100
         for layer in self.bdod_data:
@@ -807,7 +807,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         '''
             Polygonize multiple arrays and combine them into a single vector layer with additional attributes.
         '''
-        self.log_to_qtalsim_tab("Combining soil type layers to one layer...", Qgis.Info)
+        self.log_to_qtalsim_tab("Combining soil type layers to one layer...", Qgis.MessageLevel.Info)
 
         nodata_value = -9999
         rows, cols = arrays[0].shape
@@ -1033,11 +1033,11 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Polygonize
         err = gdal.Polygonize(band, None, temp_layer, field_index, [], callback=None)
         if err != 0:
-            self.log_to_qtalsim_tab("Polygonization failed with error code:", Qgis.Critical)
+            self.log_to_qtalsim_tab("Polygonization failed with error code:", Qgis.MessageLevel.Critical)
         
         #Check if polygons were created
         if temp_layer.GetFeatureCount() == 0 or temp_layer.GetGeomType() != ogr.wkbPolygon:
-            self.log_to_qtalsim_tab("No features created by Polygonize.", Qgis.Critical)
+            self.log_to_qtalsim_tab("No features created by Polygonize.", Qgis.MessageLevel.Critical)
 
         #Delete no data polygons
         temp_layer.StartTransaction() 
@@ -1049,7 +1049,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
         #Load the GeoPackage layer into QGIS
         result_layer = QgsVectorLayer(f"{output_gpkg}|layername={layer_name}", f"{layer_name}", "ogr")
         result_layer,_ = self.make_geometries_valid(result_layer)
-        self.log_to_qtalsim_tab(f"Successfully created layer {layer_name}", Qgis.Info)
+        self.log_to_qtalsim_tab(f"Successfully created layer {layer_name}", Qgis.MessageLevel.Info)
         return result_layer, layer_name
     
     def soilMapping(self):
@@ -1079,7 +1079,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 sand_array = data_array[2]
                 
                 if clay_array.shape != silt_array.shape or clay_array.shape != sand_array.shape or silt_array.shape != sand_array.shape:
-                    self.log_to_qtalsim_tab("The input layers have different shapes.", Qgis.Warning)
+                    self.log_to_qtalsim_tab("The input layers have different shapes.", Qgis.MessageLevel.Warning)
                 
                 cols, rows = clay_array.shape
                 
@@ -1099,7 +1099,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                         #Check that sum is 100%
                         sum = sand + clay + silt
                         if sum < 95.0 or sum > 102.0:
-                            self.log_to_qtalsim_tab(f"Sum of shares is not 100%%: %.2f%%! { (x, y, sum)}", Qgis.Warning)
+                            self.log_to_qtalsim_tab(f"Sum of shares is not 100%%: %.2f%%! { (x, y, sum)}", Qgis.MessageLevel.Warning)
                         
                         #adjust to 100%
                         clay = clay + clay / sum * (100.0 - sum)
@@ -1128,7 +1128,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                                 self.polyY[self.count] = self.boa[i][2] #Silt as y-coordinate
                                 
                         boa_array[x, y] = self.talsim_soilids[bda] #store the soil type of the current pixel
-                self.log_to_qtalsim_tab(f"Finished calculation of soil types of layer {layer_name}.", Qgis.Info)
+                self.log_to_qtalsim_tab(f"Finished calculation of soil types of layer {layer_name}.", Qgis.MessageLevel.Info)
 
                 #Convert the boa array to a vector layer
                 layer_name = layer_name.replace(".tif", "")
@@ -1138,8 +1138,8 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     result_layer, layer_name = self.convertArrayToVectorLayer(boa_array, geotransform, projection, original_dataset, 'talsim_soilid', gpkgOutputPath, layer_name)
 
                     #Add the "soil_type" column
-                    result_layer.dataProvider().addAttributes([QgsField("soil_type", QVariant.String)])
-                    result_layer.dataProvider().addAttributes([QgsField("layer_thickness", QVariant.Double)])
+                    result_layer.dataProvider().addAttributes([QgsField("soil_type", QMetaType.Type.QString)])
+                    result_layer.dataProvider().addAttributes([QgsField("layer_thickness", QMetaType.Type.Double)])
                     result_layer.updateFields()
 
                     def get_soil_type_by_id(talsim_soilid):
@@ -1148,11 +1148,11 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                                 return key
                         return 'Unknown' 
                     
-                    self.log_to_qtalsim_tab(f"Further processing layer {layer_name}...", Qgis.Info)
+                    self.log_to_qtalsim_tab(f"Further processing layer {layer_name}...", Qgis.MessageLevel.Info)
 
                     #Populate the "soil_type" field based on talsim_soilid
                     with edit(result_layer):
-                        for feature in result_layer.getFeatures(QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)):
+                        for feature in result_layer.getFeatures(QgsFeatureRequest().setFlags(QgsFeatureRequest.Flag.NoGeometry)):
                             fid = feature.id()
                             talsim_soilid = feature['talsim_soilid'] 
                             soil_type = get_soil_type_by_id(int(talsim_soilid))
@@ -1204,7 +1204,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                             self.layers_to_combine.append(gpkg_layer_dissolved)  
 
 
-                self.log_to_qtalsim_tab("Combining the soil layers to one soil type layer...", Qgis.Info)
+                self.log_to_qtalsim_tab("Combining the soil layers to one soil type layer...", Qgis.MessageLevel.Info)
                 #2.: Combine the layers to one soil type layer, holding the different soil layers in different columns
                 try:
                     if self.layers_to_combine and len(self.layers_to_combine) >= 2:
@@ -1249,7 +1249,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                         combined_layer.updateFields()
                         combined_layer.commitChanges()
 
-                    self.log_to_qtalsim_tab("Dissolving the soil type layer...", Qgis.Info)
+                    self.log_to_qtalsim_tab("Dissolving the soil type layer...", Qgis.MessageLevel.Info)
                     #Dissolve the combined soil layer by all soil columns
                     try:
                         combined_layer = processing.run("native:dissolve", {'INPUT':combined_layer,'FIELD':field_names,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
@@ -1260,7 +1260,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     options = QgsVectorFileWriter.SaveVectorOptions()
                     options.driverName = "GPKG"
                     options.fileEncoding = "UTF-8"
-                    options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer  #This ensures it adds a new layer
+                    options.actionOnExistingFile = QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteLayer  #This ensures it adds a new layer
                     output_layer_name = "Soil Types Combined"
                     options.layerName = output_layer_name
                     error = QgsVectorFileWriter.writeAsVectorFormatV2(
@@ -1273,12 +1273,12 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     combined_soil_type_layer = QgsVectorLayer(f"{gpkgOutputPath}|layername={output_layer_name}", output_layer_name, "ogr")
                 else:
                     combined_soil_type_layer = self.combinedSoilTypeLayer
-                self.log_to_qtalsim_tab(f"Soil type vector layers were saved here: {gpkgOutputPath}", Qgis.Info)
+                self.log_to_qtalsim_tab(f"Soil type vector layers were saved here: {gpkgOutputPath}", Qgis.MessageLevel.Info)
             
             else: #if the user does not need every soil type layer
                 combined_soil_type_layer, field_names = self.polygonize_and_combine(list(array_dict.values()), list(array_dict.keys()), geotransform, projection, gpkgOutputPath, 'Soil Types Combined')
 
-            self.log_to_qtalsim_tab(f"Processing bulk density layers...", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Processing bulk density layers...", Qgis.MessageLevel.Info)
 
             #Add bulk density raster layers
             gpkgOutputPathBdod = os.path.join(self.outputFolder, "bdod.gpkg")
@@ -1354,12 +1354,12 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                     #QgsProject.instance().addMapLayer(gpkg_layer, False)
                     #self.layer_group.addLayer(gpkg_layer)
 
-            self.log_to_qtalsim_tab(f"Bulk density vector layers were saved here: {gpkgOutputPathBdod}", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Bulk density vector layers were saved here: {gpkgOutputPathBdod}", Qgis.MessageLevel.Info)
     
             #Combine Soil types and BDOD
             #2.: Combine the layers to one soil type layer, holding the different soil layers in different columns
             try:
-                self.log_to_qtalsim_tab(f"Combining bulk density and soil type layers...", Qgis.Info)
+                self.log_to_qtalsim_tab(f"Combining bulk density and soil type layers...", Qgis.MessageLevel.Info)
                 for i, layer in enumerate(self.bdod_layers_to_combine + [combined_soil_type_layer]):
                     singleparts_layer = processing.run("native:multiparttosingleparts", {'INPUT': layer,'OUTPUT': 'TEMPORARY_OUTPUT'}, feedback=None)['OUTPUT']
                     processing.run("native:createspatialindex", {'INPUT': singleparts_layer})
@@ -1377,7 +1377,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 }
 
                 finalLayer = processing.run("qgis:multiintersection", params)['OUTPUT']
-                self.log_to_qtalsim_tab(f"Successfully combined bulk density and soil type layers.", Qgis.Info)
+                self.log_to_qtalsim_tab(f"Successfully combined bulk density and soil type layers.", Qgis.MessageLevel.Info)
             except:
                 for i, layer in enumerate(self.bdod_layers_to_combine):
                     self.bdod_layers_to_combine[i], _ = self.make_geometries_valid(layer)
@@ -1390,14 +1390,14 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 }
 
                 finalLayer = processing.run("qgis:multiintersection", params)['OUTPUT']
-                self.log_to_qtalsim_tab(f"Successfully combined bulk density and soil type layers.", Qgis.Info)
+                self.log_to_qtalsim_tab(f"Successfully combined bulk density and soil type layers.", Qgis.MessageLevel.Info)
             dissolve_list = bdod_dissolve_fields + field_names
             try:
                 finalLayer = processing.run("native:dissolve", {'INPUT':finalLayer,'FIELD':dissolve_list,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
             except:
                 finalLayer, _ = self.make_geometries_valid(finalLayer)
                 finalLayer = processing.run("native:dissolve", {'INPUT':finalLayer,'FIELD':dissolve_list,'SEPARATE_DISJOINT':False,'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
-            self.log_to_qtalsim_tab(f"Successfully dissolved soil layer.", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Successfully dissolved soil layer.", Qgis.MessageLevel.Info)
             #Delete the 'fid' columns to be able to save the combined layer with all soil types to a geopackage
             #Get the fields (attributes) from the combined layer
             fields = finalLayer.fields()
@@ -1416,7 +1416,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
                 finalLayer.updateFields()
                 finalLayer.commitChanges()
 
-            self.log_to_qtalsim_tab(f"Final processing of soil layer...", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Final processing of soil layer...", Qgis.MessageLevel.Info)
             
             #Sort the fields by the soil layer/horizon
             fields = finalLayer.fields()
@@ -1438,7 +1438,7 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             options = QgsVectorFileWriter.SaveVectorOptions()
             options.driverName = "GPKG"
             options.fileEncoding = "UTF-8"
-            options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer  #This ensures it adds a new layer
+            options.actionOnExistingFile = QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteLayer  #This ensures it adds a new layer
             output_layer_name = 'Soil Types BDOD Combined'
             options.layerName = output_layer_name
             error = QgsVectorFileWriter.writeAsVectorFormatV2(
@@ -1457,18 +1457,18 @@ class SoilPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             self.iface.messageBar().pushMessage(
                 "Operation finished: Soil Mapping",
                 f"Final soil layer was saved here: {gpkgOutputPath}",
-                level=Qgis.Success,
+                level=Qgis.MessageLevel.Success,
                 duration=10
             )
-            self.log_to_qtalsim_tab(f"Final soil layer was saved here: {gpkgOutputPath}", Qgis.Info)
+            self.log_to_qtalsim_tab(f"Final soil layer was saved here: {gpkgOutputPath}", Qgis.MessageLevel.Info)
         except Exception as e:
             self.iface.messageBar().pushMessage(
                 "Operation failed: Soil Mapping",
                 f"An error occurred during soil mapping: {str(e)}",
-                level=Qgis.Critical,
+                level=Qgis.MessageLevel.Critical,
                 duration=10
             )
-            self.log_to_qtalsim_tab(f"An error occurred during soil mapping: {str(e)}", Qgis.Critical)
+            self.log_to_qtalsim_tab(f"An error occurred during soil mapping: {str(e)}", Qgis.MessageLevel.Critical)
 
     def apply_filtered_symbology(self, gpkg_layer, pathSymbology, symbology_field):
         """
