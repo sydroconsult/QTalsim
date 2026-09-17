@@ -1,0 +1,3 @@
+QTalsim/help/make.bat        export-ignore
+QTalsim/make.bat             export-ignore
+QTalsim/scripts/*.sh         export-ignore
