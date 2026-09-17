@@ -1,5 +1,17 @@
 # Changelog
 
+## \[2.0.2] - 2026-09-17
+
+* Fixes
+
+  * Plugin
+    * Excluded development-only build scripts (Sphinx docs `make.bat`, i18n
+      shell scripts) from the packaged plugin archive to resolve the QGIS
+      Plugin Repository's "suspicious files" security-review flag that
+      blocked approval of 2.0.0/2.0.1.
+    * Moved `resources.qrc` out of the plugin folder so the raw Qt resource
+      source file is no longer bundled in the packaged archive.
+
 ## \[2.0.1] - 2026-09-04
 
 * Fixes
