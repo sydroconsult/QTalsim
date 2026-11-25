@@ -1277,19 +1277,18 @@ class SubBasinPreprocessingDialog(QtWidgets.QDialog, FORM_CLASS):
             scenario = cursor.fetchone()
             scenario_id = scenario[0]  #ScenarioId for new records
 
-            #Insert ZOUT
-            geom_zout = QgsGeometry.fromPointXY(self.zout_point)
-            geom_zout.transform(transform)
-            self.zout_point = geom_zout.asPoint()
-            wkt_zout_point = geom_zout.asWkt() #to EPSG:4326
-            latitude, longitude = self.zout_point.y(), self.zout_point.x()
-            cursor.execute("""
-                INSERT INTO SystemElement (
-                    ScenarioId, ElementIdentifier, Name, ElementType, ElementTypeCharacter, Latitude, Longitude, Geometry
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (scenario_id, "OUT", "ZOUT", 0, "Z", latitude, longitude, wkt_zout_point,))
-            conn.commit()
+            #Insert ZOUT - only its position (Latitude/Longitude), the system outlet's geometry is never saved to the DB
+            if self.zout_point is not None:
+                zout_wgs84 = transform.transform(self.zout_point) #to EPSG:4326; local variable so that self.zout_point is not transformed twice on repeated exports
+                cursor.execute("""
+                    INSERT INTO SystemElement (
+                        ScenarioId, ElementIdentifier, Name, ElementType, ElementTypeCharacter, Latitude, Longitude
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (scenario_id, "OUT", "ZOUT", 0, "Z", zout_wgs84.y(), zout_wgs84.x()))
+                conn.commit()
+            else:
+                self.log_to_qtalsim_tab("System outlet (ZOUT) could not be determined and was not written to the database.", Qgis.MessageLevel.Warning)
 
             fields = [field.name() for field in self.subBasinLayerProcessed.fields()]
             for feature in self.subBasinLayerProcessed.getFeatures():
