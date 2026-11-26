@@ -1,24 +1,24 @@
 <!DOCTYPE html>
 
-<html lang="en">
+<html lang="en" data-content_root="./">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>Step by Step &#8212; QTalsim 2.0.2 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
-    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=89b800e6" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=2bf1fcf8" />
     
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=e04da888"></script>
-    <script src="_static/doctools.js?v=888ff710"></script>
-    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="_static/documentation_options.js?v=c2377ec0"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Connect to Talsim DB" href="doc_connect_to_db.html" />
     <link rel="prev" title="Getting Started with HRUs" href="hrus_getting_started.html" /> 
   </head><body>
-    <div class="related" role="navigation" aria-label="related navigation">
+    <div class="related" role="navigation" aria-label="Related">
       <h3>Navigation</h3>
       <ul>
         <li class="right" style="margin-right: 10px">
@@ -42,7 +42,7 @@
           <div class="body" role="main">
             
   <section id="step-by-step">
-<h1>Step by Step<a class="headerlink" href="#step-by-step" title="Permalink to this heading">¶</a></h1>
+<h1>Step by Step<a class="headerlink" href="#step-by-step" title="Link to this heading">¶</a></h1>
 <blockquote id="id1">
 <div><p>Long-running steps (e.g. eliminating polygons, intersecting layers,
 saving the output files) now run in the background and no longer
@@ -50,7 +50,7 @@ freeze QGIS. While a background step is running, a ‘Cancel’ button
 appears next to the progress bar and can be used to abort it.</p>
 </div></blockquote>
 <section id="select-sub-basin-layer">
-<h2>Select Sub-basin Layer<a class="headerlink" href="#select-sub-basin-layer" title="Permalink to this heading">¶</a></h2>
+<h2>Select Sub-basin Layer<a class="headerlink" href="#select-sub-basin-layer" title="Link to this heading">¶</a></h2>
 <blockquote id="id2">
 <div><p>First, select the layer containing the sub-basins from the
 drop-down-menu that lists all polygon layers in your current QGIS
@@ -65,7 +65,7 @@ You can inspect the result in your QGIS project (layer
 </div></blockquote>
 </section>
 <section id="elimination-of-hydrologic-response-units-hrus-small-polygons">
-<h2>Elimination of Hydrologic Response Units (HRUs)/small polygons<a class="headerlink" href="#elimination-of-hydrologic-response-units-hrus-small-polygons" title="Permalink to this heading">¶</a></h2>
+<h2>Elimination of Hydrologic Response Units (HRUs)/small polygons<a class="headerlink" href="#elimination-of-hydrologic-response-units-hrus-small-polygons" title="Link to this heading">¶</a></h2>
 <blockquote>
 <div><p>This part of the plugin was implemented to eliminate small polygons. Soil polygons and/or land use areas that fall below the specified size or percentage are eliminated.
 The percentage of all features with the same parameters is calculated by comparing the size of the polygons to its sub-basin’s area. These polygons are eliminated when confirming the soil/land use mapping, using the chosen elimination mode.</p>
@@ -77,7 +77,7 @@ You can select the elimination mode from the drop-down menu (find further inform
 </div></blockquote>
 </section>
 <section id="select-edit-soil-layer">
-<h2>Select &amp; Edit Soil Layer<a class="headerlink" href="#select-edit-soil-layer" title="Permalink to this heading">¶</a></h2>
+<h2>Select &amp; Edit Soil Layer<a class="headerlink" href="#select-edit-soil-layer" title="Link to this heading">¶</a></h2>
 <blockquote id="select-and-edit-soil-layer">
 <div><ul>
 <li><p><strong>Select Soil Layer</strong></p>
@@ -221,7 +221,7 @@ and creates the soil layer used for the intersection.</p>
 </div></blockquote>
 </section>
 <section id="select-and-edit-land-use-layer">
-<h2>Select and Edit Land use layer<a class="headerlink" href="#select-and-edit-land-use-layer" title="Permalink to this heading">¶</a></h2>
+<h2>Select and Edit Land use layer<a class="headerlink" href="#select-and-edit-land-use-layer" title="Link to this heading">¶</a></h2>
 <blockquote id="select-and-edit-landuse-layer">
 <div><ul>
 <li><p><strong>Select Land use Layer</strong></p>
@@ -361,7 +361,7 @@ be used for intersection.</p>
 </div></blockquote>
 </section>
 <section id="intersection-of-layers">
-<h2>Intersection of Layers<a class="headerlink" href="#intersection-of-layers" title="Permalink to this heading">¶</a></h2>
+<h2>Intersection of Layers<a class="headerlink" href="#intersection-of-layers" title="Link to this heading">¶</a></h2>
 <blockquote id="intersection-layers">
 <div><p>This step results in the creation of the files: BOD, BOA, LNZ and
 EFL, which can be used as input files for Talsim. To calculate the slope for each HRU, the user must input a Digital Elevation Model (DEM).
@@ -384,7 +384,7 @@ QGIS project.</p>
 </div></blockquote>
 </section>
 <section id="save-layers">
-<h2>Save Layers<a class="headerlink" href="#save-layers" title="Permalink to this heading">¶</a></h2>
+<h2>Save Layers<a class="headerlink" href="#save-layers" title="Link to this heading">¶</a></h2>
 <blockquote id="save-layers-to-geopackage">
 <div><p>In the final step, users can choose to export the processed layers in either ASCII format (for Talsim NG4), SQLite format (for Talsim NG5), or both.</p>
 <ul>
@@ -405,7 +405,7 @@ QGIS project.</p>
 </div></blockquote>
 </section>
 <section id="optional-editing-steps">
-<h2>Optional Editing Steps<a class="headerlink" href="#optional-editing-steps" title="Permalink to this heading">¶</a></h2>
+<h2>Optional Editing Steps<a class="headerlink" href="#optional-editing-steps" title="Link to this heading">¶</a></h2>
 <blockquote id="id3">
 <div><p>For both the soil layer and the land use layer, the user has the
 option to perform additional editing steps.</p>
@@ -474,10 +474,10 @@ If overlaps &amp; gaps persist after several attempts to delete overlaps and fil
           </div>
         </div>
       </div>
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
         <div class="sphinxsidebarwrapper">
             <p class="logo"><a href="index.html">
-              <img class="logo" src="_static/QTalsim_logo.png" alt="Logo"/>
+              <img class="logo" src="_static/QTalsim_logo.png" alt="Logo of QTalsim"/>
             </a></p>
 <h3><a href="index.html">Table of Contents</a></h3>
 <ul class="current">
@@ -493,7 +493,7 @@ If overlaps &amp; gaps persist after several attempts to delete overlaps and fil
 <li class="toctree-l1"><a class="reference internal" href="doc_connect_to_db.html">Connect to Talsim DB</a></li>
 </ul>
 
-<div id="searchbox" style="display: none" role="search">
+<search id="searchbox" style="display: none" role="search">
   <h3 id="searchlabel">Quick search</h3>
     <div class="searchformwrapper">
     <form class="search" action="search.html" method="get">
@@ -501,13 +501,13 @@ If overlaps &amp; gaps persist after several attempts to delete overlaps and fil
       <input type="submit" value="Go" />
     </form>
     </div>
-</div>
+</search>
 <script>document.getElementById('searchbox').style.display = "block"</script>
         </div>
       </div>
       <div class="clearer"></div>
     </div>
-    <div class="related" role="navigation" aria-label="related navigation">
+    <div class="related" role="navigation" aria-label="Related">
       <h3>Navigation</h3>
       <ul>
         <li class="right" style="margin-right: 10px">
@@ -526,7 +526,7 @@ If overlaps &amp; gaps persist after several attempts to delete overlaps and fil
     </div>
     <div class="footer" role="contentinfo">
     &#169; Copyright 2026, Sydro Consult GmbH.
-      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.1.
     </div>
   </body>
 </html>
