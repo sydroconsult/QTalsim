@@ -21,5 +21,22 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
-    - name: Perform Bandit Analysis
-      uses: PyCQA/bandit-action@v1
+    # PyCQA/bandit-action@v1 hardcodes Python 3.8 (not available on current runners), so run Bandit directly
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+
+    - name: Install Bandit
+      run: pip install "bandit[sarif]"
+
+    - name: Run Bandit
+      # findings are reported via code scanning, not by failing the job
+      run: bandit -r QTalsim -ll -f sarif -o results.sarif --exit-zero
+
+    - name: Upload SARIF file
+      if: always()
+      uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+      with:
+        sarif_file: results.sarif
+        category: bandit
