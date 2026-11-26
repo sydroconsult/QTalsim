@@ -19,11 +19,11 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     # PyCQA/bandit-action@v1 hardcodes Python 3.8 (not available on current runners), so run Bandit directly
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: "3.12"
 
